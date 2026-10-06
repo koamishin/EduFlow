@@ -25,6 +25,8 @@ use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Responses\AgentResponse;
 use Spatie\Permission\Models\Role;
 
+use function Pest\Laravel\actingAs;
+
 /**
  * The approval-resume endpoint.
  *
@@ -416,6 +418,23 @@ it('refuses to resume when the operator has no persisted organization', function
     expect(SettlementOperatorFactory::make())->toBeNull()
         ->and(fn (): SettlementOperator => SettlementOperatorFactory::makeOrFail())
         ->toThrow(RuntimeException::class, 'needs a persisted organization');
+});
+
+it('refuses a paused assistance approval after its fund is disabled without disabling institution inspection', function (): void {
+    $request = escalatedRequest();
+    $officer = reviewer('disabled-aid-officer@eduflow.test');
+    $conversation = pausedConversation($officer, $request);
+    AssistanceFund::query()->update(['status' => 'inactive']);
+
+    expect(SettlementOperatorFactory::makeOrFail()->hasAssistanceCapability())->toBeFalse();
+
+    actingAs($officer)->postJson(route('finance.approvals.resume'), [
+        'conversation_id' => $conversation,
+        'decisions' => ['call_abc' => true],
+    ])->assertForbidden();
+
+    expect(Transaction::query()->where('reference_type', AssistanceRequest::class)->where('reference_id', $request->id)->count())->toBe(0)
+        ->and(Approval::query()->where('approver_id', $officer->id)->count())->toBe(0);
 });
 
 it('builds an operator bound to real records', function (): void {

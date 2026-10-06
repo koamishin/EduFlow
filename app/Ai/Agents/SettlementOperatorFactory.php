@@ -10,26 +10,15 @@ use App\Models\Organization;
 use App\Services\InstallationInstitution;
 
 /**
- * Builds a `SettlementOperator` bound to real records.
+ * Binds an operator to the installation institution, with optional aid tools.
  *
- * The agent's constructor takes an `Organization`, an `AssistanceFund` and a
- * `AssistancePolicyVersion`. Laravel's container will happily instantiate all
- * three as *empty, non-existent models* when resolving `SettlementOperator`,
- * because Eloquent models have no required constructor arguments.
- *
- * The result is an agent whose tools hold a blank organization: `primaryWallet()`
- * returns null, so `DisburseAssistance::handle()` refuses with "The organization
- * has no active wallet". The right outcome for the wrong reason, and it fails
- * differently once a wallet row exists — which is exactly the sort of bug that
- * passes a demo and breaks in production.
- *
- * Resolving through here instead means a missing record is reported as a
- * missing record.
+ * Container-resolving the agent can construct blank Eloquent models. Refuse
+ * missing/ambiguous identity here instead of relying on a later wallet failure.
  */
 final class SettlementOperatorFactory
 {
     /**
-     * Build an operator for an organization, or null if it is not fully configured.
+     * Build an institution-bound operator even when student aid is not configured.
      */
     public static function make(?Organization $organization = null): ?SettlementOperator
     {
@@ -41,11 +30,12 @@ final class SettlementOperatorFactory
 
         $organization = $institution;
 
-        $fund = AssistanceFund::where('organization_id', $organization->id)->first();
-        $policyVersion = AssistancePolicyVersion::active();
+        $fund = AssistanceFund::query()->where('organization_id', $organization->id)
+            ->where('status', 'active')->orderBy('id')->first();
+        $policyVersion = AssistancePolicyVersion::active($organization->id);
 
         if ($fund === null || ! $policyVersion instanceof AssistancePolicyVersion) {
-            return null;
+            return SettlementOperator::make($organization);
         }
 
         return SettlementOperator::make($organization, $fund, $policyVersion);
@@ -56,7 +46,7 @@ final class SettlementOperatorFactory
      *
      * Used where continuing without one would silently skip a payment.
      *
-     * @throws \RuntimeException when the organization, fund or policy version is missing
+     * @throws \RuntimeException when installation institution identity is unavailable
      */
     public static function makeOrFail(?Organization $organization = null): SettlementOperator
     {
@@ -64,7 +54,7 @@ final class SettlementOperatorFactory
 
         if (! $operator instanceof SettlementOperator) {
             throw new \RuntimeException(
-                'SettlementOperator needs a persisted organization, an assistance fund and an active policy version. '
+                'SettlementOperator needs a persisted organization matching the installation. '
                 .'Check EDUFLOW_INSTITUTION_ID and single-institution setup.'
             );
         }
