@@ -101,6 +101,14 @@ final readonly class ApprovalResumeGate
 
         [$resolved, $targets, $approvedTargets] = $this->decide($pending, $decisions);
 
+        $operator = SettlementOperatorFactory::make();
+
+        if (! $operator instanceof SettlementOperator || ! $operator->hasAssistanceCapability()) {
+            throw new AuthorizationException(
+                'The assistance settlement capability is not configured: institution, active fund and policy are required.'
+            );
+        }
+
         $approved = array_keys(array_filter($resolved, fn (Decision $d): bool => $d->isApproved()));
         $rejected = array_keys(array_filter($resolved, fn (Decision $d): bool => $d->isRejected()));
 
@@ -110,7 +118,7 @@ final readonly class ApprovalResumeGate
         // as an approval would assert a transfer no human agreed to.
         $this->recordAttribution($reviewer, $approvedTargets);
 
-        $result = $this->run($reviewer, $conversationId, $resolved, $targets);
+        $result = $this->run($operator, $reviewer, $conversationId, $resolved, $targets);
 
         return $result['still_pending'] !== []
             ? ApprovalResumeOutcome::pausedAgain($conversationId, $approved, $rejected, $result['still_pending'])
@@ -221,7 +229,7 @@ final readonly class ApprovalResumeGate
      * @param  list<int>  $targets
      * @return array{settlements: list<array{tool_call_id: string, summary: string}>, still_pending: list<string>, summary: ?string}
      */
-    private function run(User $reviewer, string $conversationId, array $resolved, array $targets): array
+    private function run(SettlementOperator $operator, User $reviewer, string $conversationId, array $resolved, array $targets): array
     {
         $provider = $this->providers->resolve();
 
@@ -236,17 +244,6 @@ final readonly class ApprovalResumeGate
                 ->whereIn('reference_id', $targets)
                 ->pluck('id')
                 ->all();
-
-        // Through the factory, not the container. Container-resolving the agent
-        // yields a *blank* Organization, whose primaryWallet() is null, so the
-        // tool would refuse for the wrong reason. See SettlementOperatorFactory.
-        $operator = SettlementOperatorFactory::make();
-
-        if (! $operator instanceof SettlementOperator) {
-            throw new AuthorizationException(
-                'The settlement operator is not configured: no organization, assistance fund or active policy version.'
-            );
-        }
 
         try {
             $response = $operator

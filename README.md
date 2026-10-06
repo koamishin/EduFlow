@@ -18,22 +18,30 @@ EduFlow runs a school's money on [Circle Agent Stack](https://developers.circle.
 - **escalates** to a finance officer, or
 - **holds** to protect the school's reserve.
 
-The point of the demo isn't the AI. It's that an autonomous system moving real money is
-built so that **every decision is reproducible, every amount is integer-exact, and a
-stored transaction hash is treated as a claim rather than proof.**
+Product direction is school-wide finance orchestration, not only student assistance.
+Approved vendor bills, teaching-service renewals, facility repairs, restricted grants,
+collections and refunds are operational use cases in `PLAN.md` Section 13. Event-specific
+workflows remain proposed; current C0 institution inspection is read-only.
 
-### The five rules this codebase actually enforces
+**Production limits:** Exact-money handling exists at intake/conversion and in the new Arc
+observation, but legacy treasury/payment floats and two-decimal storage remain. Durable
+payment intents, atomic reservations and stronger settlement verification are still required
+before production payment-agent use. The demo is not a certified school treasury system.
+
+### Five design rules and remaining release gates
 
 1. **The LLM never moves money.** Policy decisions live in plain PHP
    (`FinancialPolicyEngine`, `EvaluateAssistancePolicy`). The model explains decisions;
    it never makes them.
-2. **Money is integer base units.** USDC is 6 decimals, so `45.00` is `45_000000`. No
-   floats anywhere near a balance.
-3. **A tx hash is not proof.** `lepton:reconcile` re-derives settlement from the chain.
-   Fabricated receipts get marked failed.
+2. **Exact money is required.** USDC payments use 6 decimals, so `45.00` is `45_000000`.
+   Arc native balance/gas uses 18 decimals. Legacy float balances still require migration.
+3. **A tx hash is not proof.** Successful matching movement and finality must be verified.
+   Legacy `lepton:reconcile` hash-only checks and missing-hash failure labels need hardening;
+   a missing RPC result alone does not prove fabrication.
 4. **No hardcoded CLI.** All Circle/Arc access goes through
    [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent) gateways.
-5. **Testnet fixtures match what the faucet can fund.** The demo settles in real USDC.
+5. **Demo funding must match the chain.** Use explicit consent for testnet runs and label
+   fake results as simulated. Testnet settlement is not proof of mainnet readiness.
 
 ---
 
@@ -48,6 +56,7 @@ stored transaction hash is treated as a claim rather than proof.**
 - [The seeded scenarios](#the-seeded-scenarios)
 - [Using the app](#using-the-app)
 - [Verify it really settled](#verify-it-really-settled)
+- [Institution finance preview](#institution-finance-preview-no-students-required)
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [How the money moves](#how-the-money-moves)
@@ -390,6 +399,29 @@ app(Yukazakiri\Lepton\Contracts\ArcNetworkGateway::class)
 ```
 
 ---
+
+## Institution finance preview (no students required)
+
+```bash
+php artisan eduflow:finance-preview --days=30 --no-interaction
+```
+
+Read-only C0 entry point: binds the installation institution, observes its recorded
+Circle treasury on the configured Arc network, shows indicative vendor-policy reviews
+and a stored-ledger forecast. No students, tuition accounts, assistance fund, assistance
+policy or AI provider needed. An empty institution produces an audited `no_op` report.
+
+The report always sets `can_execute=false`: no invoice status changes, budget spending,
+reservations or transfers. Native USDC observations preserve 18-decimal quantities and
+sub-micro residuals as strings; fake observations say `simulated`, never settled. Invalid
+network/address or unavailable RPC produces no inferred chain balance. Legacy policy and
+forecast float APIs remain indicative; exact-money/reservation/evidence work is still open.
+SQLite floating-point money storage is refused rather than presented as exact. A preview
+is not live-payment readiness, signing authority or proof of custody/settlement.
+
+`SettlementOperatorFactory` now builds an institution operator without aid setup. Its
+`InspectInstitutionFinance` tool is read-only; aid tools appear only with an active local
+fund and valid aid policy. The existing aid approval endpoint remains aid-only.
 
 ## Commands
 

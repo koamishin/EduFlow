@@ -2,7 +2,7 @@
 
 **Tagline:** Open-source institutional finance agent and payment orchestration, powered by Circle Agent Stack and USDC settlement on Arc.
 
-**Document scope:** Parts 1–5 describe the existing implementation and hackathon track. Sections 5–11 define the institution-ready OSS release track; Section 12 records Circle/Arc research and the institution-first architecture. Proposed capabilities are not shipped features; a completed demo milestone is not a production-readiness claim.
+**Document scope:** Parts 1–5 describe the existing implementation and hackathon track. Sections 5–11 define the institution-ready OSS release track; Section 12 records Circle/Arc research and the institution-first architecture; Section 13 defines school-wide operational events, feasibility boundaries and measurable pilot outcomes. Proposed capabilities are not shipped features; a completed demo milestone is not a production-readiness claim.
 
 **Product direction confirmed by the owner:** Circle Agent Stack and Arc USDC are the primary finance execution infrastructure, not an optional side feature. Keep MIT and one institution per self-hosted instance. The first finance pilot must operate with zero students: observe treasury funds, evaluate a vendor bill, enforce policy, execute an authorized USDC payment, and reconcile evidence. Installation and simulation must not move money; mainnet and autonomous release remain explicitly gated. LLM advisory stays optional.
 
@@ -20,13 +20,19 @@ Target architecture separates responsibilities:
 - **Arc settlement plane:** USDC movement, successful execution and deterministic finality. Independently reconcile intended payments against matching evidence; onchain correctness does not prove vendor ownership or goods delivery.
 - **Currency/reporting plane:** Exact source/settlement amounts and fees with immutable quote snapshots when conversion occurs. Indicative display rates never authorize an FX trade. Internal tuition credits never imply a USDC or bank transfer.
 
-Traditional education assistance models operate sequentially:
-> Student request $\rightarrow$ Manual review $\rightarrow$ Manual approval $\rightarrow$ Slow cross-border bank transfer.
+The product serves school operations, not only accounting or student aid. Finance events
+include an expiring learning-platform contract, urgent facility repair, conflicting
+purchase commitments, restricted grant receipt, enrollment collection exception or
+vendor destination change. Each needs a documented response and accountable owner;
+not every event needs a payment or an AI model. Section 13 defines concrete examples.
 
 EduFlow introduces an **institution-first bounded agent loop**:
 > Observe verified balances and documents; reconcile collections; forecast liquidity; propose payment intents; authorize and reserve deterministically; request human review for exceptions; submit through Circle; verify Arc settlement; post accounting evidence.
 
-The existing vendor cycle already works independently of student records. The AI `SettlementOperatorFactory` still requires an assistance fund and active assistance policy; general treasury planning must not inherit that module-specific dependency.
+The existing vendor cycle works independently of student records. C0 now also constructs
+the AI operator without an assistance fund or policy and provides read-only institution
+inspection. Live vendor-payment safety remains C1/C2 work; student aid is an optional
+capability, not the general treasury context.
 
 ### Non-Negotiable Security Principles
 1. **No Direct LLM Fund Control:** The Large Language Model (LLM) **never** has direct access to private keys or direct authorization to move funds. All decisions are evaluated against deterministic PHP rules and dual-ledger database state.
@@ -1123,15 +1129,22 @@ flowchart TD
 
 **Existing seam:** `EduFlowAgent::runAutonomousCycle(Organization)` forecasts and processes
 vendor `Invoice` rows before assistance. A `Student` is not required for that vendor path.
-`SettlementOperatorFactory`, however, requires `AssistanceFund` and an active
-`AssistancePolicyVersion`; its AI tools are aid-specific. Refactor the context boundary,
-not the institution into a fake student and not a second unrelated finance application.
+`SettlementOperatorFactory` previously required an assistance fund and policy. C0 now
+builds an institution operator without them; active institution-scoped aid setup enables
+those tools separately. No fake student or duplicate finance application is introduced.
 
-**Proposed context:** persisted `Organization`, selected treasury accounts, institution
-finance policy and authorized capabilities. Aid tools resolve their fund/eligibility
-policy only when that module is invoked. No-student/no-aid-data installation must still
-observe balances, plan, review vendor bills, execute authorized intents and reconcile.
-An empty cycle records an audited no-op instead of inventing payments.
+**C0 implemented in part:** `eduflow:finance-preview` and `InspectInstitutionFinance`
+use persisted installation identity, recorded treasury, Arc network checks and read-only
+vendor reviews. CLI records `finance_previewed`, including `no_op` for no open bills.
+No students, tuition accounts, aid fund/policy or AI provider required. The report always
+has `can_execute=false`; legacy policy/forecast results are explicitly indicative. Native
+18-decimal balances/residuals are exact strings and fake observations marked simulated.
+Ambiguous identity, untrusted network/address or inexact monetary storage fails closed.
+Paused aid approvals are refused before attribution if aid setup is unavailable.
+
+**Still proposed:** immutable institutional finance-policy versions, selected account
+roles, durable authorized intents/reservations, settlement verification and posting. C0
+inspection is not permission to pay, a cumulative spending plan, or C1/C2 certification.
 
 ### 12.2 Wallet Ownership, Authorization and Operational Budget
 
@@ -1334,7 +1347,7 @@ production custody, security audit or an end-to-end regional fiat off-ramp.
 
 | Stage | Deliverable | Gate before next stage |
 | --- | --- | --- |
-| C0 — Institution context | Aid-independent operator context and general vendor/treasury capabilities | No student/fund/aid-policy rows; observe/forecast/review and audited no-op pass |
+| C0 — Institution context (read-only slice implemented) | Aid-independent operator/factory, finance-preview CLI, Arc observation and indicative vendor review | Zero-student/no-aid tests, read-only/replay/network/precision/ownership checks and audited no-op pass; immutable finance policy and payment authority remain C1 work |
 | C1 — Safe direct USDC | Exact treasury migration, durable intent/reservation/outbox, approval digest, Arc verification and fee postings | PostgreSQL race/crash/replay/restore and wrong-payment tests pass; fakes never called settled |
 | C2 — Circle operations | Chosen account model, policy coverage, recovery, expiry/keychain checks and stop switch | Capped testnet proof then separately authorized institution live certification; no unattended mainnet assumption |
 | C3 — Referenced collections | Circle/Arc inbox, USDC collection intents, deterministic allocations and suspense queue | Duplicate/partial/extra/native-vs-ERC20/replay cases pass without students |
@@ -1378,3 +1391,180 @@ Reviewed samples/article and concrete source:
 - [Working Gateway trace](https://github.com/the-canteen-dev/circle-agent) and [server/heuristic batch lookup](https://github.com/the-canteen-dev/circle-agent/blob/main/server.ts)
 - [x402 Circle Wallets concept repository](https://github.com/circlefin/arc-x402-circle-wallets)
 - [Agents and Ledgers editorial](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html)
+
+---
+
+## 13. School-Wide Finance Events, Feasibility and Measurable Value
+
+### 13.1 Recommendation and What Has Been Verified
+
+**Recommendation: proceed as institution-owned finance orchestration, not an unrestricted
+AI treasurer or a replacement for the school's ERP, procurement staff or governing board.**
+Student requests are one event source. Institutional operations, funding conditions,
+contracts and payment exceptions are equally important sources.
+
+**Technical feasibility checked on 2026-10-06:** Circle's official
+[Developer-Controlled Wallet documentation](https://developers.circle.com/wallets/dev-controlled)
+explicitly supports treasury management and scheduled/event-driven payouts, while requiring
+application-owned policies and approvals. [Agent Wallets](https://developers.circle.com/agent-stack/agent-wallets)
+provide bounded wallet operations; [Arc's transaction lifecycle](https://docs.arc.network/integrate/wallets/transaction-lifecycle)
+provides execution/finality evidence. None of these products knows which school invoice,
+purchase, grant condition or academic service justifies a payment.
+
+**Repository evidence:** C0 tests exercise institution treasury observation and vendor-policy
+review without students, aid funds or aid policies. Reviews cover holds, escalation, budget
+failure, invalid destinations, institution/network mismatch and replay without payment.
+This verifies a read-only foundation, not institution-wide live execution. Receipt verification,
+exact treasury migration, atomic cumulative reservations and recovery are still required.
+
+**Benefit verification is separate:** No live school pilot, measured savings, improved
+retention or lower outage rate is claimed. Proposed benefits below are hypotheses with
+observable acceptance measures. A passing test suite cannot prove school adoption,
+provider eligibility, statutory compliance or financial return.
+
+| Decision | Recommended scope | Boundary |
+| --- | --- | --- |
+| Observe and explain | Due documents, stored commitments, verified balance observations, exceptions and evidence-linked summaries | State freshness, missing data and indicative results; never infer funds from forecast revenue |
+| Prepare and route | Draft payment plans, reminders, exception cases and human approval packages | Human-owned policy, beneficiary master and permitted event sources; model cannot invent obligations |
+| Execute bounded payments | Existing approved obligation, verified destination, allowed USDC rail, reserved budget and current authority | Only after C1/C2; zero autonomous allowance initially; revalidate material changes and stop switch |
+| Change school policy or business entitlement | Procurement award, fee waiver, grant reallocation, payroll approval, borrowing or investment | Accountable staff/board decision; no model-only release or silent policy override |
+
+### 13.2 Operational Use-Case Catalog
+
+All event-specific modules below are **proposed** unless the status column says C0 review.
+A generic `Invoice` can represent an approved bill today; it does not implement the named
+business process, document checks, reminders, commitments or beneficiary verification.
+
+| Event / difficulty | Proposed agent response and required evidence | Authority limit / dependencies | School-wide benefit to test | Status / acceptance signal |
+| --- | --- | --- | --- | --- |
+| **Learning-platform or internet renewal approaching expiry** | Read approved contract, service dates, renewal bill and departmental budget; flag deadline, prepare payment and request IT confirmation | Cannot renew unwanted services, accept price changes or assume supplier accepts USDC; C1/C2 execution, contract/deadline module | Keep teaching systems available; IT and teachers see funding/release blockers before expiry | C0 can review imported bill; later measure finance-caused service interruptions and proportion reviewed before cutoff |
+| **Laboratory supplies or cafeteria replenishment** | Match purchase order, received quantities and invoice; detect duplicate bill; reserve approved allocation before release | Procurement confirms goods/quality; no duplicate payment or unreceived-goods release; supplier/local-ramp eligibility required | Reduce lesson or meal disruption caused by finance delay, not promise to solve inventory shortages | Bill review only today; later measure approved orders paid on time, stockout cause and unmatched delivery exceptions |
+| **Emergency generator, water-system or storm-damage repair** | Link authorized facilities incident, quote and emergency budget; show cash impact and route expedited review | Emergency priority never bypasses reserve, verified recipient or maker/checker checks; repair necessity stays with facilities owner | Faster accountable response and fewer facility-related class cancellations attributable to funding delay | Urgency routing not shipped; measure incident-to-finance-decision time separately from vendor repair time |
+| **Term-start collection rush and unidentified receipts** | Match verified incoming payment to bound collection reference; handle partial/excess amounts and queue uncertain allocations | No fuzzy/LLM auto-match; cashier reviews suspense cases; admission/enrollment eligibility remains SIS-owned; C3 | Less cashier rework and fewer incorrect unpaid flags for families; faster reliable registration processing | C3 planned; measure unmatched-receipt age, manual corrections and time from verified receipt to correct allocation |
+| **Payroll deadline with delayed tuition or sponsor income** | Compare approved payroll obligations, actual unrestricted cash, commitments and forecast scenarios; hold discretionary releases and alert finance leadership | Do not count promised income as available; do not calculate payroll/taxes, borrow, liquidate reserves or pay staff in USDC without approved lawful arrangement | Earlier warning before operational disruption; leadership receives concrete choices rather than an unexplained low balance | C0 stored-ledger forecast only; restricted-cash/commitment model planned; measure warning lead time and forecast error |
+| **Restricted research grant or donor-funded equipment** | Record award/donation conditions, permitted categories, milestones and separate fund allocation; block incompatible spending | No end-of-term sweep to general funds unless donor/legal conditions permit; research/grants owner validates use; restricted-fund module | Protect research delivery and donor trust; reduce questioned expenditure and repayment risk | Not shipped; acceptance requires prohibited-category and overcommitment tests plus fund-owner sign-off |
+| **Field trip, tournament or graduation event deposits** | Link approved event budget, supplier contract, due instalments, participant collections and cancellation/refund terms; track total exposure | Never create travel commitments, substitute vendors or approve safety decisions; cumulative instalments need distinct intent identities | Avoid preventable event cancellation and explain outstanding costs to event owners | Generic bill review only; later measure deposit timeliness, budget overruns and refund exceptions per event |
+| **Duplicate payment, course cancellation or dorm-deposit refund** | Verify original receipt, refund entitlement/credit note, previously refunded totals and return beneficiary; create separate refund intent | No new destination from an email/model; no refund beyond eligible received amount; admissions/housing approves entitlement; C3/C5 | Faster, traceable resolution for parents/students and fewer disputes | Refund workflow not certified; measure refund completion time, repeated refunds and disputed balances |
+| **Vendor payout-address change or suspected duplicate invoice** | Compare approved vendor destination version and invoice identifiers; pause affected intent and route independent verification | A PDF, message or valid address syntax cannot update trusted destination; CFO/procurement confirm change outside the requester's channel | Protect school operating funds and preserve trusted supplier relationships | C0 rejects malformed/foreign destinations; destination versioning, duplicate detection and cooling-off still planned |
+| **Overlapping departmental purchases near term end** | Aggregate commitments, pending approvals and reservations across departments; show affordable options and blocked obligations | Never treat independently passing invoices as a cumulatively funded plan; staff approves trade-offs; C1 atomic reservations | Fewer last-minute cancellations and fairer, visible resource allocation to teaching departments | C0 independent reviews only; require concurrent-overcommitment tests and measure planned-versus-real spending |
+
+Student hardship and scholarships remain supported module targets, but are not the trigger
+for starting the institution agent. School operations, staff, parents, donors and students
+benefit through different workflows; do not measure success only by number of aid requests.
+
+### 13.3 Event Handling Without Turning Every Signal Into a Payment
+
+Proposed workflow reuses Section 12's document-linked intent engine:
+
+1. Capture an event from an authenticated institution action, imported approved document,
+   due-date schedule or verified provider notification. Record institution, source event ID,
+   document identity, owner, occurred/received times and applicable policy version.
+2. Validate source/provenance, ownership, current document state and required business
+   evidence. Webhooks and schedules may repeat or arrive out of order; deduplicate identity
+   and recheck current state rather than blindly repeating an action.
+3. Classify the response: informational alert, request for missing evidence, human exception
+   review, proposed payment intent, or no-op. LLM interpretation is a suggestion; deterministic
+   rules determine whether a proposed financial action is even permitted.
+4. Show the accountable owner a package containing deadline, affected school service,
+   exact amount, funding restrictions, relevant commitments, balance freshness and failed
+   checks. Unknown or inconsistent evidence produces an explicit unresolved case.
+5. Route a permitted financial action through C1 reservation and approval controls, then
+   C2 Circle submission and Arc verification. Reminders, incident triage and document matching
+   must not invoke a transfer merely because an event is called urgent.
+6. Close the case only with appropriate evidence. A settled payment closes payment execution,
+   not goods delivery, repair completion, enrollment approval or legal dispute resolution.
+
+The main agent coordinates institution-owned work queues; no extra AI agent is required
+per department. Humans remain accountable for business decisions. Read-only dashboards
+can serve directors and department heads with role-scoped data; salary, personal hardship
+and donor-sensitive information must not become broadly visible.
+
+### 13.4 Concrete Walkthroughs and Failure Cases
+
+**Class continuity under competing bills — hypothetical C1 example, not defaults:**
+Treasury has `500.000000 USDC`, protected reserve `100.000000`, existing commitments
+`350.000000` and fee allowance `5.000000`, leaving `45.000000` available. An approved LMS
+bill for `25.000000` and facilities bill for `30.000000` cannot both be released. Once one
+is reserved, the other requires a funding/trade-off decision. The agent shows affected
+services, deadlines and alternatives; it cannot raid reserves, assume a tuition payment
+will arrive, or let two workers reserve the same money. The school—not the model—chooses
+which service obligation takes priority under approved policy. Reserve and commitment
+figures must not overlap; C1 defines those accounting semantics explicitly.
+
+**Grant-funded laboratory purchase:** A donor receipt is verified but restricted to lab
+hardware. A lab supplier bill can be proposed against that fund after order/receipt checks;
+a cafeteria bill cannot. Moving USDC successfully would not make the cafeteria spending
+permitted. A spending hold protects the school and donor conditions, while the research
+owner decides amendments through a recorded approval—not a model confidence score.
+
+**Enrollment payment exception:** A parent pays the correct amount but supplies an invalid
+reference. The collection is recorded as verified but unallocated; cashier receives a case
+with candidate documents. No guessed allocation, automatic enrolment denial, late penalty
+or hold on essential education services follows. After authorized matching, receipt and
+SIS/accounting allocation are updated once; duplicate webhook replay cannot allocate again.
+This illustrates C3 work, not an existing C0 collection feature.
+
+### 13.5 Where Circle/Arc Fits—and When Not to Use It
+
+Circle/Arc remains the primary programmable USDC rail. Its strongest fit is an institution
+and counterparties approved to hold/receive USDC, especially when a real settlement or
+crosschain liquidity need exists. End-to-end benefit depends on approved recipients,
+funding, FX/ramp availability, support/recovery and local requirements—not chain speed alone.
+
+Do **not** force parents, staff, domestic utility providers or public-sector suppliers into
+stablecoins to satisfy the architecture. If they require local bank money, an approved
+regional conversion/payout provider is necessary. No reviewed docs or code prove universal
+bank coverage, lower total fees or permissible USDC payroll. Compare complete round-trip
+cost and timing: acquisition, spreads, network/provider fees, payout, reconciliation and
+operator effort, against the institution's existing route.
+
+Not recommended:
+- Model-only procurement awards, payroll approval, tuition penalties/waivers, fee changes,
+  grant reallocations, investments or borrowing.
+- Autonomous emergency overrides, arbitrary contract calls, unrestricted service purchases,
+  or wallet-session/email access by a model.
+- Replacing statutory accounting/SIS/payroll before data, controls and jurisdiction-specific
+  workflows are independently validated.
+- Live use of legacy execution just because C0 tests pass; float storage, intent/recovery
+  and settlement-evidence gaps still block production financial authority.
+
+**If USDC is not suitable for the pilot institution:** retain Circle/Arc in an isolated
+simulated/testnet evaluation and keep production finance observation/review read-only.
+Integrate approved obligations/reconciliation with the existing accounting/bank workflow;
+a future reviewed local-bank export/adapter can serve it. This is a fallback operating
+recommendation, not a claim that such an adapter ships today. Do not enable live money
+movement until the institution approves a viable end-to-end rail.
+
+### 13.6 Pilot That Proves Value Beyond Bookkeeping
+
+Start with **vendor/service continuity and procurement review**, which can reuse existing
+invoice/budget data without students. Deliver C1/C2 next; add C3 collections only after the
+primary payment lifecycle is safe. Restricted grants and emergency/event workflows follow
+on the same controls—not separate unbounded agents or a full ERP rewrite.
+
+Pilot sequence:
+1. Record baseline for one institution's approved vendor bills, critical-service deadlines,
+   manual review effort, exception age and current all-in payment cost. Agree case definitions
+   with bursar, IT/facilities and academic operations; do not invent improvement percentages.
+2. Run C0 read-only/shadow reviews. Staff compares each recommendation with real policy and
+   authoritative documents. Log false holds, false approvals, missing data and useful alerts.
+3. Resolve C1/C2 gates; test duplicate, crash, unknown outcome, reserve drift and restore
+   cases. Obtain separate permission for capped testnet and later real-money trials.
+4. Keep release human-approved initially. Introduce narrow automation only for pre-approved
+   low-risk obligations after budget, destination, recovery and evidence checks pass.
+5. Compare pilot against baseline and publish limitations. Expand only when finance and
+   school-service owners confirm acceptable costs, burden and operational outcomes.
+
+| Owner / beneficiary | Evidence to collect | Acceptance / stop condition |
+| --- | --- | --- |
+| Accounting/cashier | Manual touches per correctly reconciled payment, correction rate and unresolved receipt/refund age | Exact reconciliation and no fabricated/duplicate posting; pause when unexplained balances persist |
+| IT/facilities/academic operations | Finance-attributable service interruptions, deadline review coverage and incident-to-finance-decision time | Demonstrable useful warning/routing; do not blame unrelated stock/repair delays on finance |
+| Department/research leaders | Approved commitments versus available allocation, prohibited-fund use and blocked overcommitments | Restricted spending never bypassed; no silent reallocation or reserve double-counting |
+| Institution leadership | Forecast error/alert lead time, exception backlog, all-in cost, staff workload and recovery results | Improvement against agreed baseline without weakened controls; stop if burden/cost outweighs benefit |
+| Families/students/vendors | Correct allocation/receipt or refund time, disputes and on-time approved payments | No automatic adverse school decisions from uncertain payment data; protect privacy and recipient choice |
+
+Absolute live-pilot stop conditions: unauthorized release, duplicate charge, beneficiary
+mismatch, breached reservation/reserve boundary, lost approval evidence, unresolved signing
+ownership, or missing trustworthy settlement proof. Freeze new submissions while preserving
+in-flight reconciliation and investigation. A benefit claim requires measured school
+results; technical feasibility alone is not proof of adoption or financial value.
