@@ -6,6 +6,8 @@ use App\Enums\AssistanceStatus;
 use App\Filament\Resources\AssistanceRequests\AssistanceRequestResource;
 use App\Filament\Resources\AssistanceRequests\Pages\ListAssistanceRequests;
 use App\Filament\Resources\AssistanceRequests\Pages\ViewAssistanceRequest;
+use App\Filament\Resources\Students\StudentResource;
+use App\Filament\Resources\TuitionAccounts\TuitionAccountResource;
 use App\Models\AssistanceRequest;
 use App\Models\Student;
 use App\Models\TuitionAccount;
@@ -64,10 +66,10 @@ test('navigation badge reflects pending requests count', function (): void {
     expect(AssistanceRequestResource::getNavigationBadge())->toBe('2');
 });
 
-test('finance panel exposes only assistance requests and no plugins or settings pages', function (): void {
+test('finance panel exposes student finance resources and no plugins or settings pages', function (): void {
     $panel = Filament::getPanel('finance');
 
-    expect($panel->getResources())->toBe([AssistanceRequestResource::class])
+    expect($panel->getResources())->toBe([StudentResource::class, TuitionAccountResource::class, AssistanceRequestResource::class])
         ->and($panel->getPages())->toBeEmpty()
         ->and($panel->getClusters())->toBeEmpty()
         ->and($panel->getWidgets())->toBeEmpty()

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Filament\Resources\AssistanceRequests\AssistanceRequestResource;
+use App\Filament\Resources\Students\StudentResource;
+use App\Filament\Resources\TuitionAccounts\TuitionAccountResource;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Auth\MultiFactor\Email\EmailAuthentication;
 use Filament\Http\Middleware\Authenticate;
@@ -37,6 +39,8 @@ class FinancePanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->resources([
+                StudentResource::class,
+                TuitionAccountResource::class,
                 AssistanceRequestResource::class,
             ])
             ->middleware([

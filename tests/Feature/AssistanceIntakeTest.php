@@ -7,6 +7,7 @@ use App\Enums\AssistanceStatus;
 use App\Models\AcademicTerm;
 use App\Models\AssistanceRequest;
 use App\Models\Student;
+use App\Models\Transaction;
 use App\Models\TuitionAccount;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -80,9 +81,42 @@ test('dashboard keeps the generic page for users without a privileged role', fun
     }
 
     $this->actingAs($user)->get(route('dashboard'))
-        ->assertOk()->assertInertia(fn (Assert $page): AssertableInertia => $page->component('dashboard'));
+        ->assertOk()->assertInertia(fn (Assert $page): AssertableInertia => $page
+        ->component('dashboard')
+        ->where('finance.tuitionAccount', null)
+        ->has('finance.recentTransactions', 0)
+        ->where('finance.totals.currency', 'USDC'));
     $this->get(route('student.dashboard'))->assertForbidden();
 })->with(['no role' => null, 'ordinary role' => 'user']);
+
+test('dashboard shows the tuition balance and recent payouts for a linked student record', function (): void {
+    $wallet = '0x'.str_repeat('a', 40);
+    $user = User::factory()->create(['wallet_address' => $wallet])->assignRole('user');
+    $student = Student::factory()->for($user)->create();
+    TuitionAccount::factory()->for($student)->for($this->term)->create([
+        'total_amount' => 300000000,
+        'paid_amount' => 25000000,
+    ]);
+    Transaction::factory()->create([
+        'recipient_address' => $wallet,
+        'type' => 'student_assistance',
+        'amount' => 100.00,
+        'currency' => 'USDC',
+        'status' => 'confirmed',
+    ]);
+
+    $this->actingAs($user)->get(route('dashboard'))
+        ->assertOk()->assertInertia(fn (Assert $page): AssertableInertia => $page
+        ->component('dashboard')
+        ->where('finance.tuitionAccount.term', $this->term->name)
+        ->where('finance.tuitionAccount.total_amount', '300000000')
+        ->where('finance.tuitionAccount.paid_amount', '25000000')
+        ->where('finance.tuitionAccount.remaining_amount', '275000000')
+        ->where('finance.wallet.address', $wallet)
+        ->where('finance.totals.confirmed', 100)
+        ->where('finance.totals.currency', 'USDC')
+        ->has('finance.recentTransactions', 1));
+});
 
 test('student role takes precedence over staff dashboard routing', function (): void {
     $this->student->user->assignRole('finance_officer');
@@ -113,7 +147,13 @@ test('student dashboard shows only owned requests and current tuition account', 
         ->has('requests', 1)
         ->where('requests.0.id', $owned->id)
         ->where('requests.0.requested_amount', (string) $owned->requested_amount)
-        ->missing('requests.0.reason'));
+        ->missing('requests.0.reason')
+        ->has('recentTransactions')
+        ->where('totals.currency', 'USDC')
+        ->has('wallet')
+        ->has('eligibility')
+        ->where('eligibility.eligible', false)
+        ->has('eligibility.checks'));
 });
 
 test('students can view their own request but cannot access another students details', function (): void {
