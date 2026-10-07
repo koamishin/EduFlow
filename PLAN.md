@@ -1142,9 +1142,41 @@ has `can_execute=false`; legacy policy/forecast results are explicitly indicativ
 Ambiguous identity, untrusted network/address or inexact monetary storage fails closed.
 Paused aid approvals are refused before attribution if aid setup is unavailable.
 
-**Still proposed:** immutable institutional finance-policy versions, selected account
-roles, durable authorized intents/reservations, settlement verification and posting. C0
-inspection is not permission to pay, a cumulative spending plan, or C1/C2 certification.
+**C1 draft foundation implemented in part:** `PrepareVendorPayment` and operator CLI
+persist an exact full-bill `PaymentIntent` in `draft` state with stable UUID/provider
+identity, canonical document/policy/destination digest and attributed audit. Identical
+retry returns the same record; changed evidence or conflicting key is refused.
+`VerifyVendorPaymentDraft` reloads current/stored documents and fails closed on drift or
+integrity mismatch. Eligible staff may prepare/view; no actor may execute. DB uniqueness,
+bounds and restrictive foreign keys protect basic identity/state and evidence; model
+updates/deletes refused. Empty-table rollback is tested; populated-table rollback refuses
+to erase evidence. Malformed snapshot shape is invalid, not an inferred approval. Canonical
+hashes are independent of JSON object-key order and bind intent identity/original preparer.
+No external call, reservation, approval or invoice change occurs.
+
+**C1 reviewed policy foundation implemented:** exact six-decimal USDC reserve, auto/daily
+limits and fee ceiling are stored as immutable `FinancePolicyVersion` content. Preparation
+and append-only activation use separate maker/reviewer identities; super admins cannot
+self-review. CLI preparation requires an explicit reserve with zero spending defaults;
+activation requires explicit expected-current evidence (`none` only for initial activation).
+Retries preserve original audit; policy replacement stales old drafts, never reapproves them.
+Each activation binds predecessor digest and verifies actual policy content throughout the
+recorded institution history, bounded at 10,000 entries and fail-closed beyond it. New drafts
+require restrictive version/activation references and verified active evidence; no legacy
+policy fallback. Existing drafts remain nullable/unapproved rather than guessed/backfilled.
+Database guards reject negative/fractional/currency/cap violations; SQLite table alterations
+restore monetary triggers. Empty rollback and retained-evidence refusal are tested.
+
+Policy activation does not approve payments or change legacy execution paths. CLI staff IDs
+are host-operator attribution, not personal authentication/MFA. Hashes are change detection,
+not signatures; privileged DB rewrites with recomputed digests remain outside this guarantee.
+
+**Still proposed:** reviewed destinations, exact legacy treasury migration, selected account roles, authorized reservations/outbox,
+settlement verification and posting. Draft digest is not approval, proof of ownership or
+a digital signature. Raw DB writes/admin access and untested production concurrency are
+not covered by model immutability. SQLite float storage cannot recover exact values.
+Cancellation/replacement of a stale full-bill draft requires a future reviewed successor
+workflow; creating another key is deliberately not a workaround.
 
 ### 12.2 Wallet Ownership, Authorization and Operational Budget
 
@@ -1348,7 +1380,7 @@ production custody, security audit or an end-to-end regional fiat off-ramp.
 | Stage | Deliverable | Gate before next stage |
 | --- | --- | --- |
 | C0 — Institution context (read-only slice implemented) | Aid-independent operator/factory, finance-preview CLI, Arc observation and indicative vendor review | Zero-student/no-aid tests, read-only/replay/network/precision/ownership checks and audited no-op pass; immutable finance policy and payment authority remain C1 work |
-| C1 — Safe direct USDC | Exact treasury migration, durable intent/reservation/outbox, approval digest, Arc verification and fee postings | PostgreSQL race/crash/replay/restore and wrong-payment tests pass; fakes never called settled |
+| C1 — Safe direct USDC (non-executable draft and reviewed policy foundation implemented) | Exact draft/snapshot/retry identity, immutable policy versions and separate activation now; legacy migration, approved destinations, reservation/approval/outbox/attempts, Arc verification and postings remain open | Draft/replay/staleness/ownership/DB-bounds/history/CLI tests pass on SQLite; PostgreSQL races/upgrades/recovery, authenticated privileged review and live settlement gates still required |
 | C2 — Circle operations | Chosen account model, policy coverage, recovery, expiry/keychain checks and stop switch | Capped testnet proof then separately authorized institution live certification; no unattended mainnet assumption |
 | C3 — Referenced collections | Circle/Arc inbox, USDC collection intents, deterministic allocations and suspense queue | Duplicate/partial/extra/native-vs-ERC20/replay cases pass without students |
 | C4 — Crosschain and paid APIs | Gateway lifecycle/fees/recovery plus allowlisted x402 service spend | Transfer ID/nonce dedup, batch evidence, expiry/delegation and daily spend ceilings proven |

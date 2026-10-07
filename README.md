@@ -423,6 +423,65 @@ is not live-payment readiness, signing authority or proof of custody/settlement.
 `InspectInstitutionFinance` tool is read-only; aid tools appear only with an active local
 fund and valid aid policy. The existing aid approval endpoint remains aid-only.
 
+## Vendor-payment draft preparation (C1 foundation)
+
+`eduflow:prepare-vendor-payment` prepares one immutable, full-bill USDC draft. Operator
+supplies an existing invoice ID, institution-owned Circle wallet ID, authorized staff ID,
+exact fee ceiling and a UUID intent key retained for retries. Required options:
+`--actor`, `--wallet`, `--max-fee`, `--intent-key`; inspect available syntax with
+`php artisan eduflow:prepare-vendor-payment --help`.
+
+Draft preparation is not human sign-off or proof that the named staff member personally
+ran the CLI: host operator has attribution responsibility. No browser/AI tool can call this
+path. Policy allows eligible finance staff to prepare, but **everyone is denied execution**.
+
+The draft requires an independently activated immutable finance-policy version and binds
+source/recipient, bill, budget allocation, Arc network, amount, fee ceiling, exact policy
+content and activation evidence with a canonical SHA-256 snapshot digest. Identical retry returns
+the existing identity without duplicate audit; changed fields or a new key for the same
+full bill require review. `VerifyVendorPaymentDraft` reloads stored and current evidence;
+verification never reserves or sends funds. Digest is change detection, not a signature,
+approval, recipient-ownership proof or payment receipt.
+
+Migration is additive and not run against the school database by this change. Existing
+money is not backfilled or guessed; inexact SQLite monetary values are refused. Legacy
+exact treasury migration, destination verification, reservations,
+approvals, outbox/attempts and actual settlement remain open. Foreign keys retain source
+documents, wallet, budget, vendor, preparer and reviewed policy evidence; model updates/deletes are refused.
+Rollback drops the new table only when empty; populated-table rollback refuses to erase
+draft evidence and requires reviewed archival/forward migration. Malformed snapshot shape
+fails integrity validation. Factory fixtures explicitly bind existing source documents with
+`PaymentIntent::factory()->forVendorBill($invoice, $wallet, $preparer)`.
+Database admins/raw writes remain outside the model guard, and restored drafts must be
+reconciled/reviewed before any future execution. No cancellation/successor workflow ships yet.
+
+## Reviewed institution finance policy (C1 foundation)
+
+`eduflow:prepare-finance-policy` creates an immutable version without activating it.
+Required: version identifier, `--actor`, explicit `--reserve` in exact USDC. Options
+`--auto-limit`, `--daily-limit`, `--max-fee` default to zero. Auto limit cannot exceed daily
+limit. Inspect syntax with `php artisan eduflow:prepare-finance-policy --help`.
+
+`eduflow:activate-finance-policy` requires policy version ID, separate authorized
+`--reviewer`, and explicit `--expected-activation=none` for first activation or current
+activation ID for replacement. It never infers the latest review context. Same review
+retry returns existing evidence; stale context, self-review (including super admins),
+reactivation of superseded versions and corrupt history are refused. Inspect syntax with
+`php artisan eduflow:activate-finance-policy --help`.
+
+Activations are append-only, bind predecessor digest and validate actual policy content
+through the complete recorded history (up to 10,000 activations; beyond that fails closed
+pending reviewed archival design). Policy replacement makes existing payment drafts stale.
+New drafts persist restrictive policy version/activation references; upgraded legacy drafts
+retain nullable context, are not backfilled, and fail verification until a reviewed successor
+workflow exists. SQLite table rebuilds restore exact-money bounds triggers.
+
+**Policy activation is not payment approval or permission to execute.** Limits record
+reviewed configuration for the future intent engine; they do not retrofit legacy payment
+paths. CLI staff IDs provide operator attribution, not proof of personal authentication or
+MFA. Restrict shell access. Hashes detect changes, not a database administrator rewriting
+history and recomputing hashes; externally anchored audit/signing remains a release gate.
+
 ## Commands
 
 | Command | What it does |
