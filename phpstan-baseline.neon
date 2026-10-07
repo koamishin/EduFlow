@@ -1251,13 +1251,13 @@ parameters:
 		-
 			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$term.
 			identifier: property.notFound
-			count: 12
+			count: 14
 			path: tests/Feature/AssistanceIntakeTest.php
 
 		-
 			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
 			identifier: method.notFound
-			count: 14
+			count: 15
 			path: tests/Feature/AssistanceIntakeTest.php
 
 		-
@@ -2885,3 +2885,100 @@ parameters:
 			identifier: staticMethod.notFound
 			count: 1
 			path: tests/Feature/TreasuryForecastTest.php
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
+			identifier: method.notFound
+			count: 9
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::get().'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$term.
+			identifier: property.notFound
+			count: 3
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
+			identifier: method.notFound
+			count: 4
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::get().'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$fund.
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$org.
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$policy.
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$student.
+			identifier: property.notFound
+			count: 9
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AssistanceFund::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AssistancePolicyVersion::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+

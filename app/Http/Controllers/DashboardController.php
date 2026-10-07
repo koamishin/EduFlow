@@ -6,8 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\AssistanceCategory;
 use App\Enums\AssistancePriority;
+use App\Enums\CurrencyCode;
 use App\Models\AssistanceRequest;
+use App\Models\Transaction;
 use App\Models\User;
+use App\Services\CurrencyConverter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
@@ -28,7 +31,7 @@ class DashboardController extends Controller
 
     private const RECENT_NOTIFICATIONS = 5;
 
-    public function index(Request $request): Response
+    public function index(Request $request, CurrencyConverter $converter): Response
     {
         $user = $request->user();
 
@@ -67,7 +70,82 @@ class DashboardController extends Controller
             ])->values()->all(),
             'quickResources' => $this->buildQuickResources(),
             'notifications' => DashboardController::buildNotificationSummary($user),
+            'finance' => $this->buildFinanceSummary($user, $converter),
         ]);
+    }
+
+    /**
+     * Financial snapshot for the balance hero and recent-activity rail.
+     *
+     * Tuition figures are integer base-unit strings formatted at the display
+     * edge, mirroring the student dashboard. Users without a linked student
+     * record (or without a single current-term account) receive null tuition
+     * data instead of an invented balance.
+     *
+     * @return array{tuitionAccount: array{term: string, total_amount: string, paid_amount: string, remaining_amount: string, remaining_amount_fiat: string, total_amount_fiat: string, paid_amount_fiat: string}|null, wallet: array{address: string|null}, totals: array{confirmed: float, currency: string}, recentTransactions: list<array{id: int, type: string, type_label: string, amount: float, currency: string, status: string, status_label: string, tx_hash: string|null, network: string, executed_at: string|null}>}
+     */
+    private function buildFinanceSummary(User $user, CurrencyConverter $converter): array
+    {
+        $displayCurrency = CurrencyCode::tryFrom(strtoupper((string) config('eduflow.display_currency', 'PHP'))) ?? CurrencyCode::PHP;
+
+        $tuitionAccountData = null;
+        $student = $user->student()->first();
+        if ($student !== null) {
+            $accounts = $student->tuitionAccounts()->with('academicTerm')
+                ->whereHas('academicTerm', fn ($query) => $query->whereDate('starts_on', '<=', today())->whereDate('ends_on', '>=', today()))->get();
+            $account = $accounts->count() === 1 ? $accounts->first() : null;
+
+            if ($account !== null) {
+                $totalBase = (int) $account->total_amount;
+                $paidBase = (int) $account->paid_amount;
+                $remainingBase = (int) $account->remainingAmount();
+
+                $tuitionAccountData = [
+                    'term' => $account->academicTerm->name,
+                    'total_amount' => (string) $account->total_amount,
+                    'paid_amount' => (string) $account->paid_amount,
+                    'remaining_amount' => (string) $account->remainingAmount(),
+                    'remaining_amount_fiat' => $converter->formatDual($remainingBase, $displayCurrency),
+                    'total_amount_fiat' => $converter->formatDual($totalBase, $displayCurrency),
+                    'paid_amount_fiat' => $converter->formatDual($paidBase, $displayCurrency),
+                ];
+            }
+        }
+
+        $transactionQuery = Transaction::query()
+            ->where('recipient_address', $user->wallet_address ?? '')
+            ->whereIn('type', ['student_assistance', 'refund']);
+
+        $recentTransactions = (clone $transactionQuery)
+            ->latest('executed_at')
+            ->limit(5)
+            ->get()
+            ->map(fn ($transaction): array => [
+                'id' => $transaction->id,
+                'type' => $transaction->type->value,
+                'type_label' => $transaction->type->getLabel(),
+                'amount' => (float) $transaction->amount,
+                'currency' => $transaction->currency,
+                'status' => $transaction->status->value,
+                'status_label' => $transaction->status->getLabel(),
+                'tx_hash' => $transaction->provider_tx_hash,
+                'network' => $transaction->network,
+                'executed_at' => $transaction->executed_at?->format('M d, Y h:i A'),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'tuitionAccount' => $tuitionAccountData,
+            'wallet' => [
+                'address' => $user->wallet_address,
+            ],
+            'totals' => [
+                'confirmed' => (float) (clone $transactionQuery)->where('status', 'confirmed')->sum('amount'),
+                'currency' => 'USDC',
+            ],
+            'recentTransactions' => $recentTransactions,
+        ];
     }
 
     /**

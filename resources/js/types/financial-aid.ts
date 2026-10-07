@@ -83,6 +83,38 @@ export type StudentDashboardProps = {
         rate_description: string;
     };
     suggestedQuestions?: string[];
+    wallet?: {
+        address: string | null;
+    };
+    totals?: {
+        confirmed: number;
+        currency: string;
+    };
+    recentTransactions?: PaymentTransaction[];
+    eligibility?: {
+        eligible: boolean;
+        eligible_amount_base_units: string;
+        policy_version: string | null;
+        checks: Array<{
+            key: string;
+            label: string;
+            passed: boolean;
+        }>;
+        evaluated_at: string;
+    };
+};
+
+export type PaymentTransaction = {
+    id: number;
+    type: string;
+    type_label: string;
+    amount: number;
+    currency: string;
+    status: string;
+    status_label: string;
+    tx_hash: string | null;
+    network: string;
+    executed_at: string | null;
 };
 
 export type AskEduFlowQueryResponse = {

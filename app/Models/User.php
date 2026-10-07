@@ -38,6 +38,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $remember_token
+ * @property string|null $wallet_address
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */

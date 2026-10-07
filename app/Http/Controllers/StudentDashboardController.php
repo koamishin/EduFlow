@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\PreviewStudentEligibility;
 use App\Enums\AgentDecisionType;
 use App\Enums\CurrencyCode;
 use App\Models\AgentDecision;
 use App\Models\AssistanceRequest;
+use App\Models\Transaction;
 use App\Services\CurrencyConverter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +28,7 @@ class StudentDashboardController extends Controller
             return redirect()->route('filament.finance.resources.assistance-requests.index');
         }
 
-        return app(DashboardController::class)->index($request);
+        return app(DashboardController::class)->index($request, app(CurrencyConverter::class));
     }
 
     public function show(Request $request, CurrencyConverter $converter): Response
@@ -78,7 +80,42 @@ class StudentDashboardController extends Controller
             ];
         });
 
+        $recentTransactions = Transaction::query()
+            ->where('recipient_address', $request->user()->wallet_address ?? '')
+            ->whereIn('type', ['student_assistance', 'refund'])
+            ->latest('executed_at')
+            ->limit(5)
+            ->get()
+            ->map(fn ($transaction): array => [
+                'id' => $transaction->id,
+                'type' => $transaction->type->value,
+                'type_label' => $transaction->type->getLabel(),
+                'amount' => (float) $transaction->amount,
+                'currency' => $transaction->currency,
+                'status' => $transaction->status->value,
+                'status_label' => $transaction->status->getLabel(),
+                'tx_hash' => $transaction->provider_tx_hash,
+                'network' => $transaction->network,
+                'executed_at' => $transaction->executed_at?->format('M d, Y h:i A'),
+            ])
+            ->values();
+
+        $confirmedTotal = (float) Transaction::query()
+            ->where('recipient_address', $request->user()->wallet_address ?? '')
+            ->whereIn('type', ['student_assistance', 'refund'])
+            ->where('status', 'confirmed')
+            ->sum('amount');
+
         return Inertia::render('student/dashboard', [
+            'wallet' => [
+                'address' => $request->user()->wallet_address,
+            ],
+            'totals' => [
+                'confirmed' => $confirmedTotal,
+                'currency' => 'USDC',
+            ],
+            'recentTransactions' => $recentTransactions,
+            'eligibility' => app(PreviewStudentEligibility::class)->preview($student),
             'student' => [
                 'name' => $request->user()->name,
                 'student_number' => $student->student_number,
