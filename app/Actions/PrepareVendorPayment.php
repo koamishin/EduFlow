@@ -9,10 +9,12 @@ use App\Models\Budget;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\PaymentIntent;
+use App\Models\PaymentIntentChange;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
 use App\Services\InstallationInstitution;
+use App\Services\PaymentIntentLifecycle;
 use App\Services\VendorPaymentSnapshot;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -24,6 +26,7 @@ final readonly class PrepareVendorPayment
     public function __construct(
         private InstallationInstitution $institutions,
         private VendorPaymentSnapshot $snapshots,
+        private PaymentIntentLifecycle $lifecycle,
     ) {}
 
     public function handle(User $actor, Invoice $invoice, Wallet $wallet, Money $maxFee, string $intentKey): PaymentIntent
@@ -38,6 +41,7 @@ final readonly class PrepareVendorPayment
         return DB::transaction(function () use ($actor, $invoice, $wallet, $maxFee, $intentKey, $institution): PaymentIntent {
             /** @var Organization $lockedInstitution */
             $lockedInstitution = Organization::query()->whereKey($institution->id)->lockForUpdate()->firstOrFail();
+            Gate::forUser($actor)->authorize('create', PaymentIntent::class);
             /** @var Invoice $lockedInvoice */
             $lockedInvoice = Invoice::query()->where('organization_id', $lockedInstitution->id)->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
             /** @var Wallet $lockedWallet */
@@ -50,16 +54,23 @@ final readonly class PrepareVendorPayment
                 $lockedInvoice->setRelation('budget', Budget::query()->whereKey($lockedInvoice->budget_id)->lockForUpdate()->firstOrFail());
             }
 
+            $lifecycle = $this->lifecycle->resolve($lockedInstitution->id, $lockedInvoice->id);
+            if ($lifecycle['state'] === 'cancelled') {
+                throw ValidationException::withMessages(['payment' => 'This bill draft was independently cancelled; a new key cannot reopen it.']);
+            }
+            $existing = $lifecycle['current'];
+            if ($existing !== null) {
+                $this->lifecycle->requireActive($existing);
+            }
             $snapshot = $this->snapshots->build($lockedInstitution, $lockedInvoice, $lockedWallet, $maxFee);
             $snapshot['intent_key'] = $intentKey;
             $snapshot['prepared_by'] = $actor->id;
-            $digest = PaymentIntent::digest($snapshot);
-            /** @var PaymentIntent|null $existing */
-            $existing = PaymentIntent::query()->where('organization_id', $lockedInstitution->id)
-                ->where('invoice_id', $lockedInvoice->id)->where('portion', 'full')->first();
 
             if ($existing !== null) {
                 $snapshot['prepared_by'] = $existing->prepared_by;
+                if ($existing->revision > 0) {
+                    $snapshot['recovery'] = $existing->snapshot['recovery'];
+                }
                 $digest = PaymentIntent::digest($snapshot);
 
                 if (! $existing->hasValidSnapshot() || $existing->intent_key !== $intentKey || ! hash_equals($existing->snapshot_digest, $digest)) {
@@ -69,35 +80,13 @@ final readonly class PrepareVendorPayment
                 return $existing;
             }
 
-            if (PaymentIntent::query()->where('intent_key', $intentKey)->exists()) {
+            if (PaymentIntent::query()->where('intent_key', $intentKey)->exists()
+                || PaymentIntentChange::query()->where('replacement_intent_key', $intentKey)->exists()) {
                 throw ValidationException::withMessages(['payment' => 'Intent identity already belongs to another payment document.']);
             }
 
-            /** @var PaymentIntent $intent */
-            $intent = PaymentIntent::query()->create([
-                'intent_key' => $intentKey,
-                'organization_id' => $lockedInstitution->id,
-                'invoice_id' => $lockedInvoice->id,
-                'wallet_id' => $lockedWallet->id,
-                'vendor_id' => $vendor->id,
-                'budget_id' => $lockedInvoice->budget_id,
-                'prepared_by' => $actor->id,
-                'finance_policy_version_id' => $snapshot['policy']['version_id'],
-                'finance_policy_activation_id' => $snapshot['policy']['activation_id'],
-                'vendor_destination_version_id' => $snapshot['vendor_destination']['version_id'],
-                'vendor_destination_approval_id' => $snapshot['vendor_destination']['approval_id'],
-                'invoice_version_id' => $snapshot['invoice_evidence']['version_id'] ?? null,
-                'invoice_version_review_id' => $snapshot['invoice_evidence']['review_id'] ?? null,
-                'amount_base_units' => (int) $snapshot['invoice']['amount_base_units'],
-                'max_fee_base_units' => $maxFee->minorUnits,
-                'chain' => $snapshot['chain'],
-                'chain_id' => $snapshot['chain_id'],
-                'source_address' => $snapshot['treasury']['source_address'],
-                'recipient_address' => $snapshot['vendor']['recipient_address'],
-                'provider_idempotency_key' => 'eduflow:'.$intentKey,
-                'snapshot_digest' => $digest,
-                'snapshot' => $snapshot,
-            ]);
+            $intent = PaymentIntent::fromSnapshot($snapshot);
+            $intent->save();
 
             activity('finance')->causedBy($actor)->performedOn($intent)->event('vendor_payment_prepared')
                 ->withProperties(['intent_key' => $intentKey, 'invoice_id' => $lockedInvoice->id, 'approved' => false, 'payments_submitted' => 0])

@@ -1216,15 +1216,37 @@ Legacy vendor-address conflict is held for master-data review, never silently ad
 Reviewed exact USDC `InvoiceVersion`/review evidence may bind a draft at full six-decimal
 precision without reading legacy invoice floats. Local reference valuations remain
 non-executable: no FX or real local-payable settlement inferred. Upgraded drafts retain
-nullable evidence rather than fabricated approval and fail verification until successor work.
+nullable evidence rather than fabricated approval; an intact legacy draft can now be retired
+through reviewed recovery, while its replacement must bind current policy/destination evidence.
 SQLite monetary guards are restored after additive FK changes; populated rollback refused.
 
+**C1 draft recovery delivered:** immutable `PaymentIntentChange` proposals bind the original
+draft ID/digest, attributed maker, UUID and reason. Replacement proposals additionally bind
+an exact server-built current snapshot and fresh intent/provider identity. A separate
+`PaymentIntentChangeReview` requires authenticated admin/super-admin role, exact proposal
+digest and independence from both the original draft maker and proposal maker. Rejecting
+leaves the original draft untouched. Accepting cancellation closes this document's draft
+lineage; another UUID cannot reopen it. Accepting replacement atomically retires the source
+and creates one immutable non-executable successor; it does not approve payment or reserve
+funds. Original snapshots and feedback remain intact. Exact retries return recorded evidence,
+including after later corrections, without reactivating old drafts or repeating audit events.
+
+Document/revision uniqueness, unique predecessors/review links and unique accepted retirement
+prevent duplicate roots, branching and conflicting accepted proposals. A bounded history
+resolver validates every recorded proposal/review and contiguous successor link; cancelled,
+superseded, incomplete or tampered history fails closed in preparation and verification.
+Pending/rejected proposals never create a successor. Bills with any recorded legacy payment
+outcome require investigation rather than draft cancellation or blind resend. Authenticated,
+verified and throttled JSON endpoints are `finance.payment-intent-changes.*`; no staff-ID
+approval CLI or dedicated shadow/demo domain is introduced. SQLite upgrade/rollback preserves
+original digests and restores monetary guards; rollback refuses existing recovery evidence.
+Staff recovery UI/import, invoice-source-version successors and safe recovery after reservation
+or external submission remain separate work.
+
 **Still proposed:** exact legacy treasury migration, selected account roles, authorized reservations/outbox,
-settlement verification and posting. Draft digest is not approval, proof of ownership or
-a digital signature. Raw DB writes/admin access and untested production concurrency are
-not covered by model immutability. SQLite float storage cannot recover exact values.
-Cancellation/replacement of a stale full-bill draft requires a future reviewed successor
-workflow; creating another key is deliberately not a workaround.
+settlement verification and posting. Draft/recovery digest is not payment approval, proof of
+ownership or a digital signature. Raw DB writes/admin access and untested production
+concurrency are not covered by model immutability. SQLite float storage cannot recover exact values.
 
 ### 12.2 Wallet Ownership, Authorization and Operational Budget
 
@@ -1694,7 +1716,7 @@ which useful, feasible problem to validate; organizer preference does not replac
 | State | What exists or is required | What it does not prove |
 | --- | --- | --- |
 | C0 foundation | Read-only institution observation, indicative vendor review and audited no-op; no student/aid/AI requirement | `can_execute=false`; not an approved-payment pilot |
-| C1 foundation, partial | Exact non-executable vendor drafts, reviewed immutable finance-policy activation, normal invoice-version evidence/review and exact closed-set departmental budget/cash planning | No payment approval, atomic reservation, outbox, safe execution or settlement certification from a draft/activation/evidence review |
+| C1 foundation, partial | Exact non-executable vendor drafts, independently reviewed cancellation/replacement, reviewed immutable finance-policy activation, normal invoice-version evidence/review and exact closed-set departmental budget/cash planning | No payment approval, atomic reservation, outbox, safe execution or settlement certification from a draft/activation/evidence review |
 | Current delivery target | Departmental source records, policy-linked proposals, authenticated staff review, each eligible approval's actual testnet payment, verified evidence and capped automation | Target is not shipped by this documentation update |
 | Later institution release | Exact legacy migration, production concurrency/recovery and full operational/provider/jurisdiction gates | Testnet success does not authorize mainnet, college treasury custody or local-bank payments |
 
@@ -1770,9 +1792,10 @@ Approve/reject requires authenticated role/ownership checks and auditable staff 
 a supplied CLI staff ID alone is not proof of personal approval.
 
 Staff edits count as feedback, not permission to mutate an approved intent. Preserve the
-original proposal and reasons for changes; create a reviewed successor using the planned
-replacement workflow, then re-evaluate and authorize it. C1 drafts currently cannot be
-edited, cancelled/replaced or executed; do not bypass that boundary with a second key.
+original proposal and reasons for changes; use the delivered independently reviewed draft
+replacement workflow, then separately authorize payment when that gate exists. C1 drafts
+cannot be edited or executed. Reviewed cancellation is terminal for this document; replacement
+creates a fresh draft only. A second key alone cannot bypass either boundary.
 Rejection and a policy hold cause no transfer. Human approval cannot bypass a hard rule.
 
 **Opt-in autonomous lane: testnet only, zero allowance until staff approves standing policy.**
@@ -1819,7 +1842,8 @@ is not business entitlement verification, payment approval or executable FX. No 
 demo payment state is hardcoded into these records. Source money is staff-supplied exact
 input, never inferred from legacy floats. A change fingerprint detects legacy document
 edits without pretending to recover original precision. Conflicting retries, self-review,
-foreign/stale/tampered evidence fail closed. Safe successors still require implementation.
+foreign/stale/tampered evidence fail closed. Invoice-source-version successors still require
+implementation; payment-draft successors are delivered separately below.
 
 `BudgetSnapshot` captures exact staff-attested approved allocation, already-spent and other
 budget commitments separately from opening funds, realized receipts, actual outflows,
@@ -1842,8 +1866,17 @@ draft recipients and chain identity. No invoice payment state, wallet or budget 
 review or planning. Outputs remain `can_execute=false`, no reservation, no verified funding,
 no payment approval or transfer. Staff attestation is not independent bank/rate verification.
 
+**Delivered draft recovery foundation (partial Step 3):** `PaymentIntentChange` and separate
+`PaymentIntentChangeReview` preserve staff correction/rejection reasons, independently
+accept terminal cancellation or create an exact fresh successor, and prevent new-key bypass.
+Payment draft replacement rechecks current bill, treasury, policy and destination at review;
+material drift requires a fresh proposal. Review, successor and audit commit together.
+Outputs remain `payment_approved=false`, `funds_reserved=false`, `can_execute=false`.
+No gateway call, invoice-payment-state change or balance mutation occurs. Source-version
+replacement, staff UI and post-reservation/submission recovery are not delivered by this slice.
+
 Step 1 still requires college confirmation and separate permissions. Independent budget/
-policy sign-off, destination suspension/cooling-off and control certification, successors,
+policy sign-off, destination suspension/cooling-off and control certification, source-version successors,
 reservations, authenticated payment authorization,
 durable attempts/recovery, network fees/funding, verified Arc settlement and production
 concurrency remain gates. Model immutability/digests do not protect against privileged DB

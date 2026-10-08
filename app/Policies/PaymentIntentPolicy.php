@@ -24,6 +24,11 @@ class PaymentIntentPolicy
         return $this->create($user) && $intent->organization_id === $this->institutions->current()?->id;
     }
 
+    public function proposeChange(User $user, PaymentIntent $intent): bool
+    {
+        return $intent->exists && $this->view($user, $intent);
+    }
+
     public function update(User $user, PaymentIntent $intent): bool
     {
         return false;

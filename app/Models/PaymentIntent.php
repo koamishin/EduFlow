@@ -30,6 +30,9 @@ use TypeError;
  * @property int|null $vendor_destination_approval_id
  * @property int|null $invoice_version_id
  * @property int|null $invoice_version_review_id
+ * @property int $revision
+ * @property int|null $predecessor_id
+ * @property int|null $change_review_id
  * @property string $portion
  * @property string $status
  * @property string $currency
@@ -54,10 +57,10 @@ class PaymentIntent extends Model
         'vendor_destination_version_id', 'vendor_destination_approval_id', 'invoice_version_id', 'invoice_version_review_id', 'portion', 'status', 'currency',
         'amount_base_units', 'max_fee_base_units', 'chain', 'chain_id',
         'source_address', 'recipient_address', 'provider_idempotency_key',
-        'snapshot_digest', 'snapshot',
+        'snapshot_digest', 'snapshot', 'revision', 'predecessor_id', 'change_review_id',
     ];
 
-    protected $attributes = ['portion' => 'full', 'status' => 'draft', 'currency' => 'USDC'];
+    protected $attributes = ['portion' => 'full', 'status' => 'draft', 'currency' => 'USDC', 'revision' => 0];
 
     #[\Override]
     protected static function booted(): void
@@ -66,6 +69,20 @@ class PaymentIntent extends Model
             if ($intent->status !== 'draft' || $intent->currency !== 'USDC' || $intent->portion !== 'full'
                 || $intent->amount_base_units <= 0 || $intent->max_fee_base_units < 0 || ! $intent->hasValidSnapshot()) {
                 throw new LogicException('Only valid, non-executable payment drafts may be created.');
+            }
+            if ($intent->revision > 0) {
+                /** @var PaymentIntentChangeReview|null $review */
+                $review = PaymentIntentChangeReview::query()->find($intent->change_review_id);
+                /** @var PaymentIntentChange|null $change */
+                $change = $review === null ? null : PaymentIntentChange::query()->find($review->payment_intent_change_id);
+                /** @var self|null $source */
+                $source = self::query()->find($intent->predecessor_id);
+                if ($review === null || $change === null || $source === null || ! $review->hasValidEvidence($change, $source)
+                    || $review->decision !== 'approve_change' || $change->kind !== 'replace'
+                    || $change->replacement_snapshot === null
+                    || ! hash_equals(PaymentIntent::digest($change->replacement_snapshot), $intent->snapshot_digest)) {
+                    throw new LogicException('A successor requires independently accepted exact replacement evidence.');
+                }
             }
         });
         static::updating(function (): never {
@@ -87,6 +104,7 @@ class PaymentIntent extends Model
             'vendor_destination_version_id' => 'integer', 'vendor_destination_approval_id' => 'integer',
             'invoice_version_id' => 'integer', 'invoice_version_review_id' => 'integer', 'amount_base_units' => 'integer',
             'max_fee_base_units' => 'integer', 'chain_id' => 'integer', 'snapshot' => 'array',
+            'revision' => 'integer', 'predecessor_id' => 'integer', 'change_review_id' => 'integer',
         ];
     }
 
@@ -110,8 +128,19 @@ class PaymentIntent extends Model
                 return false;
             }
 
-            return $this->matchesSnapshot($snapshot) && $this->hasValidPolicySnapshot($snapshot['policy'])
+            return $this->matchesSnapshot($snapshot) && $this->hasValidRecoverySnapshot($snapshot) && $this->hasValidPolicySnapshot($snapshot['policy'])
                             && $this->hasValidDestinationSnapshot($snapshot['vendor_destination']) && $this->hasValidInvoiceEvidence($snapshot);
+        } catch (JsonException|TypeError) {
+            return false;
+        }
+    }
+
+    public function hasIntactDraftIdentity(): bool
+    {
+        try {
+            $snapshot = $this->getAttribute('snapshot');
+
+            return is_array($snapshot) && $this->matchesSnapshot($snapshot) && $this->hasValidRecoverySnapshot($snapshot);
         } catch (JsonException|TypeError) {
             return false;
         }
@@ -151,6 +180,45 @@ class PaymentIntent extends Model
             && ($this->snapshot['currency'] ?? null) === $this->currency
             && ($this->snapshot['portion'] ?? null) === $this->portion
             && ($this->snapshot['max_fee_base_units'] ?? null) === (string) $this->max_fee_base_units;
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    private function hasValidRecoverySnapshot(array $snapshot): bool
+    {
+        if ($this->revision === 0) {
+            return $this->predecessor_id === null && $this->change_review_id === null && ! array_key_exists('recovery', $snapshot);
+        }
+        $recovery = $snapshot['recovery'] ?? null;
+
+        return $this->revision > 0 && $this->predecessor_id > 0 && is_array($recovery)
+            && ($recovery['revision'] ?? null) === $this->revision && ($recovery['predecessor_id'] ?? null) === $this->predecessor_id
+            && is_string($recovery['source_digest'] ?? null) && preg_match('/^[0-9a-f]{64}$/D', $recovery['source_digest']) === 1
+            && is_string($recovery['request_key'] ?? null) && Str::isUuid($recovery['request_key']);
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    public static function fromSnapshot(array $snapshot, ?int $reviewId = null): self
+    {
+        return new self([
+            'intent_key' => $snapshot['intent_key'] ?? null, 'organization_id' => $snapshot['institution_id'] ?? null,
+            'invoice_id' => $snapshot['invoice']['id'] ?? null, 'wallet_id' => $snapshot['treasury']['wallet_id'] ?? null,
+            'vendor_id' => $snapshot['invoice']['vendor_id'] ?? null, 'budget_id' => $snapshot['invoice']['budget_id'] ?? null,
+            'prepared_by' => $snapshot['prepared_by'] ?? null,
+            'finance_policy_version_id' => $snapshot['policy']['version_id'] ?? null,
+            'finance_policy_activation_id' => $snapshot['policy']['activation_id'] ?? null,
+            'vendor_destination_version_id' => $snapshot['vendor_destination']['version_id'] ?? null,
+            'vendor_destination_approval_id' => $snapshot['vendor_destination']['approval_id'] ?? null,
+            'invoice_version_id' => $snapshot['invoice_evidence']['version_id'] ?? null,
+            'invoice_version_review_id' => $snapshot['invoice_evidence']['review_id'] ?? null,
+            'amount_base_units' => $snapshot['invoice']['amount_base_units'] ?? null,
+            'max_fee_base_units' => $snapshot['max_fee_base_units'] ?? null, 'chain' => $snapshot['chain'] ?? null,
+            'chain_id' => $snapshot['chain_id'] ?? null, 'source_address' => $snapshot['treasury']['source_address'] ?? null,
+            'recipient_address' => $snapshot['vendor']['recipient_address'] ?? null,
+            'provider_idempotency_key' => 'eduflow:'.($snapshot['intent_key'] ?? ''),
+            'snapshot_digest' => self::digest($snapshot), 'snapshot' => $snapshot,
+            'revision' => $snapshot['recovery']['revision'] ?? 0, 'predecessor_id' => $snapshot['recovery']['predecessor_id'] ?? null,
+            'change_review_id' => $reviewId,
+        ]);
     }
 
     /** @param array<string, mixed> $policy */
@@ -261,6 +329,9 @@ class PaymentIntent extends Model
             'finance_policy_version_id' => $this->finance_policy_version_id,
             'finance_policy_activation_id' => $this->finance_policy_activation_id,
             'status' => $this->status,
+            'revision' => $this->revision,
+            'predecessor_id' => $this->predecessor_id,
+            'change_review_id' => $this->change_review_id,
             'amount' => (new Money($this->amount_base_units, CurrencyCode::USDC))->jsonSerialize(),
             'max_fee' => (new Money($this->max_fee_base_units, CurrencyCode::USDC))->jsonSerialize(),
             'chain' => $this->chain,

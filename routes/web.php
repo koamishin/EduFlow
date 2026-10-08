@@ -8,6 +8,7 @@ use App\Http\Controllers\BudgetSnapshotController;
 use App\Http\Controllers\FinanceApprovalController;
 use App\Http\Controllers\InvoiceVersionController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PaymentIntentChangeController;
 use App\Http\Controllers\StudentAssistanceController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentPaymentsController;
@@ -46,6 +47,13 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 | conversation-ownership check it belongs with.
 */
 Route::middleware(['auth', 'verified'])->group(function (): void {
+    Route::post('finance/payment-intents/{paymentIntent}/changes', [PaymentIntentChangeController::class, 'store'])
+        ->middleware('throttle:10,1')->name('finance.payment-intent-changes.store');
+    Route::get('finance/payment-intent-changes/{paymentIntentChange}', [PaymentIntentChangeController::class, 'show'])
+        ->name('finance.payment-intent-changes.show');
+    Route::post('finance/payment-intent-changes/{paymentIntentChange}/review', [PaymentIntentChangeController::class, 'review'])
+        ->middleware('throttle:10,1')->name('finance.payment-intent-changes.review');
+
     Route::post('finance/vendor-destinations', [VendorDestinationController::class, 'store'])
         ->middleware('throttle:10,1')->name('finance.vendor-destinations.store');
     Route::get('finance/vendor-destinations/{vendorDestinationVersion}', [VendorDestinationController::class, 'show'])
