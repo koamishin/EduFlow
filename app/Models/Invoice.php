@@ -66,6 +66,11 @@ class Invoice extends Model
         return $this->belongsTo(Budget::class);
     }
 
+    public function hasExactVersion(): bool
+    {
+        return InvoiceVersion::query()->where('invoice_id', $this->id)->exists();
+    }
+
     public function decisions(): MorphMany
     {
         return $this->morphMany(AgentDecision::class, 'reference');

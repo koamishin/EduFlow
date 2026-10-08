@@ -68,6 +68,12 @@ class EduFlowAgent
             ->get();
 
         foreach ($pendingInvoices as $invoice) {
+            if ($invoice->hasExactVersion()) {
+                $processedInvoices[] = ['reference' => $invoice->reference, 'decision' => 'exact_evidence_required',
+                    'reason' => 'Versioned invoice is excluded from legacy payment execution; local payable state stays unchanged.'];
+
+                continue;
+            }
             $policyResult = $this->policyEngine->evaluateInvoice($invoice, $wallet);
 
             $decision = AgentDecision::create([

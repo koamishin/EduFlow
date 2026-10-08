@@ -4,7 +4,9 @@ use App\Enums\SocialLoginProvider;
 use App\Http\Controllers\AskEduFlowController;
 use App\Http\Controllers\AssistanceRequestController;
 use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\BudgetSnapshotController;
 use App\Http\Controllers\FinanceApprovalController;
+use App\Http\Controllers\InvoiceVersionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\StudentAssistanceController;
 use App\Http\Controllers\StudentDashboardController;
@@ -43,6 +45,20 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 | conversation-ownership check it belongs with.
 */
 Route::middleware(['auth', 'verified'])->group(function (): void {
+    Route::post('finance/budget-snapshots', [BudgetSnapshotController::class, 'store'])
+        ->middleware('throttle:10,1')->name('finance.budget-snapshots.store');
+    Route::get('finance/budget-snapshots/{budgetSnapshot}', [BudgetSnapshotController::class, 'show'])
+        ->name('finance.budget-snapshots.show');
+    Route::post('finance/budget-snapshots/{budgetSnapshot}/plan', [BudgetSnapshotController::class, 'plan'])
+        ->middleware('throttle:30,1')->name('finance.budget-snapshots.plan');
+
+    Route::post('finance/invoice-versions', [InvoiceVersionController::class, 'store'])
+        ->middleware('throttle:10,1')->name('finance.invoice-versions.store');
+    Route::get('finance/invoice-versions/{invoiceVersion}', [InvoiceVersionController::class, 'show'])
+        ->name('finance.invoice-versions.show');
+    Route::post('finance/invoice-versions/{invoiceVersion}/review', [InvoiceVersionController::class, 'review'])
+        ->middleware('throttle:10,1')->name('finance.invoice-versions.review');
+
     Route::post('finance/approvals/pending', [FinanceApprovalController::class, 'pending'])
         ->middleware('throttle:30,1')
         ->name('finance.approvals.pending');

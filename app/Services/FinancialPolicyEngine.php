@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use Illuminate\Support\Carbon;
+use InvalidArgumentException;
 
 class FinancialPolicyEngine
 {
@@ -20,6 +21,9 @@ class FinancialPolicyEngine
      */
     public function evaluateInvoice(Invoice $invoice, Wallet $wallet): PolicyEvaluationResult
     {
+        if ($invoice->hasExactVersion()) {
+            throw new InvalidArgumentException('Versioned invoices cannot use legacy USDC policy evaluation.');
+        }
         $org = $invoice->organization;
         $vendor = $invoice->vendor;
         $budget = $invoice->budget;

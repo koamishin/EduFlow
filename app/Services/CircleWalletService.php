@@ -6,6 +6,8 @@ namespace App\Services;
 
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
+use App\Models\Invoice;
+use App\Models\InvoiceVersion;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use Illuminate\Support\Str;
@@ -64,6 +66,10 @@ class CircleWalletService
         ?int $referenceId = null,
         array $metadata = []
     ): Transaction {
+        if ($referenceType === InvoiceVersion::class || ($referenceType === Invoice::class && $referenceId !== null
+            && InvoiceVersion::query()->where('invoice_id', $referenceId)->exists())) {
+            throw new InvalidArgumentException('Versioned invoice evidence cannot execute through the legacy payment service.');
+        }
         if ($baseUnits <= 0) {
             throw new InvalidArgumentException("Payment base units must be positive, got {$baseUnits}.");
         }

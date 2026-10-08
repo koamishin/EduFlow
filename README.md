@@ -2,9 +2,10 @@
 
 # EduFlow
 
-**Autonomous school finance on Circle Agent Wallets + Arc**
+**Bounded departmental finance on Circle Agent Wallets + Arc**
 
-An agent that pays vendors and students in USDC — and stops at a human when policy says it should.
+Current pilot target: one college department, approved budget and bills, staff-reviewed
+proposals and linked USDC payments on Arc testnet.
 
 </div>
 
@@ -12,21 +13,31 @@ An agent that pays vendors and students in USDC — and stops at a human when po
 
 ## What this is
 
-EduFlow runs a school's money on [Circle Agent Stack](https://developers.circle.com/agent-stack) and the [Arc](https://docs.arc.io) network. Every cycle it reads invoices and student aid requests, evaluates them against a deterministic policy engine, and either:
+EduFlow is institution-owned finance orchestration using
+[Circle Agent Stack](https://developers.circle.com/agent-stack) and the
+[Arc](https://docs.arc.io) network. Long-term scope covers collections, budgets and
+approved obligations; current hackathon scope is deliberately one departmental workflow,
+not an unrestricted AI treasurer or replacement for the college's accounting system.
 
-- **pays immediately** in USDC over Arc,
-- **escalates** to a finance officer, or
-- **holds** to protect the school's reserve.
+The existing developer cycle reviews invoices and optional student aid against a
+deterministic policy engine. The college pilot target uses the same bounded principle:
 
-Product direction is school-wide finance orchestration, not only student assistance.
-Approved vendor bills, teaching-service renewals, facility repairs, restricted grants,
-collections and refunds are operational use cases in `PLAN.md` Section 13. Event-specific
-workflows remain proposed; current C0 institution inspection is read-only.
+- **propose and explain** payments within the approved department budget,
+- **request human approval** for eligible proposals outside a separately authorized capped lane,
+- **hold or reject** when policy, evidence, budget or reserve checks fail, and
+- **execute and verify** permitted USDC mirror payments on **Arc testnet**, not college bank payments.
 
-**Production limits:** Exact-money handling exists at intake/conversion and in the new Arc
-observation, but legacy treasury/payment floats and two-decimal storage remain. Durable
-payment intents, atomic reservations and stronger settlement verification are still required
-before production payment-agent use. The demo is not a certified school treasury system.
+Current C0 institution inspection is read-only. C1 exact vendor drafts and reviewed finance
+policy versions exist, but cannot approve, reserve or execute payments. The connected
+college pilot and capped recurring-payment lane below are **delivery targets, not shipped
+capabilities**. Existing student-aid features remain available for development but are not
+this pilot's focus. Wider operational use cases remain in `PLAN.md` Section 13.
+
+**Production limits:** Exact-money handling exists at intake/conversion, draft/policy boundaries
+and Arc observation, but legacy treasury/payment floats and two-decimal storage remain.
+Executable durable intents, destination verification, atomic reservations, authenticated
+approval, retry/recovery and stronger settlement verification are still required. A draft,
+policy activation or developer demo is not a certified school treasury system.
 
 ### Five design rules and remaining release gates
 
@@ -45,8 +56,95 @@ before production payment-agent use. The demo is not a certified school treasury
 
 ---
 
+## College shadow pilot (current hackathon focus)
+
+**Direction:** fee collections and budget planning in shadow/parallel mode. Start smaller:
+**one department, its already-approved budget and approved bills for the next couple of
+weeks**. The owner reports a local college agreed to explore EduFlow; actual usage,
+completed pilot results and public endorsement have not been established. Confirm this
+is the college's most important feasible problem with its finance owner.
+
+The college keeps collecting fees and paying bills through its existing local-currency
+process. Pilot planning can use approved opening funds or staff-verified aggregate realized
+receipts; it needs no student records, new fee portal, SIS or bank integration. An allocation
+is not cash, and promised tuition is not available money. Budget changes stay with staff.
+
+**Architecture:** shadow/parallel describes how the demo is operated, not a separate app
+feature. Use normal invoices, budgets, reviews and payment intents with controlled testnet
+configuration. Do not introduce dedicated shadow models, tables, routes or screens.
+
+### Connected workflow and two execution lanes
+
+1. Import or enter permitted anonymized bills, approved allocation, commitments and source
+   evidence. Show original amount/currency, due date and exact approved USDC mirror mapping.
+2. Propose pay/hold/escalate with policy checks, reasoning and remaining budget/reserve/fee
+   impact. Authorized finance staff approve or reject; hard policy failures cannot be overridden.
+3. Each eligible admin-approved item produces its **own linked actual USDC payment on
+   `ARC-TESTNET` through the existing Circle Agent Wallet/Lepton path**. An unrelated transfer,
+   fake receipt or read-only dashboard does not complete this workflow.
+4. Verify successful matching Arc movement and finality; link source bill, proposal, decision,
+   intent and explorer evidence. Unknown outcomes stay unresolved; retries cannot pay twice.
+5. After the human path passes its safety gates, enable a **separately approved, testnet-only
+   capped lane** for existing approved recurring bills from allowlisted vendors/destinations,
+   within per-payment and cumulative limits, budget, reserve and fee protection. Other valid
+   bills go to staff; policy failures stay held. Autonomous allowance starts at zero.
+
+AI may propose or explain, never authorize transfers, change policy or access signing keys.
+A staff edit preserves the original proposal and requires a reviewed successor and fresh
+checks/approval; it does not mutate an approved intent. That successor workflow is still
+pending. Application limits remain mandatory; do not claim Circle's mainnet-only native
+wallet controls enforce the testnet lane.
+
+### Amount, state and privacy boundaries
+
+- Preserve exact local amount/currency and a staff-approved immutable reference-rate snapshot
+  with rounding to six-decimal USDC units. Testnet mapping is not real FX or bank settlement;
+  never assume one local-currency unit equals one USDC.
+- Use approved, controlled testnet recipients linked offchain to vendor aliases. A mirror
+  does not mean the real vendor received money or accepts USDC. Keep local actual-paid state
+  separate from testnet mirror state; never clear the college's payable from testnet proof.
+- Use verified faucet-funded balances with fee allowance. If funds cannot cover full-value
+  mirrors, select smaller real bills or obtain sufficient authorized testnet funding. Never
+  silently scale source amounts or seed fictional funds; scaled synthetic demos are separate.
+- Keep identities and sensitive documents offchain. Get separate permission for external AI
+  processing, testnet execution, staff recording and public college name/logo/quotes.
+  Public amounts/addresses can still be linkable. Mainnet and real college funds are excluded.
+
+### Evidence and expansion
+
+Collect college-authorized **video of staff using the workflow and collaboration proof**,
+linked reasoning/audit records and verified testnet transaction URLs. Track proposals
+approved as-is versus edited/rejected, holds/pending separately, review time against an agreed
+baseline including correction effort, and automatic versus escalated outcomes. Count staff
+agreement with automatic decisions separately from per-item approvals. Report sample sizes,
+feedback and limitations; no invented savings, adoption or guaranteed organizer promotion.
+
+Keep **Circle Agent Wallets** for this hackathon; no mid-build switch to Developer-Controlled
+Wallets. Validate with the college, expand departments first, then deeper collections and
+later optional assistance. Grades, attendance, hardship, discounts/installments, student
+employment, payroll execution, bank/FX adapters and Gateway/x402/Earn/Borrow are deferred.
+Preserve existing modules; deferred does not mean deleted.
+
+### For implementation agents
+
+1. Read [PLAN.md Section 14](PLAN.md#14-college-shadow-pilot--hackathon-execution-contract)
+   for authoritative pilot scope, delivery order, safety gates and metric definitions.
+2. Confirm college problem/consent and minimum source records. Reuse C0 institution context
+   and partial C1 draft/policy foundations; do not restart with a student-dependent workflow.
+3. Finish exact source/treasury handling, verified destinations, authenticated review,
+   reservations, successor/outbox/attempt recovery and matching receipt/finality checks.
+   C0 `can_execute=false` and current C1 execution denial remain intact until new gates pass.
+4. Prove human-approved source-bill-to-testnet-settlement workflow without duplicates, then
+   separately authorize/test capped recurring lane and collect user evidence.
+
+This documentation update enables no transfers. Sections below describe existing developer
+commands; they are not a ready-made college pilot or permission to use legacy execution.
+
+---
+
 ## Table of contents
 
+- [College shadow pilot](#college-shadow-pilot-current-hackathon-focus)
 - [What you'll see](#what-youll-see)
 - [Requirements](#requirements)
 - [Setup](#setup)
@@ -68,7 +166,7 @@ before production payment-agent use. The demo is not a certified school treasury
 
 ## What you'll see
 
-A full cycle looks like this:
+The **existing seeded developer demo**, not the college pilot, looks like this:
 
 ```
 $ php artisan eduflow:demo
@@ -86,8 +184,11 @@ Cycle: auto-paid 3, escalated 2, held 1, disbursed 85 USDC.
     10.00 USDC approved instantly, 5.00 USDC escalated for advisor review.
 ```
 
-Two invoices and part of an aid request pay for real. The rest are stopped, each for a
-different and specific reason — that is the demo.
+With explicitly authorized and funded Circle testnet execution, this seeded cycle is
+intended to submit two invoice payments and part of an aid request; fake runs are simulated.
+The other items stop for specific policy reasons. This is developer-demo output, not proof
+of college usage or successful matching settlement. The current college target needs
+real permitted source records, staff review and connected verified testnet evidence.
 
 ---
 
@@ -306,7 +407,7 @@ fail for lack of funds.
 ```bash
 php artisan lepton:doctor      # is it wired up?
 php artisan eduflow:demo       # run one full autonomous cycle
-php artisan lepton:reconcile   # prove every receipt on-chain
+php artisan lepton:reconcile   # legacy hash lookup; stronger pilot verification required
 ```
 
 `eduflow:demo` moves **85 USDC** of real testnet USDC (30 + 45 + the 10 USDC aid
@@ -369,7 +470,9 @@ decisions.
 
 ## Verify it really settled
 
-This is the part that matters. A hash in your database is a claim.
+A hash in your database is a claim. The command below is **legacy hash reconciliation**,
+not the successful receipt, expected-payment matching and finality verification required
+for the college pilot. Its `verified` label alone cannot complete pilot settlement.
 
 ```bash
 php artisan lepton:reconcile
@@ -382,16 +485,21 @@ php artisan lepton:reconcile
   1 verified · 1 fabricated · 0 unverifiable · 0 ledger-only
 ```
 
-Forged or fake-driver receipts come back **fabricated**. Mark them failed with:
+Legacy output uses **fabricated** for absent hashes, but a missing RPC result alone does
+not prove fabrication or failed settlement. Keep uncertain outcomes unresolved and reconcile
+without blind resubmission. Fake-driver receipts are simulated, never onchain proof.
+
+For reviewed disposable demo records only, the legacy mutation command is:
 
 ```bash
 php artisan lepton:reconcile --fix
 ```
 
-This is idempotent — it only touches rows not already reconciled, and it will not tell
-you to re-run a flag you already passed.
+It skips rows already marked reconciled, but its legacy evidence rules remain insufficient
+for college payment decisions. Do not run `--fix` on pilot records solely because a hash
+lookup is missing. Harden and test receipt/movement/finality checks first.
 
-To check one hash yourself:
+To inspect one hash yourself (inspection, not settlement proof):
 
 ```php
 app(Yukazakiri\Lepton\Contracts\ArcNetworkGateway::class)
@@ -417,7 +525,9 @@ sub-micro residuals as strings; fake observations say `simulated`, never settled
 network/address or unavailable RPC produces no inferred chain balance. Legacy policy and
 forecast float APIs remain indicative; exact-money/reservation/evidence work is still open.
 SQLite floating-point money storage is refused rather than presented as exact. A preview
-is not live-payment readiness, signing authority or proof of custody/settlement.
+is not live-payment readiness, signing authority or proof of custody/settlement. It is the
+first read-only step, **not** the complete hackathon pilot: eligible approved college bills
+must later be connected to actual verified Arc testnet payments through the gated lifecycle.
 
 `SettlementOperatorFactory` now builds an institution operator without aid setup. Its
 `InspectInstitutionFinance` tool is read-only; aid tools appear only with an active local
@@ -482,6 +592,57 @@ paths. CLI staff IDs provide operator attribution, not proof of personal authent
 MFA. Restrict shell access. Hashes detect changes, not a database administrator rewriting
 history and recomputing hashes; externally anchored audit/signing remains a release gate.
 
+## Invoice source evidence and departmental planning
+
+These are normal finance workflows, not a dedicated pilot or demo module. `InvoiceVersion`
+binds exact source amount/currency, source and business-approval references, department/period
+and explicit USDC reference valuation to an existing `Invoice`. Source money comes from
+staff-verified records, not legacy float columns. `CurrencyValuationCalculator` supports
+all installed currencies, including six-decimal USDC with identity rate `1`. Valuation is
+not executable FX, payment approval or a settlement receipt; evidence has no network or
+demo-payment state.
+
+Verified finance staff capture through `POST finance/invoice-versions`
+(`finance.invoice-versions.store`), supplying `invoice_id`, retry UUID `capture_key`, exact
+string `source_amount`, `source_currency`, `source_evidence`, `business_approval_reference`,
+`department`, `period_start`, `period_end`, exact string `source_per_usdc`, `rate_source`,
+ISO-8601 `rate_observed_at`, and explicit `rounding` (`down`, `half_up`, `up`).
+A separate verified admin reviews via `POST finance/invoice-versions/{invoiceVersion}/review`
+with `expected_digest`, `decision` (`approve_evidence`, `reject`, `hold`) and `reason`.
+`GET finance/invoice-versions/{invoiceVersion}` shows evidence. Identity comes from the
+session; caller-supplied staff IDs are prohibited. Reviews are evidence validation, not
+permission to pay. Retries retain one audit; changed evidence requires successor work.
+
+`BudgetSnapshot` captures exact allocation, spending and commitments separately from
+verified opening funds, realized aggregate receipts, actual outflows, restricted cash,
+protected reserve and other cash commitments. Allocation is never added to cash; forecast
+revenue is not available funds. `DepartmentBudgetPlanner` checks an explicitly bound closed
+bill set cumulatively by due date and ID. Staff attests other commitments exclude selected
+bills and cash protection buckets are disjoint. Negative headroom stays visible. Source,
+review, budget drift or expired/corrupt evidence blocks the complete plan.
+
+Capture with `POST finance/budget-snapshots` (`finance.budget-snapshots.store`). Context:
+`budget_id`, `capture_key`, `currency`, `department`, `period_start`, `period_end`, `as_of`,
+`valid_until`, selected `bill_ids`, `budget_evidence`, `cash_evidence`, `commitment_evidence`.
+Required exact decimal strings: `allocation`, `already_spent`, `other_budget_commitments`,
+`opening_funds`, `realized_receipts`, `actual_outflows`, `restricted_cash`, `protected_reserve`,
+`other_cash_commitments`. Accept `commitments_exclude_selected_bills` and `cash_buckets_disjoint`.
+Inspect through `GET finance/budget-snapshots/{budgetSnapshot}`; plan through
+`POST finance/budget-snapshots/{budgetSnapshot}/plan`.
+
+Immutable records, canonical digests, restrictive FKs and populated-rollback refusal retain
+evidence. Legacy amount/budget fingerprints detect changes without recovering lost precision.
+Versioned invoices are blocked from legacy float-based payment paths until exact intent
+integration ships. Input/review/planning changes no invoice payment state, budget or wallet.
+Every response retains `can_execute=false`; plans reserve nothing and verify no settlement
+funding. Plans cannot be combined as a funded institution-wide plan. Staff attestation is
+not independent bank reconciliation or source/rate authenticity proof.
+
+Staff UI/imports, independently approved budget/policy and destinations, safe successors,
+atomic reservations, durable submission/recovery and verified Arc settlement remain open.
+The college shadow demo uses these ordinary workflows in a separately authorized testnet
+environment; it is not a parallel application domain or production-readiness claim.
+
 ## Commands
 
 | Command | What it does |
@@ -490,8 +651,8 @@ history and recomputing hashes; externally anchored audit/signing remains a rele
 | `php artisan lepton:login --status` | Circle session state per network |
 | `php artisan lepton:login <email>` | Send the OTP, print the request ID |
 | `php artisan lepton:login --request=<id> --otp=<code>` | Complete login |
-| `php artisan lepton:reconcile` | Prove every receipt against the chain |
-| `php artisan lepton:reconcile --fix` | Mark fabricated receipts as failed |
+| `php artisan lepton:reconcile` | Legacy hash lookup; not complete pilot settlement proof |
+| `php artisan lepton:reconcile --fix` | Legacy reconciliation mutation; review missing/unknown evidence before use |
 | `php artisan eduflow:demo` | Run one full autonomous cycle |
 | `php artisan lepton:status --address=0x…` | Chain, block, balance, limits |
 | `php artisan lepton:transfer 0x… --amount=1.00 --from=0x…` | Single transfer (`--estimate` to dry-run) |
@@ -516,9 +677,10 @@ LEPTON_TREASURY_ADDRESS=0xYourAgentWallet
 
 ## The AI layer (optional)
 
-`laravel/ai` is installed. The agents exist, but **none of them are wired into the request
-path yet** — every decision still runs through the deterministic PHP policy engine, and
-that is the point.
+`laravel/ai` is installed. Optional advisory, student conversation and assistance
+approval-resume wiring exist; financial authority remains in deterministic PHP rules.
+The institution inspection tool is read-only. Existing assistance approval endpoints
+are not a departmental vendor-payment approval/execution path.
 
 ```bash
 # Optional: a local model, so the AI layer runs with no paid API key
@@ -688,7 +850,8 @@ be redirected at another student.
 
 A replayed approval finds nothing pending and returns `nothing_pending` without paying twice.
 Any settlement in the response sets `requires_onchain_verification` — a returned hash is a claim
-until `php artisan lepton:reconcile` proves it.
+until successful matching movement and finality are verified. Legacy `lepton:reconcile`
+hash lookup alone does not provide that guarantee.
 
 > **Never `app(SettlementOperator::class)`.** Its constructor takes an `Organization`, a fund and
 > a policy version, and Eloquent models take no constructor arguments — so the container hands
@@ -698,6 +861,8 @@ until `php artisan lepton:reconcile` proves it.
 ---
 
 ## How the money moves
+
+**Existing developer path, not the new college pilot lifecycle:**
 
 ```
 Invoices + Aid requests
@@ -715,11 +880,14 @@ Invoices + Aid requests
   Transaction row (status + hash)                      ← a claim
         │
         ▼
-  lepton:reconcile  →  eth_getTransactionByHash        ← the proof
+  lepton:reconcile  →  eth_getTransactionByHash        ← legacy lookup, not full proof
 ```
 
-Amounts cross the boundary as integers. `Amounts::fromDecimalString('45.00')` gives
-`45_000000`; nothing is ever parsed as a float.
+The base-unit gateway path uses integers: `Amounts::fromDecimalString('45.00')` gives
+`45_000000`. Legacy treasury/payment APIs and storage still use floats or two-decimal
+values; those gaps must be removed from the pilot path. The target lifecycle adds durable
+authorization/reservation/attempt recovery before submission and successful matching
+receipt/finality evidence before **testnet mirror** settlement, without clearing local bills.
 
 > **Never `hexdec()` a chain quantity.** Arc native USDC is 18 decimals, so 20 USDC is
 > 2e19 wei — past `PHP_INT_MAX`. `hexdec()` returns a float there and an `(int)` cast

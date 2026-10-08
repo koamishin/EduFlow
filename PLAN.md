@@ -2,9 +2,11 @@
 
 **Tagline:** Open-source institutional finance agent and payment orchestration, powered by Circle Agent Stack and USDC settlement on Arc.
 
-**Document scope:** Parts 1–5 describe the existing implementation and hackathon track. Sections 5–11 define the institution-ready OSS release track; Section 12 records Circle/Arc research and the institution-first architecture; Section 13 defines school-wide operational events, feasibility boundaries and measurable pilot outcomes. Proposed capabilities are not shipped features; a completed demo milestone is not a production-readiness claim.
+**Document scope:** Parts 1–5 describe the existing implementation and developer demos. Sections 5–11 define the institution-ready OSS release track; Section 12 records Circle/Arc research and the institution-first architecture; Section 13 catalogs wider operational events. **Section 14 is the authoritative current hackathon pilot scope, delivery order and acceptance contract.** It supersedes older demo priorities, not financial safety or production release gates. Proposed capabilities are not shipped features; a completed demo milestone is not a production-readiness claim.
 
-**Product direction confirmed by the owner:** Circle Agent Stack and Arc USDC are the primary finance execution infrastructure, not an optional side feature. Keep MIT and one institution per self-hosted instance. The first finance pilot must operate with zero students: observe treasury funds, evaluate a vendor bill, enforce policy, execute an authorized USDC payment, and reconcile evidence. Installation and simulation must not move money; mainnet and autonomous release remain explicitly gated. LLM advisory stays optional.
+**Product direction confirmed by the owner:** Circle Agent Stack and Arc USDC are the primary finance execution infrastructure, not an optional side feature. Keep MIT and one institution per self-hosted instance. Keep **Circle Agent Wallets through Lepton for this hackathon**; Developer-Controlled Wallets remain a later institutional deployment decision. The first finance pilot must operate with zero students. Installation, fake simulation and read-only previews must not submit payments; actual testnet execution requires separate explicit authorization. Mainnet and real college fund movement remain out of scope. LLM advisory stays optional.
+
+**Current hackathon focus:** Fee collections and budget planning in shadow/parallel mode, starting with **one college department, its approved budget and approved bills due over the next couple of weeks**. Use staff-verified aggregate realized receipts or approved opening funds, not a new student payment portal. The college keeps collecting and paying in local currency through its existing process. Each eligible admin-approved bill must produce a linked, verified USDC mirror payment on Arc testnet; read-only analysis plus an unrelated transfer is not completion. Add a separately approved, small capped testnet-only lane for existing recurring obligations after the human-approved path is safe. Confirm the selected problem with college staff before expanding. See [Section 14](#14-college-shadow-pilot--hackathon-execution-contract).
 
 ---
 
@@ -431,11 +433,33 @@ Outstanding:
 
 ### Part 5: Hackathon Demo & End-to-End Verification
 
-**Demo-only:** Amounts below are illustrative policy examples, not installation defaults.
-Read the active policy and current fixtures for the actual split. Fake and testnet runs
-must be labelled separately; neither proves mainnet or local-bank readiness.
+**Current college pilot:** Follow Section 14, not the legacy student-aid walkthrough below.
+The target is staff using one department's real approved bills and budget, with each
+permitted approval connected to a verified Circle Agent Wallet payment on Arc testnet.
+C0 preview and C1 drafts/policy activation alone cannot execute this target.
 
-- **Demo Walkthrough (3–5 Minutes):**
+- **Primary walkthrough (target; remaining C1/C2 work required):**
+  1. Show the agreed departmental budget, staff-verified opening funds/realized receipts and
+     anonymized bills, all retaining their original local currency and document references.
+  2. Explain a pay/hold/escalate proposal with exact source amount, approved USDC mirror
+     mapping, policy checks, remaining allocation, reserve/fee protection and due date.
+  3. Let authorized finance staff approve or reject. A requested material edit requires a
+     reviewed replacement proposal and fresh authorization, not mutation of an approved intent.
+  4. Execute each eligible approval through the existing Circle Agent Wallet on `ARC-TESTNET`;
+     keep the college's actual payable and bank-payment status unchanged.
+  5. Verify successful matching Arc movement/finality, link explorer evidence to the decision,
+     and repeat the cycle without another payment.
+  6. After explicit standing-policy approval, show one eligible recurring bill using the small
+     capped autonomous testnet lane and another requiring human review or a policy hold.
+  7. Record staff usage with permission and report approve-as-is/edit/reject/hold counts,
+     automatic-versus-escalated decisions and review time against a recorded baseline.
+
+**Legacy assistance developer demo (retained; not current college pilot):** Amounts below
+are illustrative policy examples, not installation defaults. Read the active policy and
+current fixtures for the actual split. Fake and testnet runs must be labelled separately;
+neither proves mainnet or local-bank readiness.
+
+- **Legacy Assistance Walkthrough (3–5 Minutes):**
   1. **Student Login:** Juan logs in, seeing a tuition balance displayed in both local currency (e.g., `₱17,250 PHP`) and `300.00 USDC`.
   2. **Assistance Request:** Juan submits an emergency request for `150.00 USDC` (`₱8,625 PHP`).
   3. **Autonomous Evaluation:** Policy engine runs instantly:
@@ -1065,22 +1089,29 @@ satisfies this gate.
 
 ## 11. Next Work and Decisions Requiring Approval
 
-**Next implementation batch:** Finish remaining O0 checks, decouple assistance context
-from the institution operator, and build exact treasury/payment-intent/reservation/evidence
-foundations. Prove one zero-student vendor-payment cycle before broad inbound, Gateway,
-x402 or escrow expansion. Keep existing working modules; no generic ERP or shared SaaS
-rewrite is required.
+**Next implementation batch:** Use Section 14's one-department college pilot as the
+current product priority. Confirm the college's problem, consent, budget and source records;
+finish required O0 checks and the remaining C1/C2 exact treasury, destination, reservation,
+approval, submission/recovery and settlement-evidence gates. C0 already decouples the
+institution operator from assistance; C1 draft/policy foundations are partial, not execution.
+Prove each eligible staff-approved bill produces its linked testnet payment, then add the
+opt-in capped recurring-payment lane. Keep existing working modules; broad inbound, student
+aid, Gateway, x402, escrow, a generic ERP and a shared SaaS rewrite are not this batch.
 
 Decisions to confirm before implementation:
 1. Keep MIT and accept permissive forks/competing hosting, or seek a separately reviewed
    license change. Existing released MIT rights remain; no relicense in this planning change.
 2. One institution per installation remains the proposed boundary. Institution-first,
    zero-student finance and Circle/Arc as primary settlement are confirmed product direction.
-3. Choose institution-authorized wallet model: current Agent Wallet/Lepton path for bounded
-   pilot, versus reviewed Developer-Controlled Wallet integration for server operations.
-   Keep zero autonomous limits initially; domestic reporting is separate from USDC execution.
-4. Assign security/release/finance owners, choose two pilot schools, and agree supported
-   runtime, recovery and maintenance commitments from measured results.
+3. Hackathon wallet choice is settled: keep the current Circle Agent Wallet/Lepton path.
+   Developer-Controlled Wallets may be reviewed after the hackathon. Obtain explicit testnet
+   authorization, approved mirror-rate/rounding rules and controlled recipient mappings.
+   Autonomous limits start at zero; staff may separately authorize only Section 14's capped
+   testnet lane after its safety checks pass. Domestic payments remain separate.
+4. Assign security/release/finance and college pilot owners; confirm one department, its
+   bills, standing-policy limits and evidence/publication permissions with the interested
+   college. Two independent institutions remain a later OSS O4 gate, not a hackathon prerequisite.
+   Agree runtime, recovery and maintenance commitments from measured results.
 5. Authorize credential remediation, seed safety changes and schema/payment refactoring
    as implementation work. This document does not execute those changes or transactions.
 
@@ -1187,12 +1218,14 @@ mainnet/testnet sessions. Documented native policies cover transfer caps and rec
 contract lists; policy changes require a second email OTP and are **mainnet-only**.
 Do not advertise testnet policy enforcement or blindly apply outdated seven-day notes.
 
-**Pilot:** reuse the existing Agent Wallet/Lepton execution path with institution-approved
-operator, recovery process and small operational allowance. Check real CLI/session/network
-compatibility, expiry, limits and keychain operation in the deployment container.
-**Server treasury alternative:** Developer-Controlled Wallets are designed for backend
+**Current hackathon pilot:** keep the existing Circle Agent Wallet/Lepton path; do not
+switch wallet models mid-hackathon. Use an approved operator, recovery process and limited
+faucet-funded `ARC-TESTNET` allowance. Check CLI/session/network compatibility, expiry,
+limits and keychain operation in the deployment container. Testnet application caps remain
+mandatory; do not claim Circle's mainnet-only native policies enforce the pilot.
+**Later server treasury alternative:** Developer-Controlled Wallets are designed for backend
 operations; the treasury sample uses this model. Their API key/entity-secret authorization
-is a separate integration/review, not an Agent Wallet session or an automatic multisig.
+is a separate post-hackathon integration/review, not an Agent Wallet session or an automatic multisig.
 
 The agent must not have access to the institution mailbox, OTPs, private keys, entity
 secret or unrestricted shell. Only the isolated executor receives signing authority.
@@ -1342,11 +1375,14 @@ floats and two-decimal transaction columns still lose precision. Current immedia
 idempotency does not distinguish assistance auto portion from human remainder.
 
 Reuse Laravel actions/models, `InstallationInstitution`, `Money`, finance policy and
-forecast services. Proposed additive records (not shipped):
-- Institution finance-policy versions and approved counterparty destination versions.
-- Treasury account observations with network/provider, balance bucket, units/precision
+forecast services. Partial foundations already shipped: read-only Arc observations,
+immutable `FinancePolicyVersion` content/activation and document-bound vendor
+`PaymentIntent` drafts (Section 12.1). These do not provide payment authority or execution.
+Remaining proposed records/lifecycle work:
+- Approved counterparty destination versions and their ownership/review evidence.
+- Durable treasury account observations with network/provider, balance bucket, units/precision
   and freshness; reporting values must not overwrite actual asset balances.
-- Receivable collection intents and document-bound payment intents/attempts.
+- Receivable collection intents, executable payment-intent lifecycle and attempt records.
 - Unique reservation, approval-digest, outbox/inbox and allocation/posting records.
 - Gateway transfer/deposit evidence and x402 request/nonce/provider-transfer records,
   with nonunique batch-hash links and distinct settlement states.
@@ -1386,10 +1422,13 @@ production custody, security audit or an end-to-end regional fiat off-ramp.
 | C4 — Crosschain and paid APIs | Gateway lifecycle/fees/recovery plus allowlisted x402 service spend | Transfer ID/nonce dedup, batch evidence, expiry/delegation and daily spend ceilings proven |
 | C5 — Wider finance modules | Procurement escrow, refunds, subscriptions and aid through same shared intent engine | Human-approved business evidence and module-specific acceptance; no model-only escrow release |
 
-First demonstration: register institution; bind simulated/approved treasury; import vendor,
-budget and bill; show reserve-based hold and human review; submit one authorized Circle
-payment; show verified Arc movement and document-linked export. Repeat cycle without
-paying again. Entire demo must run with **zero students**.
+Current first demonstration follows Section 14: one college department, its approved budget
+and anonymized bills; staff-verified opening funds or aggregate realized fee receipts; policy
+reasoning, holds and human review; each eligible approval connected to an actual Circle Agent
+Wallet payment and verified Arc **testnet** evidence. Fake runs are development checks, not
+payment-flow evidence. Add the separately authorized capped recurring-payment lane after the
+human path passes. Repeat without paying again. Entire pilot must run with **zero students**;
+a student collection portal and C3 inbound automation are not prerequisites.
 
 **Production limits:** Circle screening is not complete KYB, beneficiary verification or
 regulatory certification. Obtain institution/product/jurisdiction approval and establish
@@ -1449,10 +1488,12 @@ failure, invalid destinations, institution/network mismatch and replay without p
 This verifies a read-only foundation, not institution-wide live execution. Receipt verification,
 exact treasury migration, atomic cumulative reservations and recovery are still required.
 
-**Benefit verification is separate:** No live school pilot, measured savings, improved
-retention or lower outage rate is claimed. Proposed benefits below are hypotheses with
-observable acceptance measures. A passing test suite cannot prove school adoption,
-provider eligibility, statutory compliance or financial return.
+**Benefit verification is separate:** The owner reports a local college agreed to explore
+EduFlow, with concern about AI handling money. This is an interested pilot partner, not a
+completed deployment, adoption metric or public endorsement. No completed college pilot,
+measured savings, improved retention or lower outage rate is claimed. Section 14 defines the
+current shadow/testnet pilot; wider benefits below remain hypotheses with observable measures.
+A passing test suite cannot prove adoption, provider eligibility, compliance or financial return.
 
 | Decision | Recommended scope | Boundary |
 | --- | --- | --- |
@@ -1569,23 +1610,32 @@ movement until the institution approves a viable end-to-end rail.
 
 ### 13.6 Pilot That Proves Value Beyond Bookkeeping
 
-Start with **vendor/service continuity and procurement review**, which can reuse existing
-invoice/budget data without students. Deliver C1/C2 next; add C3 collections only after the
-primary payment lifecycle is safe. Restricted grants and emergency/event workflows follow
-on the same controls—not separate unbounded agents or a full ERP rewrite.
+Current hackathon scope is **fee collections and budget planning in shadow/parallel mode**,
+narrowed to one department's approved budget and bills, as specified in Section 14. Staff-verified
+aggregate receipts/opening funds can feed planning without student records or a collection
+integration. Deliver the remaining C1/C2 lifecycle next: every eligible admin-approved item
+must produce its linked, verified testnet payment; an unrelated transfer does not prove the
+workflow. Then add the separately approved capped recurring-payment lane. Confirm value with
+the college, expand departments first, and add C3 collections and later assistance only after
+validation. The wider catalog is not a requirement to build all modules before the pilot.
 
 Pilot sequence:
 1. Record baseline for one institution's approved vendor bills, critical-service deadlines,
    manual review effort, exception age and current all-in payment cost. Agree case definitions
    with bursar, IT/facilities and academic operations; do not invent improvement percentages.
-2. Run C0 read-only/shadow reviews. Staff compares each recommendation with real policy and
-   authoritative documents. Log false holds, false approvals, missing data and useful alerts.
+2. Start with C0 read-only reviews. Staff compares recommendations with authoritative records
+   and policy. Log false holds, false approvals, missing data and useful alerts. C0 alone is
+   not the organizer's payment-flow deliverable.
 3. Resolve C1/C2 gates; test duplicate, crash, unknown outcome, reserve drift and restore
-   cases. Obtain separate permission for capped testnet and later real-money trials.
-4. Keep release human-approved initially. Introduce narrow automation only for pre-approved
-   low-risk obligations after budget, destination, recovery and evidence checks pass.
-5. Compare pilot against baseline and publish limitations. Expand only when finance and
-   school-service owners confirm acceptable costs, burden and operational outcomes.
+   cases. Obtain explicit testnet authorization and link each eligible approved bill to its
+   exact USDC mirror payment. Real-money trials remain a separate post-hackathon decision.
+4. Keep testnet release human-approved initially. Introduce an opt-in capped lane only for
+   existing approved recurring obligations after all budget/destination/recovery/evidence
+   checks pass. Policy failures stay blocked; a human cannot approve past a hard limit.
+5. Compare approve-as-is versus edited/rejected proposals and review time against baseline;
+   report automatic/escalated/held outcomes separately. Capture college-authorized video of
+   staff using the workflow, collaboration proof and linked testnet/audit evidence. Publish
+   only with consent and expand only when college owners confirm useful results.
 
 | Owner / beneficiary | Evidence to collect | Acceptance / stop condition |
 | --- | --- | --- |
@@ -1600,3 +1650,256 @@ mismatch, breached reservation/reserve boundary, lost approval evidence, unresol
 ownership, or missing trustworthy settlement proof. Freeze new submissions while preserving
 in-flight reconciliation and investigation. A benefit claim requires measured school
 results; technical feasibility alone is not proof of adoption or financial value.
+
+---
+
+## 14. College Shadow Pilot — Hackathon Execution Contract
+
+### 14.1 Decision, Authority and Current Status
+
+**Source:** Organizer Aljosa [Arc]'s feedback supplied by the owner: focus on one workflow,
+prefer fee collections and budget planning in shadow/parallel mode, start with one department,
+connect approved items to actual Arc testnet payments, include a small capped autonomous
+lane, collect real-user evidence and keep Circle Agent Wallets for the hackathon.
+This is product guidance, not a waiver of safety gates, official judging rules, guaranteed
+endorsement or a promise of social promotion.
+
+**Pilot partner status:** The owner reports one local college said yes to exploring EduFlow.
+The college remains skeptical of AI handling institutional funds. Department, primary pain
+point, authorized finance owner, records, limits and publication permissions still require
+confirmation. Do not describe this as a completed pilot or production adoption.
+
+**Scope precedence for implementation agents:** This section governs current hackathon
+priorities when older student-aid demos or the broader OSS roadmap suggest different work.
+Sections 8–10 still govern financial safety and production release. The user college decides
+which useful, feasible problem to validate; organizer preference does not replace discovery.
+
+| State | What exists or is required | What it does not prove |
+| --- | --- | --- |
+| C0 foundation | Read-only institution observation, indicative vendor review and audited no-op; no student/aid/AI requirement | `can_execute=false`; not an approved-payment pilot |
+| C1 foundation, partial | Exact non-executable vendor drafts, reviewed immutable finance-policy activation, normal invoice-version evidence/review and exact closed-set departmental budget/cash planning | No payment approval, atomic reservation, outbox, safe execution or settlement certification from a draft/activation/evidence review |
+| Current delivery target | Departmental source records, policy-linked proposals, authenticated staff review, each eligible approval's actual testnet payment, verified evidence and capped automation | Target is not shipped by this documentation update |
+| Later institution release | Exact legacy migration, production concurrency/recovery and full operational/provider/jurisdiction gates | Testnet success does not authorize mainnet, college treasury custody or local-bank payments |
+
+**Application boundary:** shadow pilot names the demo practice only. Reuse normal invoice,
+budget, review and payment-intent workflows; do not add a dedicated shadow feature or
+parallel finance domain. Testnet execution is separately configured and authorized.
+
+### 14.2 One Workflow, One Department
+
+**Product wedge:** fee collections and budget planning. **First executable slice:** one
+college department, its already-approved budget and approved vendor/service bills due over
+the next couple of weeks. Use the college's most important feasible problem, confirmed by
+its finance owner. Do not begin with a generalized agent handling every inflow/outflow.
+
+Minimum inputs, supplied or confirmed by authorized staff:
+- Department and budget period, approved allocation, already-spent/committed amounts and
+  any restricted funds or protected reserves. Budget allocation is not proof of cash.
+- Staff-verified aggregate realized fee receipts or approved opening funds, with source/date
+  evidence. Expected tuition, promised grants and forecast revenue are not available funds.
+- Anonymized approved bills: stable source reference, original amount/currency, due date,
+  budget category, vendor alias, business approval and recurring-obligation evidence if relevant.
+- Current approved finance policy, authorized reviewers, exact mirror-rate/rounding rule,
+  allowlisted controlled testnet recipients, spend/fee caps and stop/recovery owner.
+
+Planning proposes payment order and use of the existing approved allocation. It explains
+budget conflicts, reserve holds, due dates and missing evidence; it cannot reallocate funds
+between departments, change restricted-fund uses or approve new business obligations.
+A finance administrator must authorize those business decisions separately.
+
+**No student dependency:** staff-verified aggregate inputs suffice for the first slice.
+Do not build a student fee portal, individual payer matching, grade/attendance imports or
+new SIS/bank integration before proving this department's bill lifecycle. A manual/import
+input and staff review UI are delivery work, not existing capabilities assumed by this plan.
+
+### 14.3 Parallel Operation and Exact Testnet Mirroring
+
+1. Keep the college's actual collections, statutory accounts and payments in local currency
+   through its existing process. Pilot access is read-only or approved anonymized extracts;
+   EduFlow has no authority to debit the college's bank account or mainnet treasury.
+2. Preserve each source amount/currency and reference. Use an immutable, staff-approved
+   reference-rate snapshot, source/time and explicit rounding rule to derive exact
+   six-decimal USDC mirror units. Do not assume one local-currency unit equals one USDC.
+   This mapping is a **testnet representation**, not executable FX or fiat settlement.
+3. Link the source bill and original proposal to the staff decision or approved standing
+   policy, exact payment intent, provider attempt and verified Arc testnet transaction.
+   Each eligible approved item must reach verified mirror settlement once; failures remain
+   visible unresolved cases, never silently reported as paid. An unrelated token transfer
+   or fake-driver receipt cannot satisfy this requirement.
+4. Send only through the existing Circle Agent Wallet/Lepton path on `ARC-TESTNET` with
+   checked chain ID `5042002`. Use actual faucet-funded balances and protect fee allowance;
+   no implicit mainnet fallback or authority derived from seeded ledger funds.
+5. Map each vendor alias to an explicitly approved, operator-controlled testnet recipient.
+   Verify ownership/control and record the mapping offchain. Do not invent addresses or
+   imply the real vendor accepts USDC or received the college's real payment.
+6. Keep **local actual-payment state separate from testnet mirror state**. A verified mirror
+   may consume its pilot reservation, but must not settle the real local payable, create
+   college income or replace its accounting/bank evidence. The same separation applies to
+   imported collections and budgets; a mirrored allocation is not new cash.
+
+**Funding feasibility:** preflight the actual USDC total plus fees before selecting bills.
+Faucet amounts/rate limits may block full-value mirroring; do not loop faucet requests,
+seed imaginary funds or silently scale the college's numbers. Select smaller real bills or
+obtain sufficient verified testnet funding with operator approval. If a scaled synthetic
+demo is needed, label it separately and disclose it to the college/organizer; it is not
+full-value settlement evidence for the real-bill pilot.
+
+### 14.4 Human Approval and Capped Autonomous Lanes
+
+**Default lane: agent proposes, authorized finance staff approves.** Show original/local
+and mirror amounts, due date, source evidence, policy version, passed/failed checks,
+remaining allocation, commitments, reserve/fee impact and destination before review.
+Approve/reject requires authenticated role/ownership checks and auditable staff identity;
+a supplied CLI staff ID alone is not proof of personal approval.
+
+Staff edits count as feedback, not permission to mutate an approved intent. Preserve the
+original proposal and reasons for changes; create a reviewed successor using the planned
+replacement workflow, then re-evaluate and authorize it. C1 drafts currently cannot be
+edited, cancelled/replaced or executed; do not bypass that boundary with a second key.
+Rejection and a policy hold cause no transfer. Human approval cannot bypass a hard rule.
+
+**Opt-in autonomous lane: testnet only, zero allowance until staff approves standing policy.**
+After the human path passes its gates, allow recurring payments without per-item review
+only when all deterministic checks pass:
+- Existing business-approved recurring obligation within the agreed department/period;
+  no new purchase, inferred recurrence or LLM-created debt.
+- Approved vendor alias and versioned, verified controlled testnet destination; destination
+  changes require independent review, not an emailed address or model suggestion.
+- Exact amount at or below the reviewed per-payment cap, within cumulative daily/pilot
+  limits, available departmental allocation, verified wallet funds, reserve and fee ceiling.
+  Count settled spending and outstanding reservations; concurrent proposals cannot reuse funds.
+- Current policy, source document, mirror snapshot and authority match the approved intent;
+  revalidate before submission. Stale or changed evidence requires fresh review.
+- Durable retry identity, reservation and attempt state; enabled stop switch and known
+  outcome. Missing, conflicting, suspicious or unknown evidence stays held/unresolved.
+
+An otherwise valid bill outside the autonomous lane goes to human review. Budget/reserve,
+destination, network or integrity failures stay blocked until corrected and re-evaluated;
+not every failed automatic check is an approvable exception. Model output may propose or
+explain, never authorize, loosen limits, access keys/OTPs or acquire unrestricted shell access.
+Application enforcement is mandatory; do not advertise Circle's mainnet-only native
+wallet policies as testnet enforcement.
+
+### 14.5 Ordered Implementation Work and Exit Gates
+
+No new feature is complete merely because its checklist appears here. Reuse institution
+context, `Invoice`, budget, finance policy, draft intent and Lepton seams; extend only what
+this slice requires. No wallet-model migration, parallel ERP or required extra AI agent.
+
+**Implementation clarification from the owner:** shadow/parallel is a demo operating
+practice, not an application domain. No dedicated shadow models, tables, routes, screens
+or testnet-only finance feature. Build reusable institutional invoice/budget/review/payment
+workflows; the demo exercises those same workflows with explicitly authorized testnet
+configuration and controlled recipients. Keep real local accounting separate from network
+payment evidence; a testnet transaction must not settle a real payable.
+
+**Delivered normal finance evidence/planning foundation (partial Step 2):** `InvoiceVersion`
+and `InvoiceVersionReview` bind exact source money in supported currencies (including USDC),
+source/business-approval references, department/period, an explicit USDC reference rate,
+source/time and rounding to an existing institution `Invoice`. A separate authenticated
+admin approves evidence, rejects or holds it against the expected digest. Evidence review
+is not business entitlement verification, payment approval or executable FX. No chain or
+demo payment state is hardcoded into these records. Source money is staff-supplied exact
+input, never inferred from legacy floats. A change fingerprint detects legacy document
+edits without pretending to recover original precision. Conflicting retries, self-review,
+foreign/stale/tampered evidence fail closed. Safe successors still require implementation.
+
+`BudgetSnapshot` captures exact staff-attested approved allocation, already-spent and other
+budget commitments separately from opening funds, realized receipts, actual outflows,
+restricted cash, protected reserve and other cash commitments. Allocation is not cash;
+forecast revenue cannot fund a plan. All inputs use exact decimal strings/integer units;
+headroom uses arbitrary precision and preserves deficits. Each capture binds a closed set
+of invoice-version/review digests, department/period, source references, as-of/expiry and
+budget change fingerprint. Staff attests that selected bills are excluded from other
+commitments and protection buckets are disjoint.
+
+`DepartmentBudgetPlanner` applies cumulative allocation/cash checks by due date and ID.
+Drift, expiry or corrupt bound evidence blocks the entire plan rather than freeing uncertain
+cash for another bill. Authenticated JSON input/show/review/planning routes are
+`finance.invoice-versions.*` and `finance.budget-snapshots.*`; staff UI/import files remain
+open. Evidence is immutable with restrictive FKs and populated-rollback refusal. Versioned
+invoices are blocked from legacy float policy/drafts/payment execution until exact intent
+integration is complete. No invoice payment state, wallet or budget is changed by capture,
+review or planning. Outputs remain `can_execute=false`, no reservation, no verified funding,
+no payment approval or transfer. Staff attestation is not independent bank/rate verification.
+
+Step 1 still requires college confirmation and separate permissions. Independent budget/
+policy/destination approval, successors, reservations, authenticated payment authorization,
+durable attempts/recovery, network fees/funding, verified Arc settlement and production
+concurrency remain gates. Model immutability/digests do not protect against privileged DB
+rewrites with recomputed hashes. No completed staff pilot or actual payment is claimed.
+
+1. **Confirm pilot with college.** Name finance/department/operator owners; agree problem,
+   baseline, records, budget, dates, permissions, reference-rate mapping and limits. Record
+   separate consent for external AI processing, testnet transfers and public evidence.
+2. **Capture source and mirror evidence.** Add the minimum authorized input/review path,
+   exact source/mirror amounts, document references and separate local/pilot states. Resolve
+   required legacy float/storage gaps on this path; preview cannot supply guessed exact funds.
+3. **Complete C1 authorization.** Reviewed destinations, authenticated staff review, immutable
+   decision/proposal history, safe successor workflow, atomic cumulative reservations and
+   durable intent/outbox/attempt identity. Test same-item retries and simultaneous approvals.
+4. **Complete C2 execution and evidence.** Explicit testnet-only opt-in, checked wallet/chain,
+   fee preflight, isolated executor, stop switch and recovery. Verify successful receipt,
+   matching chain/asset/sender/recipient/amount and finality before marking mirror settled.
+   Null RPC, timeout or uncertain provider response stays pending/unknown; reconcile the
+   existing attempt rather than submitting a blind retry or declaring fabrication.
+5. **Prove human lane end to end.** Staff uses a real approved bill; its approved proposal
+   produces one verified testnet transfer with audit/export evidence. Repeat review, job and
+   reconciliation without duplicate payment; show rejected/held bills cause no transfer.
+6. **Enable capped lane separately.** Staff approves narrow recurring-payment policy and
+   limits. Demonstrate an eligible automatic testnet payment, a human escalation and a hard
+   policy hold; verify cap boundaries, cumulative overspend/concurrency and stop behavior.
+7. **Capture pilot evidence and decide expansion.** Compare decisions/time with baseline;
+   obtain authorized staff-usage video and collaboration proof; review value with the college.
+   Expand departments first, then deeper collections/C3, then optional student assistance
+   only when users need it and privacy/business approvals permit it.
+
+Required automated tests use synthetic records and fake gateways by default. Cover exact
+source/mirror precision and rounding, source/approval drift, roles/ownership, zero-student
+operation, local/testnet state separation, approve/reject/hold and autonomous boundaries,
+duplicate/concurrent/crash/unknown/restore cases, reverted or mismatched receipts, fake
+labelling and stop behavior. Real testnet proof is a separately consented run, not routine CI.
+Existing student-aid tests/features stay intact; their existence is not pilot acceptance.
+
+### 14.6 Traction Evidence and Honest Metrics
+
+Priority evidence, collected with the college's permission:
+- **Staff-usage video and collaboration proof:** actual finance staff operating the tool,
+  not only a developer demo. Obtain permission for recording and public name/logo/quotes;
+  willingness to explore does not authorize an endorsement claim.
+- **Connected payments:** anonymized bill/proposal reference, reasoning and policy checks,
+  reviewer decision or standing-policy authority, exact local/mirror mapping, verified
+  transaction/explorer link and audit record for every executed item. Show unresolved
+  attempts honestly; fake or scaled synthetic examples are separate.
+- **Human review quality:** record original proposals approved as-is, edited, rejected,
+  held and pending. Define approval-as-is rate as approved-as-is / resolved human-reviewed
+  original proposals (approved-as-is + edited + rejected); report holds/pending separately
+  and prevent repeated reviews or revisions from inflating counts. An edit is not approval
+  of the original proposal and needs its own successor authorization.
+- **Review effort:** measure comparable staff review time against the agreed baseline,
+  include data-entry/correction overhead and sample sizes, and distinguish active review
+  time from waiting/settlement delay. Do not invent savings or percentages.
+- **Autonomy and escalation:** count auto-authorized, human-review, held/rejected, submitted,
+  verified and pending/failed outcomes separately. Post-run staff agreement with automatic
+  decisions is retrospective feedback, not per-item approval or proof of correctness.
+- **Staff feedback:** collect permissioned quotes and concrete examples of useful reasoning,
+  wrong recommendations or remaining work. Report limitations alongside successes.
+
+Keep identifying student/vendor data, invoice text, bank details and private documents
+offchain. Even public wallet addresses and amounts can be linkable; explain this before
+consent and do not assume anonymization removes all privacy risk. Public proof may use
+opaque references and permitted redacted excerpts. No student grades, attendance, hardship
+or subjective "morals" assessment is needed for this pilot.
+
+**Pilot done means:** confirmed useful departmental problem, staff-operated workflow,
+linked successful testnet payments for eligible approved items, separately authorized capped
+lane demonstrated, rejected/held paths safe, replay/recovery checked and permissioned
+user/payment/metric evidence collected. It does **not** mean real college bills were paid
+by EduFlow, student fees were collected onchain, production/mainnet readiness, measured
+adoption beyond the observed pilot, or a guaranteed Arc/Circle shoutout.
+
+**Deferred scope:** all-institution autonomous treasury; full student payment intake and
+bank/FX adapters; payroll execution/tax calculations; assistance eligibility, discounts,
+installments and student employment; grades/attendance/hardship assessment; Developer-Controlled
+Wallet migration; Gateway/x402/escrow/Earn/Borrow. Preserve existing modules and revisit them
+only after college validation, not because the broad architecture makes them possible.

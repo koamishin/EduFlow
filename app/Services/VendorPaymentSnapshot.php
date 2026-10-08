@@ -28,6 +28,9 @@ final class VendorPaymentSnapshot
             || $invoice->organization_id !== $institution->id || $wallet->organization_id !== $institution->id) {
             $this->refuse('Payment documents and treasury must belong to the installation institution.');
         }
+        if ($invoice->hasExactVersion()) {
+            $this->refuse('Versioned invoices require reviewed exact-evidence integration; legacy document draft preparation is forbidden.');
+        }
         if ($institution->currency !== CurrencyCode::USDC->value) {
             $this->refuse('Legacy document amounts are USDC; reviewed currency conversion is required.');
         }
