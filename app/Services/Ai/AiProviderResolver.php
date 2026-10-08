@@ -94,15 +94,20 @@ final class AiProviderResolver
     /**
      * Which provider is in force, for display in the admin and diagnostics.
      *
-     * @return array{source: string, name: ?string, usable: bool, advisory_enabled: bool, provider: ?AiProvider}
+     * @return array{source: string, name: ?string, display_name: ?string, driver: ?string, model: ?string, usable: bool, advisory_enabled: bool, provider: ?AiProvider}
      */
     public function describe(): array
     {
         $provider = $this->adminProvider();
+        $name = $provider?->providerKey() ?? config('ai.default');
+        $configuration = (array) config("ai.providers.{$name}", []);
 
         return [
             'source' => $provider instanceof AiProvider ? 'admin' : 'env',
-            'name' => $provider?->providerKey() ?? config('ai.default'),
+            'name' => $name,
+            'display_name' => $provider?->name ?? $name,
+            'driver' => $provider?->driver ?? ($configuration['driver'] ?? $name),
+            'model' => $provider?->model ?? data_get($configuration, 'models.text.default'),
             'usable' => $provider instanceof AiProvider ? $provider->isUsable() : $this->settings->advisory_enabled,
             'advisory_enabled' => $this->settings->advisory_enabled,
             'provider' => $provider,

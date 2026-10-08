@@ -5,6 +5,7 @@ use App\Http\Controllers\AskEduFlowController;
 use App\Http\Controllers\AssistanceRequestController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\BudgetSnapshotController;
+use App\Http\Controllers\ChatHistoryController;
 use App\Http\Controllers\FinanceApprovalController;
 use App\Http\Controllers\InvoiceVersionController;
 use App\Http\Controllers\NotificationController;
@@ -83,6 +84,19 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('finance.approvals.resume');
 });
+
+Route::middleware(['auth'])->prefix('api/chats')->group(function (): void {
+    Route::get('', [ChatHistoryController::class, 'sessions'])->name('api.chats.index');
+    Route::post('', [ChatHistoryController::class, 'store'])->name('api.chats.store');
+    Route::get('search', [ChatHistoryController::class, 'search'])->name('api.chats.search');
+    Route::get('{session}', [ChatHistoryController::class, 'show'])->name('api.chats.show');
+    Route::get('{session}/messages', [ChatHistoryController::class, 'messages'])->name('api.chats.messages');
+    Route::post('{session}/messages', [ChatHistoryController::class, 'message'])->name('api.chats.message');
+    Route::post('{session}/stream', [ChatHistoryController::class, 'stream'])->name('api.chats.stream');
+    Route::delete('{session}', [ChatHistoryController::class, 'destroy'])->name('api.chats.destroy');
+});
+
+Route::middleware(['auth'])->get('api/ai-actions', fn () => response()->json(['data' => []]))->name('api.ai-actions.index');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])

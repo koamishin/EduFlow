@@ -28,6 +28,11 @@ class AiSettings extends Settings
     public bool $advisory_enabled = false;
 
     /**
+     * Whether administrators may create chats and send manual prompts to ARC.
+     */
+    public bool $manual_chat_enabled = false;
+
+    /**
      * Whether the operator has acknowledged that advisory calls send student
      * data to a third-party provider. A second gate, so enabling AI is always
      * two deliberate actions.
@@ -63,6 +68,7 @@ class AiSettings extends Settings
     {
         return [
             'advisory_enabled' => false,
+            'manual_chat_enabled' => false,
             'disclosure_accepted' => false,
             'timeout_seconds' => 20,
             'allow_settlement_proposals' => false,

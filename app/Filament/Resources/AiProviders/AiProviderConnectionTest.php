@@ -27,15 +27,15 @@ final class AiProviderConnectionTest
     public static function run(AiProvider $record): void
     {
         if (! $record->isUsable()) {
-            self::failed('Provider is not usable', 'It is inactive, has no model, or is openai-compatible without a base URL.');
+            self::failed('Provider is not usable', 'It is inactive, has no model, or is missing required credentials/URL.');
 
             return;
         }
 
-        if ($record->driver !== 'openai-compatible' || blank($record->base_url)) {
+        if ($record->driver !== 'openai-compatible' && $record->driver !== 'openai') {
             self::failed(
                 'Saved without testing',
-                "Only openai-compatible endpoints can be probed this way. {$record->name} was saved; make a real call to confirm it."
+                "Only openai and openai-compatible endpoints can be probed this way. {$record->name} was saved; make a real call to confirm it."
             );
 
             return;
@@ -46,7 +46,8 @@ final class AiProviderConnectionTest
             filled($record->api_key) ? ['Authorization' => 'Bearer '.$record->api_key] : [],
         );
 
-        $base = rtrim((string) $record->base_url, '/');
+        $defaultBase = $record->driver === 'openai' ? 'https://api.openai.com/v1' : '';
+        $base = rtrim((string) ($record->base_url ?: $defaultBase), '/');
 
         try {
             $direct = self::get($headers, $base.'/models');
@@ -58,12 +59,16 @@ final class AiProviderConnectionTest
             }
 
             // A 404 here usually means the host is serving a site, not an API.
-            $withV1 = self::get($headers, $base.'/v1/models');
+            if (! str_ends_with($base, '/v1')) {
+                $withV1 = self::get($headers, $base.'/v1/models');
 
-            if ($withV1->successful()) {
-                self::succeeded($record, $withV1, suggestedUrl: $base.'/v1');
+                if ($withV1->successful()) {
+                    self::succeeded($record, $withV1, suggestedUrl: $base.'/v1');
 
-                return;
+                    return;
+                }
+            } else {
+                $withV1 = $direct;
             }
 
             self::failed(

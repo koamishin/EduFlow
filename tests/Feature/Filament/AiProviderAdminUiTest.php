@@ -8,8 +8,12 @@ use App\Filament\Resources\AiProviders\Pages\CreateAiProvider;
 use App\Filament\Resources\AiProviders\Pages\EditAiProvider;
 use App\Models\AiProvider;
 use App\Models\User;
+use App\Services\Ai\AiProviderResolver;
 use App\Settings\AiSettings;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Repeater;
+use Filament\Schemas\Components\Grid;
+use Filament\Support\Enums\Width;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
@@ -44,6 +48,46 @@ test('ai settings page is registered in the admin panel', function (): void {
 
 test('super admin can open the ai settings page', function (): void {
     $this->get(AiSettingsPage::getUrl())->assertSuccessful();
+});
+
+test('compatible provider cards match the reference layout', function (): void {
+    AiProvider::create([
+        'name' => 'koamishin',
+        'driver' => 'openai-compatible',
+        'base_url' => 'https://gateway.example.com/v1',
+        'model' => 'agy/claude-opus-4-6-thinking',
+        'api_key' => 'sk-layout-test-secret',
+        'is_active' => true,
+        'is_default' => true,
+    ]);
+
+    $component = Livewire::test(AiSettingsPage::class)
+        ->assertSee('ai-compatible-providers')
+        ->assertSee('koamishin')
+        ->assertSee('Provider Name')
+        ->assertSee('Bearer API Key (optional)')
+        ->assertSee('Custom Request Headers')
+        ->assertSee('Add Header')
+        ->assertSee('Add OpenAI-Compatible Provider')
+        ->assertDontSee('sk-layout-test-secret');
+
+    $components = collect($component->instance()->form->getFlatComponents(withHidden: true));
+    $section = $components->first(fn ($item): bool => ($item->getExtraAttributes()['class'] ?? null) === 'ai-compatible-providers');
+    $providers = $components->first(fn ($item): bool => $item instanceof Repeater && $item->getName() === 'openai_compatible_providers');
+    $grid = $components->first(fn ($item): bool => $item instanceof Grid && str_ends_with($item->getKey() ?? '', 'compatible-provider-fields'));
+    $headers = $components->first(fn ($item): bool => $item instanceof Repeater && $item->getName() === 'headers');
+
+    expect($component->instance()->getMaxContentWidth())->toBe(Width::Full)
+        ->and($section->getColumnSpan('default'))->toBe('full')
+        ->and($providers->getColumnSpan('default'))->toBe('full')
+        ->and($providers->isCollapsible())->toBeTrue()
+        ->and($providers->getAddAction()->getColor())->toBe('gray')
+        ->and($grid)->not->toBeNull()
+        ->and($grid->getColumnSpan('default'))->toBe('full')
+        ->and($grid->getColumns('default'))->toBe(1)
+        ->and($grid->getColumns('md'))->toBe(2)
+        ->and($headers->getColumnSpan('default'))->toBe('full')
+        ->and($headers->getAddAction()->getColor())->toBe('gray');
 });
 
 test('ai settings can be saved from the panel', function (): void {
@@ -144,7 +188,9 @@ test('a stored api key is never rendered back into the edit form', function (): 
         'is_default' => true,
     ]);
 
-    $component = Livewire::test(EditAiProvider::class, ['record' => $provider->getKey()]);
+    $component = Livewire::test(EditAiProvider::class, ['record' => $provider->getKey()])
+        ->assertSee('••••••••')
+        ->assertSee('API key saved (encrypted). Leave blank to keep it; enter a new key to replace it.');
 
     // The secret must not appear anywhere in the component's rendered output.
     $rendered = (string) $component->html();
@@ -181,6 +227,30 @@ test('leaving the key blank on edit keeps the stored key', function (): void {
 
     expect($provider->fresh()->name)->toBe('Renamed')
         ->and($provider->fresh()->api_key)->toBe('sk-original-key');
+
+    Livewire::test(EditAiProvider::class, ['record' => $provider->getKey()])
+        ->assertSee('••••••••')
+        ->assertSee('API key saved (encrypted). Leave blank to keep it; enter a new key to replace it.')
+        ->assertDontSee('sk-original-key')
+        ->fillForm(['api_key' => 'sk-replacement-key'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($provider->fresh()->api_key)->toBe('sk-replacement-key')
+        ->and($provider->fresh()->getRawOriginal('api_key'))->not->toContain('sk-replacement-key');
+
+    Livewire::test(EditAiProvider::class, ['record' => $provider->getKey()])
+        ->assertSee('API key saved (encrypted). Leave blank to keep it; enter a new key to replace it.')
+        ->assertDontSee('sk-replacement-key')
+        ->fillForm(['api_key' => ''])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $resolved = app(AiProviderResolver::class)->buildFromSettings();
+
+    expect($provider->fresh()->api_key)->toBe('sk-replacement-key')
+        ->and($resolved->providerCredentials()['key'])->toBe('sk-replacement-key')
+        ->and($resolved->defaultTextModel())->toBe('some-model');
 });
 
 test('only one provider can be the default', function (): void {

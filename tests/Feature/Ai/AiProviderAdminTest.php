@@ -172,16 +172,25 @@ it('reports which provider is in force for the admin display', function (): void
 
     expect($description['source'])->toBe('admin')
         ->and($description['name'])->toBe('openai-compatible')
+        ->and($description['display_name'])->toBe('Local Ollama')
+        ->and($description['driver'])->toBe('openai-compatible')
+        ->and($description['model'])->toBe('llama3.1')
         ->and($description['usable'])->toBeTrue();
 });
 
 it('falls back to the env configured provider when no admin row exists', function (): void {
     AiProvider::query()->delete();
 
-    config(['ai.default' => 'anthropic']);
+    config([
+        'ai.default' => 'anthropic',
+        'ai.providers.anthropic.models.text.default' => 'configured-anthropic-model',
+    ]);
 
     $description = app(AiProviderResolver::class)->describe();
 
     expect($description['source'])->toBe('env')
-        ->and($description['name'])->toBe('anthropic');
+        ->and($description['name'])->toBe('anthropic')
+        ->and($description['display_name'])->toBe('anthropic')
+        ->and($description['driver'])->toBe('anthropic')
+        ->and($description['model'])->toBe('configured-anthropic-model');
 });

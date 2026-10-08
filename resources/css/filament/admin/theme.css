@@ -2,3 +2,101 @@
 
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
+
+@layer components {
+    .ai-compatible-providers {
+        --ai-provider-border: var(--color-gray-200);
+        --ai-provider-card: var(--color-gray-50);
+        --ai-provider-input: white;
+        --ai-provider-muted: var(--color-gray-500);
+
+        &.fi-section {
+            border-radius: 1rem;
+            box-shadow: none;
+        }
+
+        & > .fi-section-header {
+            padding: 1rem 1.5rem;
+        }
+
+        & .fi-section-header-heading {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        & .fi-section-header-description,
+        & .fi-fo-field .fi-sc-text {
+            color: var(--ai-provider-muted);
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        & .fi-fo-repeater-item {
+            border-radius: 0.875rem;
+            background: var(--ai-provider-card);
+            box-shadow: 0 0 0 1px var(--ai-provider-border);
+        }
+
+        & .fi-fo-repeater-item-header {
+            min-height: 3rem;
+            padding: 0.75rem 1rem;
+        }
+
+        & .fi-fo-repeater-item-header-label,
+        & .fi-fo-field-label-content {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        & .fi-fo-repeater-item-has-header > .fi-fo-repeater-item-content {
+            border-color: var(--ai-provider-border);
+        }
+
+        & .fi-fo-repeater-item-content {
+            padding: 1rem;
+        }
+
+        & .fi-input-wrp {
+            border-radius: 0.75rem;
+            background: var(--ai-provider-input);
+            box-shadow: 0 0 0 1px var(--ai-provider-border);
+        }
+
+        & .fi-input {
+            padding-block: 0.5rem;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        & .fi-input::placeholder {
+            color: var(--ai-provider-muted);
+        }
+
+        & .fi-fo-repeater-add > .fi-btn {
+            border-radius: 0.625rem;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        & .fi-checkbox-input:checked {
+            background-color: #f59e0b;
+            border-color: #f59e0b;
+        }
+    }
+
+    .dark .ai-compatible-providers {
+        --ai-provider-border: #353537;
+        --ai-provider-card: #202022;
+        --ai-provider-input: #29292c;
+        --ai-provider-muted: #a1a1aa;
+
+        &.fi-section {
+            background: #121214;
+            --tw-ring-color: #29292c;
+        }
+
+        & > .fi-section-content-ctn {
+            border-color: #29292c;
+        }
+    }
+}
