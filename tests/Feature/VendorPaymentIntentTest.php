@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 use App\Actions\ActivateFinancePolicy;
+use App\Actions\ApproveVendorDestination;
+use App\Actions\CaptureInvoiceVersion;
 use App\Actions\CreateFinancePolicyVersion;
+use App\Actions\PrepareVendorDestination;
 use App\Actions\PrepareVendorPayment;
+use App\Actions\ReviewInvoiceVersion;
 use App\Actions\VerifyVendorPaymentDraft;
 use App\DTOs\Money;
 use App\Enums\CurrencyCode;
@@ -13,12 +17,14 @@ use App\Models\Budget;
 use App\Models\FinancePolicyActivation;
 use App\Models\FinancePolicyVersion;
 use App\Models\Invoice;
+use App\Models\InvoiceVersion;
 use App\Models\Organization;
 use App\Models\PaymentIntent;
 use App\Models\Student;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vendor;
+use App\Models\VendorDestinationApproval;
 use App\Models\Wallet;
 use App\Services\InstallationInstitution;
 use App\Services\VendorPaymentSnapshot;
@@ -66,6 +72,8 @@ function vendorDraftContext(): array
         'organization_id' => $institution->id, 'name' => 'Campus Network Supplier',
         'wallet_address' => '0x'.str_repeat('2', 40), 'status' => 'verified', 'risk_level' => 'low',
     ]);
+    $destination = app(PrepareVendorDestination::class)->handle($actor, $vendor, 'v1', $vendor->wallet_address, 'ARC-TESTNET', 'synthetic-control-evidence');
+    app(ApproveVendorDestination::class)->handle($reviewer, $destination, $destination->content_digest, null, 'synthetic-independent-verification');
     $budget = Budget::query()->create([
         'organization_id' => $institution->id, 'name' => 'Teaching services', 'category' => 'software',
         'allocated_amount' => '100', 'spent_amount' => '0', 'remaining_amount' => '100', 'status' => 'active',
@@ -83,6 +91,115 @@ function prepareVendorDraft(array $context, ?string $key = null): PaymentIntent
 {
     return app(PrepareVendorPayment::class)->handle($context['actor'], $context['invoice'], $context['wallet'], new Money(1, CurrencyCode::USDC), $key ?? (string) Str::uuid());
 }
+
+/** @param array{institution: Organization, actor: User, invoice: Invoice, wallet: Wallet, vendor: Vendor, budget: Budget} $context */
+function exactDraftEvidence(array $context, string $currency = 'USDC'): InvoiceVersion
+{
+    $evidence = app(CaptureInvoiceVersion::class)->handle($context['actor'], $context['invoice'], [
+        'capture_key' => (string) Str::uuid(), 'source_amount' => '25.000001', 'source_currency' => $currency,
+        'source_evidence' => 'verified-bill-extract', 'business_approval_reference' => 'approved-business-obligation',
+        'department' => 'Teaching services', 'period_start' => now()->toDateString(), 'period_end' => now()->addDays(14)->toDateString(),
+        'source_per_usdc' => '1', 'rate_source' => 'identity-reference', 'rate_observed_at' => now()->subMinute()->toIso8601String(), 'rounding' => 'down',
+    ]);
+    /** @var User $reviewer */
+    $reviewer = User::query()->whereKey(VendorDestinationApproval::current($context['institution']->id, $context['vendor']->id)->approved_by)->firstOrFail();
+    app(ReviewInvoiceVersion::class)->handle($reviewer, $evidence, $evidence->snapshot_digest, 'approve_evidence', 'Source evidence checked.');
+
+    return $evidence;
+}
+
+test('exact reviewed USDC invoice source binds full six decimal evidence without interpreting legacy amount float', function (): void {
+    $context = vendorDraftContext();
+    $context['invoice']->update(['amount' => '25.123456']);
+    $version = exactDraftEvidence($context);
+    $draft = prepareVendorDraft($context);
+    expect($draft->amount_base_units)->toBe(25_000001)->and($draft->invoice_version_id)->toBe($version->id)
+        ->and($draft->invoice_version_review_id)->toBeGreaterThan(0)->and($draft->vendor_destination_version_id)->toBeGreaterThan(0)
+        ->and($draft->hasValidSnapshot())->toBeTrue()
+        ->and(app(VerifyVendorPaymentDraft::class)->handle($context['actor'], $draft)->id)->toBe($draft->id)
+        ->and(Transaction::query()->count())->toBe(0)->and($context['invoice']->fresh()->status)->toBe('pending');
+});
+
+test('local reference valuation cannot authorize USDC payment draft', function (): void {
+    $context = vendorDraftContext();
+    $version = app(CaptureInvoiceVersion::class)->handle($context['actor'], $context['invoice'], [
+        'capture_key' => (string) Str::uuid(), 'source_amount' => '25.01', 'source_currency' => 'PHP',
+        'source_evidence' => 'verified-bill-extract', 'business_approval_reference' => 'approved-business-obligation',
+        'department' => 'Teaching services', 'period_start' => now()->toDateString(), 'period_end' => now()->addDays(14)->toDateString(),
+        'source_per_usdc' => '50', 'rate_source' => 'staff-reference', 'rate_observed_at' => now()->subMinute()->toIso8601String(), 'rounding' => 'down',
+    ]);
+    /** @var User $reviewer */
+    $reviewer = User::query()->whereKey(VendorDestinationApproval::current($context['institution']->id, $context['vendor']->id)->approved_by)->firstOrFail();
+    app(ReviewInvoiceVersion::class)->handle($reviewer, $version, $version->snapshot_digest, 'approve_evidence', 'Source evidence checked.');
+    expect(fn (): PaymentIntent => prepareVendorDraft($context))->toThrow(ValidationException::class)
+        ->and(PaymentIntent::query()->count())->toBe(0);
+});
+
+test('missing destination approval prevents drafts and replacement stales recorded draft', function (string $case): void {
+    $context = vendorDraftContext();
+    $approval = VendorDestinationApproval::current($context['institution']->id, $context['vendor']->id);
+    if ($case === 'missing') {
+        DB::table((new VendorDestinationApproval)->getTable())->where('id', $approval->id)->delete();
+        expect(fn (): PaymentIntent => prepareVendorDraft($context))->toThrow(ValidationException::class);
+
+        return;
+    }
+    $draft = prepareVendorDraft($context);
+    $replacement = app(PrepareVendorDestination::class)->handle($context['actor'], $context['vendor'], 'v2', $context['vendor']->wallet_address, 'ARC-TESTNET', 'renewed-control-check');
+    /** @var User $reviewer */
+    $reviewer = User::query()->whereKey($approval->approved_by)->firstOrFail();
+    app(ApproveVendorDestination::class)->handle($reviewer, $replacement, $replacement->content_digest, $approval->id, 'renewed-independent-contact');
+    expect(fn () => app(VerifyVendorPaymentDraft::class)->handle($context['actor'], $draft))->toThrow(ValidationException::class)
+        ->and(fn (): PaymentIntent => prepareVendorDraft($context, $draft->intent_key))->toThrow(ValidationException::class)
+        ->and($draft->fresh()->vendor_destination_approval_id)->toBe($approval->id);
+})->with(['missing', 'replacement']);
+
+test('current destination network and retained policy history are mandatory', function (string $case): void {
+    $context = vendorDraftContext();
+    $approval = VendorDestinationApproval::current($context['institution']->id, $context['vendor']->id);
+    if ($case === 'tampered') {
+        DB::table((new VendorDestinationApproval)->getTable())->where('id', $approval->id)->update(['verification_reference' => 'changed']);
+    } else {
+        config(['lepton.arc.chain' => 'ARC', 'lepton.arc.chain_id' => 5042]);
+    }
+    expect(fn (): PaymentIntent => prepareVendorDraft($context))->toThrow(ValidationException::class);
+})->with(['tampered', 'chain']);
+
+test('new payment evidence cannot be discarded through rollback and raw destination deletion', function (): void {
+    $context = vendorDraftContext();
+    $draft = prepareVendorDraft($context);
+    $migration = require database_path('migrations/2026_10_08_031157_add_vendor_destination_context_to_payment_intents_table.php');
+    expect(fn () => $migration->down())->toThrow(RuntimeException::class, 'evidence exists')
+        ->and(fn () => DB::table((new VendorDestinationApproval)->getTable())->where('id', $draft->vendor_destination_approval_id)->delete())->toThrow(QueryException::class);
+});
+
+test('destination context migration preserves old drafts without inferring review and restores monetary guards', function (): void {
+    $context = vendorDraftContext();
+    $draft = prepareVendorDraft($context);
+    $row = $draft->getAttributes();
+    unset($row['id'], $row['vendor_destination_version_id'], $row['vendor_destination_approval_id'], $row['invoice_version_id'], $row['invoice_version_review_id']);
+    DB::table((new PaymentIntent)->getTable())->where('id', $draft->id)->delete();
+    $migration = require database_path('migrations/2026_10_08_031157_add_vendor_destination_context_to_payment_intents_table.php');
+    $migration->down();
+    $id = DB::table((new PaymentIntent)->getTable())->insertGetId($row);
+    $migration->up();
+    /** @var PaymentIntent $legacy */
+    $legacy = PaymentIntent::query()->findOrFail($id);
+    expect($legacy->vendor_destination_version_id)->toBeNull()->and($legacy->vendor_destination_approval_id)->toBeNull()
+        ->and($legacy->snapshot_digest)->toBe($draft->snapshot_digest)->and($legacy->hasValidSnapshot())->toBeFalse()
+        ->and(fn () => DB::table((new PaymentIntent)->getTable())->where('id', $id)->update(['amount_base_units' => 1.5]))->toThrow(QueryException::class)
+        ->and(fn () => app(VerifyVendorPaymentDraft::class)->handle($context['actor'], $legacy))->toThrow(ValidationException::class);
+});
+
+test('destination snapshot cannot conceal wrong recipient even with recomputed top-level digest', function (): void {
+    $context = vendorDraftContext();
+    $draft = prepareVendorDraft($context);
+    $snapshot = $draft->snapshot;
+    $snapshot['vendor_destination']['content']['address'] = '0x'.str_repeat('4', 40);
+    $snapshot['vendor_destination']['content_digest'] = PaymentIntent::digest($snapshot['vendor_destination']['content']);
+    DB::table((new PaymentIntent)->getTable())->where('id', $draft->id)->update(['snapshot' => json_encode($snapshot, JSON_THROW_ON_ERROR), 'snapshot_digest' => PaymentIntent::digest($snapshot)]);
+    expect($draft->fresh()->hasValidSnapshot())->toBeFalse();
+});
 
 test('prepares an exact institution vendor draft without students approval reservation or payment', function (): void {
     $context = vendorDraftContext();

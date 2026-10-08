@@ -12,6 +12,7 @@ use App\Http\Controllers\StudentAssistanceController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentPaymentsController;
 use App\Http\Controllers\StudentWalletController;
+use App\Http\Controllers\VendorDestinationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -45,6 +46,13 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 | conversation-ownership check it belongs with.
 */
 Route::middleware(['auth', 'verified'])->group(function (): void {
+    Route::post('finance/vendor-destinations', [VendorDestinationController::class, 'store'])
+        ->middleware('throttle:10,1')->name('finance.vendor-destinations.store');
+    Route::get('finance/vendor-destinations/{vendorDestinationVersion}', [VendorDestinationController::class, 'show'])
+        ->name('finance.vendor-destinations.show');
+    Route::post('finance/vendor-destinations/{vendorDestinationVersion}/approve', [VendorDestinationController::class, 'approve'])
+        ->middleware('throttle:10,1')->name('finance.vendor-destinations.approve');
+
     Route::post('finance/budget-snapshots', [BudgetSnapshotController::class, 'store'])
         ->middleware('throttle:10,1')->name('finance.budget-snapshots.store');
     Route::get('finance/budget-snapshots/{budgetSnapshot}', [BudgetSnapshotController::class, 'show'])

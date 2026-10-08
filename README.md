@@ -632,16 +632,45 @@ Inspect through `GET finance/budget-snapshots/{budgetSnapshot}`; plan through
 
 Immutable records, canonical digests, restrictive FKs and populated-rollback refusal retain
 evidence. Legacy amount/budget fingerprints detect changes without recovering lost precision.
-Versioned invoices are blocked from legacy float-based payment paths until exact intent
-integration ships. Input/review/planning changes no invoice payment state, budget or wallet.
+Versioned invoices are blocked from legacy float-based payment execution. Independently
+reviewed exact USDC invoice versions now bind non-executable payment drafts; local reference
+valuations do not authorize USDC transfers. Input/review/planning changes no invoice payment state, budget or wallet.
 Every response retains `can_execute=false`; plans reserve nothing and verify no settlement
 funding. Plans cannot be combined as a funded institution-wide plan. Staff attestation is
 not independent bank reconciliation or source/rate authenticity proof.
 
-Staff UI/imports, independently approved budget/policy and destinations, safe successors,
-atomic reservations, durable submission/recovery and verified Arc settlement remain open.
+Staff UI/imports, independent budget/policy sign-off, destination suspension/cooling-off,
+safe successors, atomic reservations, durable submission/recovery and verified Arc settlement remain open.
 The college shadow demo uses these ordinary workflows in a separately authorized testnet
 environment; it is not a parallel application domain or production-readiness claim.
+
+## Reviewed vendor destinations
+
+Verified finance staff prepare an immutable `VendorDestinationVersion` through
+`POST finance/vendor-destinations` (`finance.vendor-destinations.store`) with `vendor_id`,
+stable `version`, recorded `address`, explicit `chain` (`ARC` or `ARC-TESTNET`) and
+`control_evidence`. Chain ID is derived, not supplied. Address syntax does not prove control.
+
+A separate verified admin approves through
+`POST finance/vendor-destinations/{vendorDestinationVersion}/approve`, supplying
+`expected_digest`, explicit `expected_approval` (`none` initially, otherwise current approval
+ID as string), `verification_reference` and accepted `control_verified`. Identity comes from
+authenticated session; self-review is forbidden even for super admins. This records staff
+attestation of independent offchain verification, not cryptographic ownership proof.
+`GET finance/vendor-destinations/{vendorDestinationVersion}` shows evidence.
+
+Append-only approvals bind predecessor digest and validate historical destination content.
+Retries retain one review/audit; stale context, foreign records, tampering, revoked vendor
+status or reactivation of superseded versions are refused. No wallet/provider call occurs.
+Destination approval is not payment approval and never enables transfers.
+
+New vendor drafts require current destination approval matching configured network and
+recorded vendor address. Replacement makes old drafts stale. Exact reviewed USDC invoice
+versions bind six-decimal source/review evidence; local reference valuation remains blocked
+from executable USDC intent. Additive FK migration leaves old drafts nullable/unapproved
+rather than inventing evidence, restores SQLite monetary guards and refuses populated
+rollback. Destination revocation/suspension workflow, cooling-off, safe successors,
+reservations, payment approval, recovery and verified settlement remain open.
 
 ## Commands
 

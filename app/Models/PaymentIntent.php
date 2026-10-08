@@ -26,6 +26,10 @@ use TypeError;
  * @property int $prepared_by
  * @property int|null $finance_policy_version_id
  * @property int|null $finance_policy_activation_id
+ * @property int|null $vendor_destination_version_id
+ * @property int|null $vendor_destination_approval_id
+ * @property int|null $invoice_version_id
+ * @property int|null $invoice_version_review_id
  * @property string $portion
  * @property string $status
  * @property string $currency
@@ -46,7 +50,8 @@ class PaymentIntent extends Model
 
     protected $fillable = [
         'intent_key', 'organization_id', 'invoice_id', 'wallet_id', 'vendor_id',
-        'budget_id', 'prepared_by', 'finance_policy_version_id', 'finance_policy_activation_id', 'portion', 'status', 'currency',
+        'budget_id', 'prepared_by', 'finance_policy_version_id', 'finance_policy_activation_id',
+        'vendor_destination_version_id', 'vendor_destination_approval_id', 'invoice_version_id', 'invoice_version_review_id', 'portion', 'status', 'currency',
         'amount_base_units', 'max_fee_base_units', 'chain', 'chain_id',
         'source_address', 'recipient_address', 'provider_idempotency_key',
         'snapshot_digest', 'snapshot',
@@ -79,7 +84,8 @@ class PaymentIntent extends Model
             'organization_id' => 'integer', 'invoice_id' => 'integer',
             'wallet_id' => 'integer', 'vendor_id' => 'integer', 'budget_id' => 'integer',
             'prepared_by' => 'integer', 'finance_policy_version_id' => 'integer', 'finance_policy_activation_id' => 'integer',
-            'amount_base_units' => 'integer',
+            'vendor_destination_version_id' => 'integer', 'vendor_destination_approval_id' => 'integer',
+            'invoice_version_id' => 'integer', 'invoice_version_review_id' => 'integer', 'amount_base_units' => 'integer',
             'max_fee_base_units' => 'integer', 'chain_id' => 'integer', 'snapshot' => 'array',
         ];
     }
@@ -93,7 +99,7 @@ class PaymentIntent extends Model
                 return false;
             }
 
-            foreach (['invoice', 'treasury', 'vendor', 'policy'] as $section) {
+            foreach (['invoice', 'treasury', 'vendor', 'policy', 'vendor_destination'] as $section) {
                 if (! isset($snapshot[$section]) || ! is_array($snapshot[$section]) || array_is_list($snapshot[$section])) {
                     return false;
                 }
@@ -104,7 +110,8 @@ class PaymentIntent extends Model
                 return false;
             }
 
-            return $this->matchesSnapshot($snapshot) && $this->hasValidPolicySnapshot($snapshot['policy']);
+            return $this->matchesSnapshot($snapshot) && $this->hasValidPolicySnapshot($snapshot['policy'])
+                            && $this->hasValidDestinationSnapshot($snapshot['vendor_destination']) && $this->hasValidInvoiceEvidence($snapshot);
         } catch (JsonException|TypeError) {
             return false;
         }
@@ -166,6 +173,58 @@ class PaymentIntent extends Model
             && $policy['approved_by'] > 0 && $policy['approved_by'] !== $content['created_by']
             && preg_match('/^[0-9a-f]{64}$/D', $policy['activation_digest']) === 1
             && hash_equals($policy['content_digest'], self::digest($content));
+    }
+
+    /** @param array<string, mixed> $destination */
+    private function hasValidDestinationSnapshot(array $destination): bool
+    {
+        $content = $destination['content'] ?? null;
+        $approval = $destination['approval'] ?? null;
+        if (! is_array($content) || ! is_array($approval) || ! is_string($destination['content_digest'] ?? null)
+            || ! is_string($destination['approval_digest'] ?? null)) {
+            return false;
+        }
+
+        return $this->vendor_destination_version_id > 0 && $this->vendor_destination_approval_id > 0
+            && ($destination['version_id'] ?? null) === $this->vendor_destination_version_id
+            && ($destination['approval_id'] ?? null) === $this->vendor_destination_approval_id
+            && ($content['institution_id'] ?? null) === $this->organization_id && ($content['vendor_id'] ?? null) === $this->vendor_id
+            && ($content['address'] ?? null) === $this->recipient_address && ($content['chain'] ?? null) === $this->chain
+            && ($content['chain_id'] ?? null) === $this->chain_id
+            && ($approval['destination_version_id'] ?? null) === $this->vendor_destination_version_id
+            && ($approval['institution_id'] ?? null) === $this->organization_id && ($approval['vendor_id'] ?? null) === $this->vendor_id
+            && is_int($approval['approved_by'] ?? null) && $approval['approved_by'] > 0
+            && is_int($content['prepared_by'] ?? null) && $content['prepared_by'] > 0 && $approval['approved_by'] !== $content['prepared_by']
+            && ($approval['destination_digest'] ?? null) === $destination['content_digest']
+            && hash_equals($destination['content_digest'], self::digest($content))
+            && hash_equals($destination['approval_digest'], self::digest($approval));
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    private function hasValidInvoiceEvidence(array $snapshot): bool
+    {
+        if (! array_key_exists('invoice_evidence', $snapshot)) {
+            return false;
+        }
+        $evidence = $snapshot['invoice_evidence'];
+        if ($evidence === null) {
+            return $this->invoice_version_id === null && $this->invoice_version_review_id === null;
+        }
+        if (! is_array($evidence) || ! is_array($evidence['snapshot'] ?? null) || ! is_array($evidence['review'] ?? null)
+            || ! is_string($evidence['snapshot_digest'] ?? null) || ! is_string($evidence['review_digest'] ?? null)) {
+            return false;
+        }
+        $source = $evidence['snapshot'];
+        $review = $evidence['review'];
+
+        return $this->invoice_version_id > 0 && $this->invoice_version_review_id > 0
+            && ($evidence['version_id'] ?? null) === $this->invoice_version_id && ($evidence['review_id'] ?? null) === $this->invoice_version_review_id
+            && ($source['institution_id'] ?? null) === $this->organization_id && ($source['document']['invoice_id'] ?? null) === $this->invoice_id
+            && ($source['document']['vendor_id'] ?? null) === $this->vendor_id && ($source['document']['budget_id'] ?? null) === $this->budget_id
+            && ($source['source']['currency'] ?? null) === 'USDC' && ($source['source']['minor_units'] ?? null) === (string) $this->amount_base_units
+            && ($review['invoice_version_id'] ?? null) === $this->invoice_version_id && ($review['decision'] ?? null) === 'approve_evidence'
+            && ($review['institution_id'] ?? null) === $this->organization_id && ($review['bill_digest'] ?? null) === $evidence['snapshot_digest']
+            && hash_equals($evidence['snapshot_digest'], self::digest($source)) && hash_equals($evidence['review_digest'], self::digest($review));
     }
 
     /** @param array<string, mixed> $snapshot */

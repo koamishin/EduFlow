@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Actions\CaptureInvoiceVersion;
 use App\DTOs\Money;
 use App\Enums\CurrencyCode;
 use App\Models\Budget;
 use App\Models\FinancePolicyActivation;
 use App\Models\FinancePolicyVersion;
 use App\Models\Invoice;
+use App\Models\InvoiceVersion;
+use App\Models\InvoiceVersionReview;
 use App\Models\Organization;
+use App\Models\PaymentIntent;
 use App\Models\Vendor;
+use App\Models\VendorDestinationApproval;
+use App\Models\VendorDestinationVersion;
 use App\Models\Wallet;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
@@ -28,10 +34,9 @@ final class VendorPaymentSnapshot
             || $invoice->organization_id !== $institution->id || $wallet->organization_id !== $institution->id) {
             $this->refuse('Payment documents and treasury must belong to the installation institution.');
         }
-        if ($invoice->hasExactVersion()) {
-            $this->refuse('Versioned invoices require reviewed exact-evidence integration; legacy document draft preparation is forbidden.');
-        }
-        if ($institution->currency !== CurrencyCode::USDC->value) {
+        /** @var InvoiceVersion|null $invoiceVersion */
+        $invoiceVersion = InvoiceVersion::query()->where('invoice_id', $invoice->id)->first();
+        if ($invoiceVersion === null && $institution->currency !== CurrencyCode::USDC->value) {
             $this->refuse('Legacy document amounts are USDC; reviewed currency conversion is required.');
         }
         if (! in_array($invoice->status, ['pending', 'held', 'escalated'], true)) {
@@ -70,12 +75,39 @@ final class VendorPaymentSnapshot
             $this->refuse('Selected treasury does not match the configured Circle wallet.');
         }
         $source = $this->address($wallet->address);
-        $recipient = $this->address($vendor->wallet_address);
+        $approval = VendorDestinationApproval::current($institution->id, $vendor->id);
+        /** @var VendorDestinationVersion|null $destination */
+        $destination = $approval instanceof VendorDestinationApproval ? VendorDestinationVersion::query()->where('organization_id', $institution->id)
+            ->where('vendor_id', $vendor->id)->whereKey($approval->vendor_destination_version_id)->first() : null;
+        if (! $approval instanceof VendorDestinationApproval || $destination === null || ! $approval->hasValidEvidence($destination) || ! $approval->hasValidHistory()
+            || $destination->chain !== $chain || $destination->chain_id !== $chainId) {
+            $this->refuse('An independently reviewed current vendor destination for this exact network is required.');
+        }
+        $recipient = $this->address($destination->address);
+        if ($this->address($vendor->wallet_address) !== $recipient) {
+            $this->refuse('Legacy vendor address and reviewed destination conflict; independent master-data review is required.');
+        }
         if ($source === $recipient) {
             $this->refuse('A vendor payment cannot target the source treasury.');
         }
 
-        $amount = $this->amount($invoice, 'amount');
+        $invoiceEvidence = null;
+        if ($invoiceVersion !== null) {
+            /** @var InvoiceVersionReview|null $review */
+            $review = InvoiceVersionReview::query()->where('invoice_version_id', $invoiceVersion->id)->first();
+            if ($invoiceVersion->organization_id !== $institution->id || ! $invoiceVersion->hasValidSnapshot()
+                || $invoiceVersion->source_currency !== CurrencyCode::USDC->value
+                || $review === null || ! $review->hasValidEvidence($invoiceVersion) || $review->decision !== 'approve_evidence'
+                || ! hash_equals(PaymentIntent::digest($invoiceVersion->snapshot['document']), PaymentIntent::digest(CaptureInvoiceVersion::documentContext($invoice)))) {
+                $this->refuse('Intact independently reviewed USDC source evidence is required; a local reference valuation is not executable FX.');
+            }
+            $amount = new Money($invoiceVersion->source_minor_units, CurrencyCode::USDC);
+            $invoiceEvidence = ['version_id' => $invoiceVersion->id, 'review_id' => $review->id,
+                'snapshot_digest' => $invoiceVersion->snapshot_digest, 'snapshot' => $invoiceVersion->snapshot,
+                'review_digest' => $review->review_digest, 'review' => $review->content()];
+        } else {
+            $amount = $this->amount($invoice, 'amount');
+        }
         if ($amount->minorUnits <= 0) {
             $this->refuse('Payment amount must be positive.');
         }
@@ -110,7 +142,12 @@ final class VendorPaymentSnapshot
                 'status' => $invoice->status,
             ],
             'treasury' => ['wallet_id' => $wallet->id, 'source_address' => $source, 'provider' => $wallet->provider, 'network' => $wallet->network],
-            'vendor' => ['id' => $vendor->id, 'recipient_address' => $recipient, 'status' => $vendor->status, 'risk_level' => $vendor->risk_level],
+            'vendor' => ['id' => $vendor->id, 'recipient_address' => $recipient, 'legacy_wallet_address' => $vendor->wallet_address,
+                'status' => $vendor->status, 'risk_level' => $vendor->risk_level],
+            'vendor_destination' => ['version_id' => $destination->id, 'approval_id' => $approval->id,
+                'content_digest' => $destination->content_digest, 'content' => $destination->content(),
+                'approval_digest' => $approval->approval_digest, 'approval' => $approval->content()],
+            'invoice_evidence' => $invoiceEvidence,
             'budget' => $budget === null ? null : [
                 'id' => $budget->id,
                 'category' => $budget->category,

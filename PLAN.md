@@ -1202,7 +1202,24 @@ Policy activation does not approve payments or change legacy execution paths. CL
 are host-operator attribution, not personal authentication/MFA. Hashes are change detection,
 not signatures; privileged DB rewrites with recomputed digests remain outside this guarantee.
 
-**Still proposed:** reviewed destinations, exact legacy treasury migration, selected account roles, authorized reservations/outbox,
+**Reviewed beneficiary foundation delivered:** `VendorDestinationVersion` records institution,
+vendor, recorded nonzero address, exact Arc chain identity and control-evidence reference.
+Separate authenticated admin approval binds expected content/current approval, independent
+verification reference and predecessor digest. Same retries preserve audit; self-review,
+foreign/stale evidence, revoked vendors and corrupt predecessor history fail closed.
+Approval is staff attestation of offchain verification, not cryptographic control proof or
+payment authority. Native addresses alone are not proof; no gateway calls occur.
+
+New drafts require current reviewed destination evidence and restrictive version/approval
+references. A replacement approval stales existing drafts even if address stays the same.
+Legacy vendor-address conflict is held for master-data review, never silently adopted.
+Reviewed exact USDC `InvoiceVersion`/review evidence may bind a draft at full six-decimal
+precision without reading legacy invoice floats. Local reference valuations remain
+non-executable: no FX or real local-payable settlement inferred. Upgraded drafts retain
+nullable evidence rather than fabricated approval and fail verification until successor work.
+SQLite monetary guards are restored after additive FK changes; populated rollback refused.
+
+**Still proposed:** exact legacy treasury migration, selected account roles, authorized reservations/outbox,
 settlement verification and posting. Draft digest is not approval, proof of ownership or
 a digital signature. Raw DB writes/admin access and untested production concurrency are
 not covered by model immutability. SQLite float storage cannot recover exact values.
@@ -1379,7 +1396,7 @@ forecast services. Partial foundations already shipped: read-only Arc observatio
 immutable `FinancePolicyVersion` content/activation and document-bound vendor
 `PaymentIntent` drafts (Section 12.1). These do not provide payment authority or execution.
 Remaining proposed records/lifecycle work:
-- Approved counterparty destination versions and their ownership/review evidence.
+- Destination suspension/revocation lifecycle, cooling-off and independent control evidence certification beyond shipped versioned staff approval.
 - Durable treasury account observations with network/provider, balance bucket, units/precision
   and freshness; reporting values must not overwrite actual asset balances.
 - Receivable collection intents, executable payment-intent lifecycle and attempt records.
@@ -1416,7 +1433,7 @@ production custody, security audit or an end-to-end regional fiat off-ramp.
 | Stage | Deliverable | Gate before next stage |
 | --- | --- | --- |
 | C0 — Institution context (read-only slice implemented) | Aid-independent operator/factory, finance-preview CLI, Arc observation and indicative vendor review | Zero-student/no-aid tests, read-only/replay/network/precision/ownership checks and audited no-op pass; immutable finance policy and payment authority remain C1 work |
-| C1 — Safe direct USDC (non-executable draft and reviewed policy foundation implemented) | Exact draft/snapshot/retry identity, immutable policy versions and separate activation now; legacy migration, approved destinations, reservation/approval/outbox/attempts, Arc verification and postings remain open | Draft/replay/staleness/ownership/DB-bounds/history/CLI tests pass on SQLite; PostgreSQL races/upgrades/recovery, authenticated privileged review and live settlement gates still required |
+| C1 — Safe direct USDC (non-executable draft and reviewed policy foundation implemented) | Exact draft/snapshot/retry identity, immutable policy versions, separate activation, reviewed vendor destinations and exact USDC invoice evidence binding now; legacy migration, destination revocation/cooling-off, reservation/payment-approval/outbox/attempts, Arc verification and postings remain open | Draft/replay/staleness/ownership/DB-bounds/history/CLI tests pass on SQLite; PostgreSQL races/upgrades/recovery, authenticated privileged review and live settlement gates still required |
 | C2 — Circle operations | Chosen account model, policy coverage, recovery, expiry/keychain checks and stop switch | Capped testnet proof then separately authorized institution live certification; no unattended mainnet assumption |
 | C3 — Referenced collections | Circle/Arc inbox, USDC collection intents, deterministic allocations and suspense queue | Duplicate/partial/extra/native-vs-ERC20/replay cases pass without students |
 | C4 — Crosschain and paid APIs | Gateway lifecycle/fees/recovery plus allowlisted x402 service spend | Transfer ID/nonce dedup, batch evidence, expiry/delegation and daily spend ceilings proven |
@@ -1518,7 +1535,7 @@ business process, document checks, reminders, commitments or beneficiary verific
 | **Restricted research grant or donor-funded equipment** | Record award/donation conditions, permitted categories, milestones and separate fund allocation; block incompatible spending | No end-of-term sweep to general funds unless donor/legal conditions permit; research/grants owner validates use; restricted-fund module | Protect research delivery and donor trust; reduce questioned expenditure and repayment risk | Not shipped; acceptance requires prohibited-category and overcommitment tests plus fund-owner sign-off |
 | **Field trip, tournament or graduation event deposits** | Link approved event budget, supplier contract, due instalments, participant collections and cancellation/refund terms; track total exposure | Never create travel commitments, substitute vendors or approve safety decisions; cumulative instalments need distinct intent identities | Avoid preventable event cancellation and explain outstanding costs to event owners | Generic bill review only; later measure deposit timeliness, budget overruns and refund exceptions per event |
 | **Duplicate payment, course cancellation or dorm-deposit refund** | Verify original receipt, refund entitlement/credit note, previously refunded totals and return beneficiary; create separate refund intent | No new destination from an email/model; no refund beyond eligible received amount; admissions/housing approves entitlement; C3/C5 | Faster, traceable resolution for parents/students and fewer disputes | Refund workflow not certified; measure refund completion time, repeated refunds and disputed balances |
-| **Vendor payout-address change or suspected duplicate invoice** | Compare approved vendor destination version and invoice identifiers; pause affected intent and route independent verification | A PDF, message or valid address syntax cannot update trusted destination; CFO/procurement confirm change outside the requester's channel | Protect school operating funds and preserve trusted supplier relationships | C0 rejects malformed/foreign destinations; destination versioning, duplicate detection and cooling-off still planned |
+| **Vendor payout-address change or suspected duplicate invoice** | Compare approved vendor destination version and invoice identifiers; pause affected intent and route independent verification | A PDF, message or valid address syntax cannot update trusted destination; CFO/procurement confirm change outside the requester's channel | Protect school operating funds and preserve trusted supplier relationships | Versioned separate destination review and draft binding delivered; cryptographic/control certification, duplicate detection and cooling-off still planned |
 | **Overlapping departmental purchases near term end** | Aggregate commitments, pending approvals and reservations across departments; show affordable options and blocked obligations | Never treat independently passing invoices as a cumulatively funded plan; staff approves trade-offs; C1 atomic reservations | Fewer last-minute cancellations and fairer, visible resource allocation to teaching departments | C0 independent reviews only; require concurrent-overcommitment tests and measure planned-versus-real spending |
 
 Student hardship and scholarships remain supported module targets, but are not the trigger
@@ -1818,13 +1835,16 @@ Drift, expiry or corrupt bound evidence blocks the entire plan rather than freei
 cash for another bill. Authenticated JSON input/show/review/planning routes are
 `finance.invoice-versions.*` and `finance.budget-snapshots.*`; staff UI/import files remain
 open. Evidence is immutable with restrictive FKs and populated-rollback refusal. Versioned
-invoices are blocked from legacy float policy/drafts/payment execution until exact intent
-integration is complete. No invoice payment state, wallet or budget is changed by capture,
+invoices remain blocked from legacy float policy/payment execution. Independently reviewed
+exact USDC invoice versions now bind non-executable drafts; local reference valuations do
+not become USDC payment authority. Reviewed vendor destination versions/approvals bind
+draft recipients and chain identity. No invoice payment state, wallet or budget is changed by capture,
 review or planning. Outputs remain `can_execute=false`, no reservation, no verified funding,
 no payment approval or transfer. Staff attestation is not independent bank/rate verification.
 
 Step 1 still requires college confirmation and separate permissions. Independent budget/
-policy/destination approval, successors, reservations, authenticated payment authorization,
+policy sign-off, destination suspension/cooling-off and control certification, successors,
+reservations, authenticated payment authorization,
 durable attempts/recovery, network fees/funding, verified Arc settlement and production
 concurrency remain gates. Model immutability/digests do not protect against privileged DB
 rewrites with recomputed hashes. No completed staff pilot or actual payment is claimed.
