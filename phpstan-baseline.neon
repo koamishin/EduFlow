@@ -151,12 +151,6 @@ parameters:
 			path: app/Ai/Advisory/StudentBrief.php
 
 		-
-			rawMessage: 'Call to an undefined static method App\Models\AssistanceFund::where().'
-			identifier: staticMethod.notFound
-			count: 1
-			path: app/Ai/Agents/SettlementOperatorFactory.php
-
-		-
 			rawMessage: 'Call to an undefined static method App\Models\Approval::updateOrCreate().'
 			identifier: staticMethod.notFound
 			count: 1
@@ -167,6 +161,138 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Ai/Approvals/ApprovalResumeGate.php
+
+		-
+			rawMessage: Expression on left side of ?? is not nullable.
+			identifier: nullCoalesce.expr
+			count: 4
+			path: app/Ai/Tools/AdminAssistanceRequestsTool.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: int, ticket_number: string, student_name: string, category: ''academic''|''enrollment''|''financial''|''general''|''technical'', priority: ''high''|''low''|''medium''|''urgent'', status: ''closed''|''in_progress''|''pending''|''resolved''|''submitted'', requested_amount: int|string|null, reason: string|null, created_at: string|null}, Closure(App\Models\AssistanceRequest): array{id: int, ticket_number: string, student_name: string, category: ''academic''|''enrollment''|''financial''|''general''|''technical'', priority: ''high''|''low''|''medium''|''urgent'', status: ''closed''|''in_progress''|''pending''|''resolved''|''submitted'', requested_amount: int|string|null, reason: string|null, created_at: string|null} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Ai/Tools/AdminAssistanceRequestsTool.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Invoice::where().'
+			identifier: staticMethod.notFound
+			count: 2
+			path: app/Ai/Tools/AdminInvoicesTool.php
+
+		-
+			rawMessage: Cannot access property $value on string.
+			identifier: property.nonObject
+			count: 1
+			path: app/Ai/Tools/AdminInvoicesTool.php
+
+		-
+			rawMessage: Expression on left side of ?? is not nullable.
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Ai/Tools/AdminInvoicesTool.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: int, reference: string, vendor: string, amount_usdc: float, status: string, due_date: string}, Closure(App\Models\Invoice): array{id: int, reference: string, vendor: string, amount_usdc: float, status: string, due_date: string} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Ai/Tools/AdminInvoicesTool.php
+
+		-
+			rawMessage: Using nullsafe method call on non-nullable type Illuminate\Support\Carbon. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Ai/Tools/AdminInvoicesTool.php
+
+		-
+			rawMessage: Using nullsafe property access "?->value" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Ai/Tools/AdminInvoicesTool.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Student::count().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Ai/Tools/AdminStudentsTool.php
+
+		-
+			rawMessage: Expression on left side of ?? is not nullable.
+			identifier: nullCoalesce.expr
+			count: 2
+			path: app/Ai/Tools/AdminStudentsTool.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: int, student_number: string, name: string, email: string, program: string, year_level: int, enrollment_status: string, academic_status: string, attendance_rate: non-falsy-string, payout_address: string|null}, Closure(App\Models\Student): array{id: int, student_number: string, name: string, email: string, program: string, year_level: int, enrollment_status: string, academic_status: string, attendance_rate: non-falsy-string, payout_address: string|null} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Ai/Tools/AdminStudentsTool.php
+
+		-
+			rawMessage: Access to an undefined property App\Models\Transaction::$created_at.
+			identifier: property.notFound
+			count: 1
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::first().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: Expression on left side of ?? is not nullable.
+			identifier: nullCoalesce.expr
+			count: 2
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: int, tx_hash: string|null, type: ''refund''|''student_assistance''|''tuition_revenue''|''vendor_payment'', status: ''confirmed''|''failed''|''pending'', amount_usdc: float, recipient: string, created_at: mixed}, Closure(App\Models\Transaction): array{id: int, tx_hash: string|null, type: ''refund''|''student_assistance''|''tuition_revenue''|''vendor_payment'', status: ''confirmed''|''failed''|''pending'', amount_usdc: float, recipient: string, created_at: mixed} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: Using nullsafe property access "?->balance" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: Using nullsafe property access "?->minimum_reserve" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: Using nullsafe property access "?->name" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: Using nullsafe property access "?->wallet_address" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\TuitionAccount::sum().'
+			identifier: staticMethod.notFound
+			count: 2
+			path: app/Ai/Tools/AdminTuitionAccountsTool.php
+
+		-
+			rawMessage: Expression on left side of ?? is not nullable.
+			identifier: nullCoalesce.expr
+			count: 3
+			path: app/Ai/Tools/AdminTuitionAccountsTool.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: int, student_name: string, student_number: string, term: string, total_amount: int, paid_amount: int, remaining_balance: int}, Closure(App\Models\TuitionAccount): array{id: int, student_name: string, student_number: string, term: string, total_amount: int, paid_amount: int, remaining_balance: int} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Ai/Tools/AdminTuitionAccountsTool.php
 
 		-
 			rawMessage: 'Call to an undefined static method App\Models\AssistanceRequest::find().'
@@ -361,10 +487,106 @@ parameters:
 			path: app/Features/FeatureRegistry.php
 
 		-
+			rawMessage: 'Call to an undefined static method App\Models\AiProvider::find().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AiProvider::where().'
+			identifier: staticMethod.notFound
+			count: 5
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
+			rawMessage: 'Call to function is_array() with string will always evaluate to false.'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
+			rawMessage: 'Offset ''name'' on *NEVER* in isset() always exists and is not nullable.'
+			identifier: isset.offset
+			count: 1
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
+			rawMessage: 'Offset ''value'' on *NEVER* in isset() always exists and is not nullable.'
+			identifier: isset.offset
+			count: 1
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: decimal-int-string, name: string, model: string|null, url: string|null, api_key: null, headers: list<array{name: string, value: string}>, is_default: bool}, Closure(App\Models\AiProvider): array{id: decimal-int-string, name: string, model: string|null, url: string|null, api_key: null, headers: list<array{name: string, value: string}>, is_default: bool} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
+			rawMessage: Using nullsafe property access "?->is_default" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
+			rawMessage: Using nullsafe property access "?->model" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Clusters/Settings/Pages/AiSettingsPage.php
+
+		-
 			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::pluck().'
 			identifier: staticMethod.notFound
 			count: 1
 			path: app/Filament/Clusters/Settings/Pages/ApplicationFeaturesSettingsPage.php
+
+		-
+			rawMessage: Access to an undefined property Illuminate\Contracts\Auth\Authenticatable::$email.
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/AdminAiChat.php
+
+		-
+			rawMessage: Access to an undefined property Illuminate\Contracts\Auth\Authenticatable::$id.
+			identifier: property.notFound
+			count: 3
+			path: app/Filament/Pages/AdminAiChat.php
+
+		-
+			rawMessage: Access to an undefined property Illuminate\Contracts\Auth\Authenticatable::$name.
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Pages/AdminAiChat.php
+
+		-
+			rawMessage: 'Parameter #1 $boolean of function abort_unless expects bool, App\Models\Organization|null given.'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Pages/AdminAiChat.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::first() expects (callable(stdClass, int): bool)|null, Closure(App\Models\ChatSession): bool given.'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Pages/AdminAiChat.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: int, uuid: string, title: non-falsy-string, updated_at: string|null, updated_at_human: string|null}, Closure(App\Models\ChatSession): array{id: int, uuid: string, title: non-falsy-string, updated_at: string|null, updated_at_human: string|null} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Pages/AdminAiChat.php
+
+		-
+			rawMessage: 'Parameter #1 $value of method Illuminate\Support\Collection<int,stdClass>::prepend() expects stdClass, App\Models\ChatSession given.'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Pages/AdminAiChat.php
+
+		-
+			rawMessage: Using nullsafe property access "?->name" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/AdminAiChat.php
 
 		-
 			rawMessage: 'Call to an undefined static method App\Models\Approval::where().'
@@ -559,6 +781,42 @@ parameters:
 			path: app/Http/Controllers/Auth/SocialAuthController.php
 
 		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatSession::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Http/Controllers/ChatHistoryController.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): (Laravel\Ai\Messages\AssistantMessage|Laravel\Ai\Messages\UserMessage), Closure(App\Models\ChatMessage): (Laravel\Ai\Messages\AssistantMessage|Laravel\Ai\Messages\UserMessage) given.'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ChatHistoryController.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array<string, mixed>, Closure(App\Models\ChatSession): array<string, mixed> given.'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/ChatHistoryController.php
+
+		-
+			rawMessage: 'Parameter #1 $callback of method Illuminate\Support\Collection<int,stdClass>::map() expects callable(stdClass, int): array{id: int, role: string, content: string, thinking: string|null, attachments: array<string, mixed>, createdAt: string|null}, Closure(App\Models\ChatMessage): array{id: int, role: string, content: string, thinking: string|null, attachments: array<string, mixed>, createdAt: string|null} given.'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ChatHistoryController.php
+
+		-
+			rawMessage: 'Property Laravel\Ai\Responses\TextResponse::$reasoning (string) on left side of ?? is not nullable.'
+			identifier: nullCoalesce.property
+			count: 1
+			path: app/Http/Controllers/ChatHistoryController.php
+
+		-
+			rawMessage: Using nullsafe property access on non-nullable type App\Models\User. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/ChatHistoryController.php
+
+		-
 			rawMessage: Access to an undefined property Illuminate\Notifications\DatabaseNotification::$created_at.
 			identifier: property.notFound
 			count: 1
@@ -691,6 +949,18 @@ parameters:
 			path: app/Models/AssistanceRequest.php
 
 		-
+			rawMessage: 'Method App\Models\ChatSession::messages() should return Illuminate\Database\Eloquent\Relations\HasMany<App\Models\ChatMessage, $this(App\Models\ChatSession)> but returns Illuminate\Database\Query\Builder.'
+			identifier: return.type
+			count: 1
+			path: app/Models/ChatSession.php
+
+		-
+			rawMessage: 'Method App\Models\ChatSession::resolveRouteBindingQuery() should return Illuminate\Database\Eloquent\Builder<App\Models\ChatSession> but returns Illuminate\Database\Query\Builder.'
+			identifier: return.type
+			count: 1
+			path: app/Models/ChatSession.php
+
+		-
 			rawMessage: 'Method App\Models\Organization::primaryWallet() should return App\Models\Wallet|null but returns stdClass.'
 			identifier: return.type
 			count: 1
@@ -701,6 +971,12 @@ parameters:
 			identifier: return.type
 			count: 1
 			path: app/Models/Organization.php
+
+		-
+			rawMessage: 'Method App\Models\User::chatSessions() should return Illuminate\Database\Eloquent\Relations\HasMany<App\Models\ChatSession, $this(App\Models\User)> but returns Illuminate\Database\Eloquent\Builder<App\Models\ChatSession>.'
+			identifier: return.type
+			count: 1
+			path: app/Models/User.php
 
 		-
 			rawMessage: 'Call to an undefined method Illuminate\Foundation\Auth\User::hasRole().'
@@ -737,6 +1013,24 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Providers/FortifyServiceProvider.php
+
+		-
+			rawMessage: Using nullsafe property access "?->driver" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Ai/AiProviderResolver.php
+
+		-
+			rawMessage: Using nullsafe property access "?->model" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Ai/AiProviderResolver.php
+
+		-
+			rawMessage: Using nullsafe property access "?->name" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Ai/AiProviderResolver.php
 
 		-
 			rawMessage: 'Call to static method query() on an unknown class App\Services\TuitionAccount.'
@@ -2095,15 +2389,33 @@ parameters:
 			path: tests/Feature/ExplainerSettlementTest.php
 
 		-
+			rawMessage: Access to an undefined property Livewire\Component::$form.
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/AiProviderAdminUiTest.php
+
+		-
 			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$admin.
 			identifier: property.notFound
 			count: 1
 			path: tests/Feature/Filament/AiProviderAdminUiTest.php
 
 		-
+			rawMessage: 'Call to an undefined method Laravel\Ai\Providers\Provider::defaultTextModel().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/AiProviderAdminUiTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Component::getMaxContentWidth().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/AiProviderAdminUiTest.php
+
+		-
 			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
 			identifier: method.notFound
-			count: 6
+			count: 8
 			path: tests/Feature/Filament/AiProviderAdminUiTest.php
 
 		-
@@ -2127,7 +2439,7 @@ parameters:
 		-
 			rawMessage: 'Call to an undefined static method App\Models\AiProvider::create().'
 			identifier: staticMethod.notFound
-			count: 3
+			count: 4
 			path: tests/Feature/Filament/AiProviderAdminUiTest.php
 
 		-
@@ -2153,6 +2465,132 @@ parameters:
 			identifier: class.notFound
 			count: 1
 			path: tests/Feature/Filament/AiProviderAdminUiTest.php
+
+		-
+			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$id.'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: Access to an undefined property Livewire\Component::$selectedDecisionId.
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\Mixins\Expectation<string|null>::$not.
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$admin.
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$app.
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$regularUser.
+			identifier: property.notFound
+			count: 3
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method DOMNameSpaceNode|DOMNode::getElementsByTagName().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method DOMNameSpaceNode|DOMNode::removeAttribute().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method DOMNameSpaceNode|DOMNode::setAttribute().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Illuminate\Testing\TestResponse::assertSetStrict().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Component::showDecision().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
+			identifier: method.notFound
+			count: 5
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::artisan().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::assertDatabaseCount().'
+			identifier: method.notFound
+			count: 23
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::assertDatabaseHas().'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::markTestSkipped().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AgentDecision::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatSession::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Parameter #1 $institution of function arcActivityDecision expects App\Models\Organization, Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model given.'
+			identifier: argument.type
+			count: 9
+			path: tests/Feature/Filament/ArcAiActivityTest.php
+
+		-
+			rawMessage: 'Parameter #1 $value of function expect contains unresolvable type.'
+			identifier: argument.unresolvableType
+			count: 1
+			path: tests/Feature/Filament/ArcAiActivityTest.php
 
 		-
 			rawMessage: 'Call to an undefined method Illuminate\Testing\TestResponse::assertActionDoesNotExist().'
@@ -2183,6 +2621,162 @@ parameters:
 			identifier: method.notFound
 			count: 6
 			path: tests/Feature/Filament/AssistanceRequestResourceTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\Mixins\Expectation<mixed>::$not.
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\Mixins\Expectation<string|null>::$not.
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$admin.
+			identifier: property.notFound
+			count: 17
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$app.
+			identifier: property.notFound
+			count: 6
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$regularUser.
+			identifier: property.notFound
+			count: 6
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::assertHasNoFormErrors().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Mockery\ExpectationInterface|Mockery\HigherOrderMessage::once().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
+			identifier: method.notFound
+			count: 15
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::artisan().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::assertDatabaseHas().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::deleteJson().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::get().'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::getJson().'
+			identifier: method.notFound
+			count: 8
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::json().'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::mock().'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::postJson().'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AiProvider::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AiProvider::where().'
+			identifier: staticMethod.notFound
+			count: 2
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatMessage::count().'
+			identifier: staticMethod.notFound
+			count: 4
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatMessage::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatSession::count().'
+			identifier: staticMethod.notFound
+			count: 4
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatSession::create().'
+			identifier: staticMethod.notFound
+			count: 10
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatSession::find().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\ChatSession::findOrFail().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/EchoAiAdminTest.php
 
 		-
 			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$org.
@@ -2291,6 +2885,60 @@ parameters:
 			identifier: staticMethod.notFound
 			count: 3
 			path: tests/Feature/Filament/SocialLoginSettingsPageTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
+			identifier: method.notFound
+			count: 9
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::get().'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/StudentResourceTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$term.
+			identifier: property.notFound
+			count: 3
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
+			identifier: method.notFound
+			count: 4
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::get().'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Filament/TuitionAccountResourceTest.php
 
 		-
 			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
@@ -2839,6 +3487,48 @@ parameters:
 			path: tests/Feature/StudentAssistanceFlowTest.php
 
 		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$fund.
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$org.
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$policy.
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$student.
+			identifier: property.notFound
+			count: 9
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AssistanceFund::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\AssistancePolicyVersion::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentEligibilityPreviewTest.php
+
+		-
 			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$forecastService.
 			identifier: property.notFound
 			count: 3
@@ -2885,100 +3575,3 @@ parameters:
 			identifier: staticMethod.notFound
 			count: 1
 			path: tests/Feature/TreasuryForecastTest.php
-		-
-			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
-			identifier: method.notFound
-			count: 6
-			path: tests/Feature/Filament/StudentResourceTest.php
-
-		-
-			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
-			identifier: method.notFound
-			count: 9
-			path: tests/Feature/Filament/StudentResourceTest.php
-
-		-
-			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::get().'
-			identifier: method.notFound
-			count: 3
-			path: tests/Feature/Filament/StudentResourceTest.php
-
-		-
-			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
-			identifier: staticMethod.notFound
-			count: 1
-			path: tests/Feature/Filament/StudentResourceTest.php
-
-		-
-			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$term.
-			identifier: property.notFound
-			count: 3
-			path: tests/Feature/Filament/TuitionAccountResourceTest.php
-
-		-
-			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::fillForm().'
-			identifier: method.notFound
-			count: 4
-			path: tests/Feature/Filament/TuitionAccountResourceTest.php
-
-		-
-			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::actingAs().'
-			identifier: method.notFound
-			count: 6
-			path: tests/Feature/Filament/TuitionAccountResourceTest.php
-
-		-
-			rawMessage: 'Call to an undefined method Pest\PendingCalls\TestCall::get().'
-			identifier: method.notFound
-			count: 3
-			path: tests/Feature/Filament/TuitionAccountResourceTest.php
-
-		-
-			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
-			identifier: staticMethod.notFound
-			count: 1
-			path: tests/Feature/Filament/TuitionAccountResourceTest.php
-
-		-
-			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$fund.
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/StudentEligibilityPreviewTest.php
-
-		-
-			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$org.
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/StudentEligibilityPreviewTest.php
-
-		-
-			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$policy.
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/StudentEligibilityPreviewTest.php
-
-		-
-			rawMessage: Access to an undefined property Pest\PendingCalls\TestCall::$student.
-			identifier: property.notFound
-			count: 9
-			path: tests/Feature/StudentEligibilityPreviewTest.php
-
-		-
-			rawMessage: 'Call to an undefined static method App\Models\AssistanceFund::create().'
-			identifier: staticMethod.notFound
-			count: 1
-			path: tests/Feature/StudentEligibilityPreviewTest.php
-
-		-
-			rawMessage: 'Call to an undefined static method App\Models\AssistancePolicyVersion::create().'
-			identifier: staticMethod.notFound
-			count: 1
-			path: tests/Feature/StudentEligibilityPreviewTest.php
-
-		-
-			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
-			identifier: staticMethod.notFound
-			count: 1
-			path: tests/Feature/StudentEligibilityPreviewTest.php
-
-

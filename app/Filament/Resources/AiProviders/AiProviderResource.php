@@ -75,14 +75,30 @@ class AiProviderResource extends Resource
                             ->maxLength(255)
                             // Required for openai-compatible: it has no default endpoint.
                             ->required(fn (Get $get): bool => $get('driver') === 'openai-compatible')
-                            ->helperText('e.g. http://127.0.0.1:11434/v1 for Ollama, or https://api.example.com/v1 for a gateway.')
+                            ->placeholder(fn (Get $get): string => match ($get('driver')) {
+                                'openai' => 'https://api.openai.com/v1',
+                                'anthropic' => 'https://api.anthropic.com/v1',
+                                'gemini' => 'https://generativelanguage.googleapis.com/v1beta',
+                                default => 'http://127.0.0.1:11434/v1',
+                            })
+                            ->helperText(fn (Get $get): string => match ($get('driver')) {
+                                'openai' => 'Optional. Defaults to https://api.openai.com/v1.',
+                                'openai-compatible' => 'e.g. http://127.0.0.1:11434/v1 for Ollama, or https://api.example.com/v1 for a gateway.',
+                                default => 'Leave blank to use the driver default endpoint.',
+                            })
                             ->columnSpanFull(),
 
                         TextInput::make('model')
                             ->label('Text model')
                             ->required()
                             ->maxLength(255)
-                            ->helperText('Used as the default model for this provider, e.g. llama3.1 or claude-sonnet-4.'),
+                            ->placeholder(fn (Get $get): string => match ($get('driver')) {
+                                'openai' => 'gpt-4o-mini',
+                                'anthropic' => 'claude-3-5-haiku-20241022',
+                                default => 'llama3.1',
+                            })
+                            ->default('gpt-4o-mini')
+                            ->helperText('Used as the default model for this provider, e.g. gpt-4o-mini, gpt-4o, o3-mini, or llama3.1.'),
 
                         KeyValue::make('headers')
                             ->label('Extra headers')
@@ -95,16 +111,20 @@ class AiProviderResource extends Resource
                     ->columns(2),
 
                 Section::make('Credentials')
-                    ->description('The API key is encrypted at rest with the application key. It cannot be read back here once saved.')
+                    ->description('API keys stay encrypted. Saved keys appear masked; enter a new key only to replace one.')
                     ->schema([
                         TextInput::make('api_key')
                             ->label('API key')
                             ->password()
                             ->revealable()
                             ->maxLength(4096)
+                            ->autocomplete('new-password')
+                            ->placeholder(fn (?AiProvider $record): string => filled($record?->api_key) ? '••••••••' : 'Enter API key')
                             // Empty on edit means "keep the stored key".
                             ->dehydrated(fn (?string $state): bool => filled($state))
-                            ->helperText('Leave blank to keep the stored key. Most local endpoints need none at all.')
+                            ->helperText(fn (?AiProvider $record): string => filled($record?->api_key)
+                                                            ? 'API key saved (encrypted). Leave blank to keep it; enter a new key to replace it.'
+                                                            : 'No API key saved. Most local endpoints need none at all.')
                             ->columnSpanFull(),
                     ]),
 

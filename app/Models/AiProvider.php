@@ -99,6 +99,10 @@ class AiProvider extends Model
             return false;
         }
 
+        if ($this->driver === 'openai' && blank($this->api_key)) {
+            return false;
+        }
+
         // A key is optional: local endpoints usually do not need one.
         return filled($this->model);
     }
@@ -120,6 +124,8 @@ class AiProvider extends Model
 
         if (filled($this->base_url)) {
             $config['url'] = $this->base_url;
+        } elseif ($this->driver === 'openai') {
+            $config['url'] = 'https://api.openai.com/v1';
         }
 
         if (filled($this->api_key)) {
@@ -143,6 +149,10 @@ class AiProvider extends Model
         if (filled($this->model)) {
             $config['models'] = [
                 'text' => ['default' => $this->model],
+            ];
+        } elseif ($this->driver === 'openai') {
+            $config['models'] = [
+                'text' => ['default' => 'gpt-4o-mini'],
             ];
         }
 

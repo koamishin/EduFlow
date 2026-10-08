@@ -192,4 +192,14 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     {
         return $this->hasMany(Transaction::class, 'recipient_address', 'wallet_address');
     }
+
+    /**
+     * AI chat sessions for this user.
+     *
+     * @return HasMany<ChatSession, $this>
+     */
+    public function chatSessions(): HasMany
+    {
+        return $this->hasMany(ChatSession::class)->latest('updated_at');
+    }
 }
