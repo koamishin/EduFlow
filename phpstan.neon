@@ -4,6 +4,9 @@ includes:
 
 parameters:
     level: 5
+    # LeptonCliException is declared alongside CliRunner, outside its PSR-4 path.
+    scanFiles:
+        - vendor/yukazakiri/lepton-agent/src/Support/CliRunner.php
     paths:
         - app
         - routes

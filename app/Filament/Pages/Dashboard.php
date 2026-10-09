@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
-use App\Agents\EduFlowAgent;
 use App\Services\CircleWalletService;
 use App\Services\InstallationInstitution;
 use App\Services\LeptonTreasuryService;
@@ -14,7 +13,6 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Str;
-use Throwable;
 
 class Dashboard extends BaseDashboard
 {
@@ -61,49 +59,6 @@ class Dashboard extends BaseDashboard
                     Notification::make()
                         ->title('Revenue recorded in the EduFlow ledger')
                         ->body('+'.number_format($amount, 2).' USDC credited locally. Ledger treasury: '.number_format($wallet->fresh()->balance, 2).' USDC. Reference: '.$reference.'. No on-chain transfer was made; sync from Arc to reconcile.')
-                        ->success()
-                        ->persistent()
-                        ->send();
-
-                    $this->reportChainDrift();
-                }),
-
-            Action::make('runAutonomousCycle')
-                ->label('Run Autonomous Agent Cycle')
-                ->icon('heroicon-m-bolt')
-                ->color('primary')
-                ->requiresConfirmation()
-                ->modalHeading('Execute Autonomous Financial Cycle')
-                ->modalDescription('EduFlow AI will observe pending invoices, forecast 30-day liquidity, evaluate deterministic policies, disburse approved USDC through the Lepton agent wallet on Arc, and escalate high-value payments to the Approval Center.')
-                ->action(function (EduFlowAgent $agent): void {
-                    $org = app(InstallationInstitution::class)->current();
-
-                    if (! $org) {
-                        Notification::make()->title('Institution context unavailable. Check installation configuration.')->danger()->send();
-
-                        return;
-                    }
-
-                    try {
-                        $result = $agent->runAutonomousCycle($org);
-                    } catch (Throwable $e) {
-                        report($e);
-
-                        Notification::make()
-                            ->title('Cycle failed before completing')
-                            ->body($e->getMessage())
-                            ->danger()
-                            ->persistent()
-                            ->send();
-
-                        return;
-                    }
-
-                    $stats = $result['stats'];
-
-                    Notification::make()
-                        ->title('EduFlow AI — Cycle Completed')
-                        ->body("Auto-Paid: {$stats['auto_paid']} | Escalated: {$stats['escalated']} | Held: {$stats['held']} | Rejected: {$stats['rejected']}. Disbursed: {$stats['total_disbursed_usdc']} USDC on Arc.")
                         ->success()
                         ->persistent()
                         ->send();

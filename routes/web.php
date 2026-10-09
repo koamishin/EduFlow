@@ -4,6 +4,7 @@ use App\Enums\SocialLoginProvider;
 use App\Http\Controllers\AskEduFlowController;
 use App\Http\Controllers\AssistanceRequestController;
 use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\AutonomousCycleController;
 use App\Http\Controllers\BudgetSnapshotController;
 use App\Http\Controllers\ChatHistoryController;
 use App\Http\Controllers\FinanceApprovalController;
@@ -48,6 +49,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 | conversation-ownership check it belongs with.
 */
 Route::middleware(['auth', 'verified'])->group(function (): void {
+    Route::post('finance/autonomous-cycle', AutonomousCycleController::class)
+        ->middleware('throttle:3,1')->name('finance.autonomous-cycle.store');
+
     Route::post('finance/payment-intents/{paymentIntent}/changes', [PaymentIntentChangeController::class, 'store'])
         ->middleware('throttle:10,1')->name('finance.payment-intent-changes.store');
     Route::get('finance/payment-intent-changes/{paymentIntentChange}', [PaymentIntentChangeController::class, 'show'])

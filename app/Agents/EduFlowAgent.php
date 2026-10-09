@@ -18,11 +18,13 @@ use App\Models\AssistanceRequest;
 use App\Models\Budget;
 use App\Models\Invoice;
 use App\Models\Organization;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\CircleWalletService;
 use App\Services\DecisionExplainer;
 use App\Services\FinancialPolicyEngine;
 use App\Services\TreasuryForecastService;
+use Closure;
 use InvalidArgumentException;
 
 class EduFlowAgent
@@ -40,17 +42,26 @@ class EduFlowAgent
      *
      * OBSERVE -> FORECAST -> ANALYZE -> CHECK POLICIES -> DECIDE -> EXECUTE/ESCALATE -> AUDIT
      *
+     * The request-local callback receives public execution facts and must not throw.
+     *
+     * @param  null|Closure(array{phase: string, title: string, summary: string, decision_id?: int, policy?: string, status?: string, reference?: string}): void  $onProgress
      * @return array<string, mixed>
      */
-    public function runAutonomousCycle(Organization $org): array
+    public function runAutonomousCycle(Organization $org, ?Closure $onProgress = null): array
     {
+        @set_time_limit(180);
+
         $wallet = $org->primaryWallet();
         if (! $wallet) {
             throw new InvalidArgumentException("Organization {$org->name} does not have an active Circle wallet.");
         }
 
         // 1. FORECAST 30-Day Liquidity
+        $this->reportProgress($onProgress, 'forecast', 'Starting liquidity forecast',
+            'Computing 30-day liquidity from the local ledger and scheduled obligations; on-chain funds are not verified.');
         $forecast = $this->forecastService->forecast($org, $wallet, 30);
+        $this->reportProgress($onProgress, 'forecast', 'Liquidity forecast available',
+            "Projected ledger balance: {$forecast->projectedBalance} USDC; minimum reserve: {$forecast->minimumReserve} USDC; health: {$forecast->healthStatus}. On-chain funds are not verified.");
 
         $processedInvoices = [];
         $processedAssistance = [];
@@ -67,10 +78,17 @@ class EduFlowAgent
             ->orderBy('due_date')
             ->get();
 
+        $this->reportProgress($onProgress, 'observe', 'Pending invoices observed',
+            "Found {$pendingInvoices->count()} pending invoices for policy evaluation.");
+
         foreach ($pendingInvoices as $invoice) {
             if ($invoice->hasExactVersion()) {
                 $processedInvoices[] = ['reference' => $invoice->reference, 'decision' => 'exact_evidence_required',
                     'reason' => 'Versioned invoice is excluded from legacy payment execution; local payable state stays unchanged.'];
+
+                $this->reportProgress($onProgress, 'policy', 'Invoice requires exact evidence',
+                    'Versioned invoice is excluded from legacy payment execution; local payable state stays unchanged.',
+                    reference: $invoice->reference, status: 'exact_evidence_required');
 
                 continue;
             }
@@ -98,8 +116,15 @@ class EduFlowAgent
                 'status' => 'pending',
             ]);
 
+            $this->reportProgress($onProgress, 'policy', 'Invoice policy result recorded',
+                $policyResult->reasoning, $decision, $invoice->reference, $policyResult->decision->value);
+
             switch ($policyResult->decision) {
                 case AgentDecisionType::AUTO_APPROVE:
+                    $this->reportProgress($onProgress, 'execute', 'Submitting payment',
+                        "Policy approved {$invoice->amount} USDC for submission. Payment outcome is not yet known.",
+                        $decision, $invoice->reference, 'submitting');
+
                     // Execute USDC transfer on Arc
                     $tx = $this->circleService->executePayment(
                         wallet: $wallet,
@@ -110,6 +135,9 @@ class EduFlowAgent
                         referenceId: $invoice->id,
                         metadata: ['invoice_reference' => $invoice->reference]
                     );
+
+                    $this->reportProgress($onProgress, 'execute', 'Payment response recorded',
+                        $this->paymentResponseSummary($tx), $decision, $invoice->reference, 'response_recorded');
 
                     // Update budget if assigned
                     if ($invoice->budget) {
@@ -150,6 +178,10 @@ class EduFlowAgent
                     break;
             }
 
+            $this->reportProgress($onProgress, 'outcome', 'Invoice outcome recorded',
+                "Local invoice status: {$invoice->status}; decision status: {$decision->status}. Local status does not verify on-chain settlement.",
+                $decision, $invoice->reference, $invoice->status);
+
             $processedInvoices[] = [
                 'reference' => $invoice->reference,
                 'decision' => $policyResult->decision->value,
@@ -172,8 +204,15 @@ class EduFlowAgent
             AssistanceStatus::PENDING->value,
         ])->with(['student.tuitionAccounts', 'user'])->get();
 
+        $this->reportProgress($onProgress, 'observe', 'Pending assistance observed',
+            "Found {$pendingAid->count()} pending assistance requests for policy evaluation.");
+
         foreach ($pendingAid as $aidRequest) {
             $requestedBase = (int) ($aidRequest->requested_amount ?? 0);
+
+            $this->reportProgress($onProgress, 'policy', 'Checking assistance policies',
+                'Checking fund and policy setup, enrollment, academic standing, attendance, outstanding tuition, caps, reserve protection, and payout address.',
+                reference: $aidRequest->ticket_number, status: 'checking');
 
             if (! $fund || ! $policy instanceof AssistancePolicyVersion) {
                 $decision = AgentDecision::create([
@@ -209,6 +248,9 @@ class EduFlowAgent
                     'decision' => AgentDecisionType::ESCALATE->value,
                 ];
 
+                $this->reportProgress($onProgress, 'outcome', 'Assistance setup escalated',
+                    $decision->reasoning_summary, $decision, $aidRequest->ticket_number, $decision->status);
+
                 continue;
             }
 
@@ -216,6 +258,15 @@ class EduFlowAgent
             $aidResult = $out['result'];
             $decision = $out['decision'];
             $explanation = $this->explainer->explain($aidResult, $requestedBase, CurrencyCode::PHP);
+
+            $checkSummaries = [];
+            foreach ($aidResult->checks as $check => $passed) {
+                $checkSummaries[] = $check.': '.($passed ? 'passed' : 'failed');
+            }
+            $this->reportProgress($onProgress, 'policy', 'Assistance checks recorded',
+                implode('; ', $checkSummaries).'.', $decision, $aidRequest->ticket_number, 'checked');
+            $this->reportProgress($onProgress, 'policy', 'Assistance policy result recorded',
+                $aidResult->reasoning, $decision, $aidRequest->ticket_number, $aidResult->decision->value);
 
             // A payment needs a real destination. The agent must never invent
             // one: an address the recipient does not control is either rejected
@@ -254,10 +305,17 @@ class EduFlowAgent
                     'decision' => AgentDecisionType::ESCALATE->value,
                 ];
 
+                $this->reportProgress($onProgress, 'outcome', 'Assistance payout address escalated',
+                    $decision->reasoning_summary, $decision, $aidRequest->ticket_number, $decision->status);
+
                 continue;
             }
 
             if ($aidResult->decision === AgentDecisionType::AUTO_APPROVE || $aidResult->decision === AgentDecisionType::PARTIAL_APPROVAL) {
+                $this->reportProgress($onProgress, 'execute', 'Submitting payment',
+                    "Policy approved {$aidResult->approvedAmount} USDC for submission. Payment outcome is not yet known.",
+                    $decision, $aidRequest->ticket_number, 'submitting');
+
                 $tx = $this->circleService->executePayment(
                     wallet: $wallet,
                     recipientAddress: $recipient,
@@ -271,6 +329,9 @@ class EduFlowAgent
                         'quote_id' => $out['quote']['quote_id'] ?? null,
                     ]
                 );
+
+                $this->reportProgress($onProgress, 'execute', 'Payment response recorded',
+                    $this->paymentResponseSummary($tx), $decision, $aidRequest->ticket_number, 'response_recorded');
 
                 $fund->recordDisbursement((int) round($aidResult->approvedAmount * 1000000));
 
@@ -332,6 +393,13 @@ class EduFlowAgent
                 $escalatedCount++;
             }
 
+            $assistanceStatus = $aidRequest->status instanceof AssistanceStatus
+                ? $aidRequest->status->value
+                : (string) $aidRequest->status;
+            $this->reportProgress($onProgress, 'outcome', 'Assistance outcome recorded',
+                "Local assistance status: {$assistanceStatus}; decision status: {$decision->status}. Local status does not verify on-chain settlement.",
+                $decision, $aidRequest->ticket_number, $assistanceStatus);
+
             $processedAssistance[] = [
                 'ticket' => $aidRequest->ticket_number,
                 'decision' => $aidResult->decision->value,
@@ -351,6 +419,49 @@ class EduFlowAgent
                 'remaining_treasury' => $wallet->balance,
             ],
         ];
+    }
+
+    /**
+     * @param  null|Closure(array{phase: string, title: string, summary: string, decision_id?: int, policy?: string, status?: string, reference?: string}): void  $onProgress
+     */
+    private function reportProgress(
+        ?Closure $onProgress,
+        string $phase,
+        string $title,
+        string $summary,
+        ?AgentDecision $decision = null,
+        ?string $reference = null,
+        ?string $status = null,
+    ): void {
+        if (! $onProgress instanceof Closure) {
+            return;
+        }
+
+        $event = ['phase' => $phase, 'title' => $title, 'summary' => $summary];
+
+        if ($decision instanceof AgentDecision) {
+            $event['decision_id'] = $decision->id;
+            $event['policy'] = $decision->policy_checked;
+        }
+
+        if ($reference !== null) {
+            $event['reference'] = $reference;
+        }
+
+        if ($status !== null) {
+            $event['status'] = $status;
+        }
+
+        $onProgress($event);
+    }
+
+    private function paymentResponseSummary(Transaction $transaction): string
+    {
+        return match ($transaction->metadata['is_fake'] ?? null) {
+            true => 'Fake-driver simulation response recorded. No live transfer occurred; this is not chain-verified settlement.',
+            false => 'Unverified live provider response recorded. On-chain settlement has not been verified.',
+            default => 'Provider response recorded without simulation provenance. On-chain settlement has not been verified.',
+        };
     }
 
     /**

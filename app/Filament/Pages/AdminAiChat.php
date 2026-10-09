@@ -176,6 +176,8 @@ class AdminAiChat extends Page
         $this->providerCallsAllowed = $settings->mayCallProvider();
 
         return [
+            'cycleUrl' => route('finance.autonomous-cycle.store'),
+            'cycleAvailable' => $institution?->primaryWallet() !== null,
             'decisions' => $decisions,
             'selectedDecision' => $selectedDecision,
             'decisionLogUrl' => AgentDecisionResource::getUrl('index', panel: 'admin'),
