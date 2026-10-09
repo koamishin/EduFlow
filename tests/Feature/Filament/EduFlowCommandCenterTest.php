@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
 use Filament\Facades\Filament;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function (): void {
@@ -53,6 +54,16 @@ test('filament admin dashboard renders custom title and widgets', function (): v
 
     $response->assertSuccessful();
     $response->assertSee('EduFlow AI');
+});
+
+test('run autonomous cycle action is moved from dashboard to ARC AI', function (): void {
+    $admin = User::factory()->create();
+    $admin->assignRole('super_admin');
+
+    $page = Livewire::actingAs($admin)->test(Dashboard::class);
+    $page->call('mountAction', 'receiveRevenue')
+        ->assertSet('mountedActions.0.name', 'receiveRevenue');
+    $page->assertDontSee('Run Autonomous Agent Cycle');
 });
 
 test('super admin can access approval center page', function (): void {

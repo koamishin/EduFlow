@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\Process\Process;
+use Tests\TestCase;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
 use Yukazakiri\Lepton\Contracts\WalletGateway;
 use Yukazakiri\Lepton\Contracts\X402Gateway;
@@ -80,6 +81,58 @@ function arcActivityDecision(Organization $institution, string $reasoning): Agen
     ]);
 }
 
+function arcActivityInstalledBrowser(): ?string
+{
+    return collect([
+        getenv('PROGRAMFILES').'/Google/Chrome/Application/chrome.exe',
+        getenv('PROGRAMFILES(X86)').'/Microsoft/Edge/Application/msedge.exe',
+    ])->first(fn (string $path): bool => is_file($path));
+}
+
+function arcActivityBrowserProbe(string $browser, string $html, string $probe): void
+{
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
+    $chat = (new DOMXPath($document))->query('//*[@x-data]')->item(0);
+    expect($chat)->not->toBeNull();
+    $chat->setAttribute('x-data', 'arcRegression');
+    $chat->removeAttribute('wire:id');
+    foreach (['script', 'style'] as $tag) {
+        foreach (iterator_to_array($chat->getElementsByTagName($tag)) as $element) {
+            $element->parentNode->removeChild($element);
+        }
+    }
+    $chatHtml = $document->saveHTML($chat);
+    $runtime = str_replace('window.Livewire = Livewire2;', 'window.arcMorphConfig = getMorphConfig; window.Livewire = Livewire2;', file_get_contents(base_path('vendor/livewire/livewire/dist/livewire.js')));
+    $chatScript = file_get_contents(resource_path('views/filament/pages/ai-chat-script.blade.php'));
+    $setup = <<<'JS'
+window.livewireScriptConfig = {};
+window.addEventListener('error', event => document.body.setAttribute('data-arc-error', event.message));
+window.addEventListener('unhandledrejection', event => document.body.setAttribute('data-arc-error', String(event.reason)));
+JS;
+    $files = new Filesystem;
+    $directory = storage_path('framework/testing/arc-dom-'.bin2hex(random_bytes(8)));
+    $files->ensureDirectoryExists($directory);
+    $files->put($directory.'/probe.html', '<!doctype html><html><head><meta charset="utf-8"></head><body>'.$chatHtml.'<script>'.$setup.'</script><script>'.$runtime.'</script>'.$chatScript.'<script>'.$probe.'</script></body></html>');
+
+    try {
+        $process = new Process([
+            $browser, '--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+            '--disable-background-networking', '--virtual-time-budget=15000', '--dump-dom',
+            '--user-data-dir='.$directory.'/profile', 'file:///'.str_replace('\\', '/', $directory.'/probe.html'),
+        ]);
+        $process->setTimeout(45);
+        $process->run();
+        expect($process->isSuccessful())->toBeTrue();
+        preg_match('/<body[^>]*data-arc-error="([^"]*)"/', $process->getOutput(), $errors);
+        expect($errors[1] ?? null)->toBeNull();
+        preg_match('/<body[^>]*data-arc-result="([^"]*)"/', $process->getOutput(), $result);
+        expect($result[1] ?? substr($process->getOutput().$process->getErrorOutput(), 0, 1500))->toBe('passed');
+    } finally {
+        $files->deleteDirectory($directory);
+    }
+}
+
 test('arc activity uses the ARC AI title and defaults manual chat off', function (string $role): void {
     $this->actingAs(User::factory()->create()->assignRole($role));
     $page = Livewire::test(AdminAiChat::class)
@@ -110,48 +163,25 @@ test('arc chat and history stay outside polling morphs while activity remains li
             ->assertSeeHtml('<main wire:ignore x-show="viewMode === \'chat\'"')
             ->assertSeeHtml('<div wire:ignore class="flex-1 space-y-3.5 overflow-y-auto pe-1 text-xs">')
             ->assertSeeHtml('<section wire:poll.15s')
-            ->assertSeeHtml('aria-label="Recorded decisions"');
+            ->assertSeeHtml('aria-label="Recorded decisions"')
+            ->assertSeeHtml('<div wire:ignore wire:key="arc-cycle-execution" data-arc-cycle-execution>');
     }
 });
 
 test('arc streamed turns remain visible through polling morphs in installed browser', function (): void {
-    $browser = collect([
-        getenv('PROGRAMFILES').'/Google/Chrome/Application/chrome.exe',
-        getenv('PROGRAMFILES(X86)').'/Microsoft/Edge/Application/msedge.exe',
-    ])->first(fn (string $path): bool => is_file($path));
-
+    $browser = arcActivityInstalledBrowser();
     if ($browser === null) {
         $this->markTestSkipped('Installed Edge or Chrome required for isolated DOM regression.');
     }
 
     $html = Livewire::test(AdminAiChat::class)->html();
-    $document = new DOMDocument;
-    @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
-    $chat = (new DOMXPath($document))->query('//*[@x-data]')->item(0);
-    expect($chat)->not->toBeNull();
-    $chat->setAttribute('x-data', 'arcRegression');
-    $chat->removeAttribute('wire:id');
-    foreach (['script', 'style'] as $tag) {
-        foreach (iterator_to_array($chat->getElementsByTagName($tag)) as $element) {
-            $element->parentNode->removeChild($element);
-        }
-    }
-    $chatHtml = $document->saveHTML($chat);
-    $runtime = str_replace('window.Livewire = Livewire2;', 'window.arcMorphConfig = getMorphConfig; window.Livewire = Livewire2;', file_get_contents(base_path('vendor/livewire/livewire/dist/livewire.js')));
-    $chatScript = file_get_contents(resource_path('views/filament/pages/ai-chat-script.blade.php'));
-    $setup = <<<'JS'
-window.livewireScriptConfig = {};
-window.addEventListener('error', event => document.body.setAttribute('data-arc-result', event.message));
-window.addEventListener('unhandledrejection', event => document.body.setAttribute('data-arc-result', String(event.reason)));
-JS;
     $probe = <<<'JS'
 let makeChat;
 const originalData = Alpine.data;
 Alpine.data = (name, factory) => { makeChat = factory; };
 registerAdminAiChat();
 Alpine.data = originalData;
-Alpine.data('arcRegression', () => ({
-    ...makeChat({manualChatEnabled: true, providerCallsAllowed: true, initialSessions: [], adminUser: {name: 'Admin'}, workspace: {name: 'Regression'}}),
+Alpine.data('arcRegression', () => Object.assign(makeChat({manualChatEnabled: true, providerCallsAllowed: true, initialSessions: [], adminUser: {name: 'Admin'}, workspace: {name: 'Regression'}}), {
     init() {},
     viewMode: 'chat',
     activeSessionId: 7,
@@ -204,25 +234,231 @@ const poll = async () => {
     document.body.setAttribute('data-arc-result', 'passed');
 })().catch(error => {document.body.setAttribute('data-arc-result', error.message);});
 JS;
-    $files = new Filesystem;
-    $directory = storage_path('framework/testing/arc-dom-'.bin2hex(random_bytes(8)));
-    $files->ensureDirectoryExists($directory);
-    $files->put($directory.'/probe.html', '<!doctype html><html><head><meta charset="utf-8"></head><body>'.$chatHtml.'<script>'.$setup.'</script><script>'.$runtime.'</script>'.$chatScript.'<script>'.$probe.'</script></body></html>');
+    arcActivityBrowserProbe($browser, $html, $probe);
+});
 
-    try {
-        $process = new Process([
-            $browser, '--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-            '--disable-background-networking', '--virtual-time-budget=3000', '--dump-dom',
-            '--user-data-dir='.$directory.'/profile', 'file:///'.str_replace('\\', '/', $directory.'/probe.html'),
-        ]);
-        $process->setTimeout(45);
-        $process->run();
-        expect($process->isSuccessful())->toBeTrue();
-        preg_match('/<body[^>]*data-arc-result="([^"]*)"/', $process->getOutput(), $result);
-        expect($result[1] ?? substr($process->getOutput().$process->getErrorOutput(), 0, 1500))->toBe('passed');
-    } finally {
-        $files->deleteDirectory($directory);
+test('arc execution control and public log stay in activity outside model chat', function (): void {
+    $page = Livewire::test(AdminAiChat::class)
+        ->assertSee('Run Autonomous Agent Cycle')
+        ->assertSee('Execution log')
+        ->assertSee('Public operational facts and recorded policy reasons only.')
+        ->assertSee('Closing or navigating away from this page does not cancel payments.')
+        ->assertSee('Local results · not verified settlement')
+        ->assertSeeHtml('cycleAvailable: false');
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$page->html());
+    $xpath = new DOMXPath($document);
+    $execution = $xpath->query('//*[@data-arc-cycle-execution]')->item(0);
+
+    expect($execution)->not->toBeNull();
+    assert($execution instanceof DOMElement);
+    expect($execution->hasAttribute('wire:ignore'))->toBeTrue()
+        ->and($xpath->query('ancestor::section[@aria-label="ARC activity"]', $execution)->length)->toBe(1)
+        ->and($xpath->query('//main//*[@data-arc-cycle-execution]')->length)->toBe(0)
+        ->and($xpath->query('.//*[@x-html]', $execution)->length)->toBe(0)
+        ->and($xpath->query('.//*[@role="log"]', $execution)->length)->toBe(1);
+    $button = $xpath->query('.//button', $execution)->item(0);
+    assert($button instanceof DOMElement);
+    expect(trim($button->textContent))->toBe('Run Autonomous Agent Cycle')
+        ->and($button->getAttribute(':disabled'))->toBe('!cycleAvailable || !cycleUrl || cycleRunning || cycleLocked')
+        ->and($button->getAttribute('aria-describedby'))->toBe('arc-cycle-safety arc-cycle-availability')
+        ->and($xpath->query('//*[@aria-label="Open ARC activity and execution log"]')->length)->toBe(1);
+    $source = file_get_contents(resource_path('views/filament/pages/ai-chat.blade.php'));
+    expect($source)->toContain('cycleUrl: {{ Js::from($cycleUrl ?? null) }}', 'cycleAvailable: {{ Js::from($cycleAvailable ?? false) }}');
+});
+
+test('arc execution streams public facts through morphs and keeps chat independent in installed browser', function (): void {
+    $browser = arcActivityInstalledBrowser();
+    if ($browser === null) {
+        /** @var TestCase $testCase */
+        $testCase = $this;
+        $testCase->markTestSkipped('Installed Edge or Chrome required for isolated DOM regression.');
     }
+
+    $probe = <<<'JS_WRAP'
+    let makeChat;
+    const originalData = Alpine.data;
+    Alpine.data = (name, factory) => { makeChat = factory; };
+    registerAdminAiChat();
+    Alpine.data = originalData;
+    const config = {
+        csrfToken: 'regression-csrf', cycleUrl: '/isolated-cycle', cycleAvailable: true,
+        manualChatEnabled: false, providerCallsAllowed: false, initialSessions: [],
+        adminUser: {name: 'Admin'}, workspace: {name: 'Regression'},
+    };
+    Alpine.data('arcRegression', () => Object.assign(makeChat(config), {init() {}, stopVoice() {}, stopSpeaking() {}}));
+    const root = document.querySelector('[x-data="arcRegression"]');
+    const serverHtml = root.outerHTML;
+    let refreshCount = 0;
+    const wire = {$refresh() { refreshCount++; throw new Error('refresh failure must not replace terminal'); }, async setManualChatEnabled(enabled) { return enabled; }};
+    Alpine.magic('wire', () => wire);
+    Livewire.start();
+    const chat = Alpine.$data(root);
+    const execution = root.querySelector('[data-arc-cycle-execution]');
+    const runButton = execution.querySelector('button');
+    const flush = () => new Promise(resolve => setTimeout(resolve, 30));
+    const check = (condition, message) => { if (!condition) throw new Error(message); };
+    const poll = async () => {
+        Alpine.morph(root, serverHtml, window.arcMorphConfig({id: 'regression'}));
+        await flush();
+        check(root.querySelector('[data-arc-cycle-execution]') === execution, 'Execution boundary replaced');
+    };
+    const runId = 'ab9c3d4e-1234-4567-89ab-123456789abc';
+    const frame = (type, sequence, extra = {}) => ({
+        type, run_id: runId, sequence, occurred_at: '2026-10-09T10:11:12+00:00',
+        phase: 'policy', title: 'Policy evaluated', summary: 'Recorded policy result.', ...extra,
+    });
+    let requests = [];
+    let controller;
+    let confirmCount = 0;
+    window.confirm = message => {
+        confirmCount++;
+        check(message.includes('real USDC') && message.includes('does not cancel payments'), 'Financial confirmation missing');
+        return false;
+    };
+    window.fetch = async (url, options) => {
+        requests.push({url, options});
+        return new Response(new ReadableStream({start(value) { controller = value; }}), {headers: {'Content-Type': 'text/event-stream; charset=UTF-8'}});
+    };
+    (async () => {
+        await flush();
+        check(!runButton.disabled, 'Execution gated on chat/provider');
+        await chat.runAutonomousCycle();
+        check(requests.length === 0 && refreshCount === 0 && chat.cycleEvents.length === 0 && !chat.cycleRunning, 'Cancelled confirmation submitted');
+        window.confirm = () => { confirmCount++; return true; };
+        const pending = chat.runAutonomousCycle();
+        await chat.runAutonomousCycle();
+        await flush();
+        check(requests.length === 1 && confirmCount === 2 && runButton.disabled, 'Duplicate run submitted or confirmed');
+        const request = requests[0];
+        check(request.url === config.cycleUrl && request.options.method === 'POST' && request.options.body === '{"confirmed":true}', 'Wrong financial request');
+        check(request.options.headers['X-CSRF-TOKEN'] === config.csrfToken && request.options.headers['X-Requested-With'] === 'XMLHttpRequest' && request.options.headers.Accept === 'application/json' && request.options.headers['Content-Type'] === 'application/json', 'Missing request headers');
+        check(!request.options.signal && request.options.redirect === 'error', 'Execution coupled to chat cancellation or redirect');
+        chat.messages = [{id: 'saved', role: 'user', content: 'Keep manual chat separate'}];
+        chat.sessions = [{id: 7, uuid: 'saved', title: 'Saved conversation', updated_at: '2026-10-09T00:00:00Z'}];
+        const started = frame('cycle_started', 1, {phase: 'start', title: 'Cycle started', summary: 'Institution context validated.'});
+        const progress = frame('cycle_progress', 2, {
+            title: 'Café policy result', summary: '<b>Held</b> — policy requires review.',
+            decision_id: 27, policy: 'ACTIVE_POLICY_V3', reference: 'INV-27', status: 'held',
+            thinking: 'PRIVATE_CHAIN_SECRET', error: 'RAW_ERROR_SECRET',
+        });
+        const encoder = new TextEncoder();
+        const fragmented = encoder.encode(': keepalive\r\nretry: 1\r\n\r\nevent: public\r\ndata: ' + JSON.stringify(started) + '\r\n\r\ndata: ' + JSON.stringify(progress) + '\r\n\r\n');
+        for (const byte of fragmented) controller.enqueue(Uint8Array.of(byte));
+        await flush();
+        check(chat.cycleEvents.length === 2 && execution.textContent.includes('Café policy result'), 'Fragmented UTF-8 or CRLF frame lost');
+        check(execution.textContent.includes('<b>Held</b>') && !execution.querySelector('b'), 'Public facts rendered as HTML');
+        check(execution.textContent.includes('Decision #27') && execution.textContent.includes('ACTIVE_POLICY_V3') && execution.querySelector('time').getAttribute('datetime') === started.occurred_at, 'Evidence metadata missing');
+        await poll();
+        check(execution.textContent.includes('Café policy result'), 'Polling lost public execution fact');
+        check(root.querySelectorAll('.arc-user-bubble').length === 1, 'Polling lost manual message bubble: ' + root.querySelectorAll('.arc-user-bubble').length);
+        check(root.textContent.includes('Keep manual chat separate'), 'Polling lost manual message text');
+        check(root.textContent.includes('Saved conversation'), 'Polling lost saved conversation');
+        await chat.toggleManualChat();
+        await chat.toggleManualChat();
+        check(chat.cycleRunning && chat.cycleEvents.length === 2 && requests.length === 1, 'Manual switch affected execution');
+        controller.enqueue(encoder.encode('data: ' + JSON.stringify(progress) + '\n\ndata: ' + JSON.stringify({type: 'reasoning_delta', delta: 'PRIVATE_CHAIN_SECRET'}) + '\n\n'));
+        for (let sequence = 3; sequence <= 105; sequence++) {
+            controller.enqueue(encoder.encode('data: ' + JSON.stringify(frame('cycle_progress', sequence)) + '\n\n'));
+        }
+        await flush();
+        check(chat.cycleEvents.length === 100 && chat.cycleOmittedEvents === 5, 'Execution log unbounded or duplicate retained');
+        await poll();
+        const completed = frame('cycle_completed', 106, {
+            phase: 'complete', title: 'Cycle completed', summary: 'Local results only; settlement is not verified.',
+            stats: {auto_paid: 1, escalated: 2, held: 3, rejected: 4, total_disbursed_usdc: '12.340001'},
+        });
+        const json = JSON.stringify(completed).replace(',"run_id"', ',\ndata: "run_id"');
+        controller.enqueue(encoder.encode('data: ' + json));
+        controller.close();
+        await pending;
+        await flush();
+        await poll();
+        check(chat.cycleState === 'completed' && !chat.cycleRunning && !chat.cycleLocked, 'Terminal EOF not completed');
+        check(chat.cycleStats.total_disbursed_usdc === '12.340001' && execution.textContent.includes('12.340001') && execution.textContent.includes('not verified settlement'), 'Local result precision or settlement warning lost');
+        check(refreshCount === 1 && chat.cycleRefreshError && execution.textContent.includes('Cycle completed'), 'Refresh error replaced known terminal');
+        check(chat.cycleEvents.length === 100 && chat.cycleOmittedEvents === 6 && execution.querySelectorAll('li').length === 100, 'Visible log cap lost after morph');
+        check(!execution.textContent.includes('PRIVATE_CHAIN_SECRET') && !JSON.stringify(chat.cycleEvents).includes('RAW_ERROR_SECRET'), 'Non-public fields leaked');
+        check(chat.messages.length === 1 && chat.sessions.length === 1 && chat.aiActions.length === 0 && requests.length === 1 && !runButton.disabled, 'Execution changed chat or retried');
+        await flush();
+        check(requests.length === 1, 'Automatic reconnect attempted');
+        document.body.setAttribute('data-arc-result', 'passed');
+    })().catch(error => document.body.setAttribute('data-arc-result', error.message));
+    JS_WRAP;
+    arcActivityBrowserProbe($browser, Livewire::test(AdminAiChat::class)->html(), $probe);
+});
+
+test('arc execution locks uncertain or failed outcomes without leaking raw errors or retrying in installed browser', function (): void {
+    $browser = arcActivityInstalledBrowser();
+    if ($browser === null) {
+        /** @var TestCase $testCase */
+        $testCase = $this;
+        $testCase->markTestSkipped('Installed Edge or Chrome required for isolated DOM regression.');
+    }
+
+    $probe = <<<'JS_WRAP'
+    let makeChat;
+    const originalData = Alpine.data;
+    Alpine.data = (name, factory) => { makeChat = factory; };
+    registerAdminAiChat();
+    Alpine.data = originalData;
+    const config = {csrfToken: 'test', cycleUrl: '/isolated-cycle', cycleAvailable: true, manualChatEnabled: false, providerCallsAllowed: false, initialSessions: [], adminUser: {}, workspace: {name: 'Regression'}};
+    Alpine.data('arcRegression', () => Object.assign(makeChat(config), {init() {}}));
+    const root = document.querySelector('[x-data="arcRegression"]');
+    const serverHtml = root.outerHTML;
+    let refreshCount = 0;
+    Alpine.magic('wire', () => ({$refresh() {refreshCount++; return Promise.reject(new Error('RAW_REFRESH_SECRET'));}}));
+    Livewire.start();
+    const chat = Alpine.$data(root);
+    const execution = root.querySelector('[data-arc-cycle-execution]');
+    const check = (condition, message) => {if (!condition) throw new Error(message);};
+    const flush = () => new Promise(resolve => setTimeout(resolve, 20));
+    let requests = 0;
+    let confirmations = 0;
+    window.confirm = () => {confirmations++; return true;};
+    const frame = (type, sequence, extra = {}) => ({type, sequence, run_id: 'ab9c3d4e-1234-4567-89ab-123456789abc', occurred_at: '2026-10-09T10:11:12Z', phase: 'payment', title: 'Public event', summary: 'Safe public summary.', ...extra});
+    const response = (text, contentType = 'text/event-stream') => new Response(text, {headers: {'Content-Type': contentType}});
+    const scenarios = [
+        ['network', async () => {throw new Error('RAW_NETWORK_SECRET');}, 'unknown'],
+        ['empty EOF', async () => response(''), 'unknown'],
+        ['no terminal', async () => response('data: ' + JSON.stringify(frame('cycle_started', 1)) + '\n\n'), 'unknown'],
+        ['invalid JSON', async () => response('data: {RAW_JSON_SECRET\n\n'), 'unknown'],
+        ['bad UTF-8', async () => new Response(Uint8Array.of(0xc3, 0x28), {headers: {'Content-Type': 'text/event-stream'}}), 'unknown'],
+        ['unexpected content', async () => response('RAW_HTML_SECRET', 'text/html'), 'unknown'],
+        ['unexpected HTTP', async () => new Response('RAW_HTTP_SECRET', {status: 500}), 'unknown'],
+        ['run mismatch', async () => response('data: ' + JSON.stringify(frame('cycle_started', 1)) + '\n\ndata: ' + JSON.stringify(frame('cycle_completed', 2, {run_id: 'bbbbbbbb-1234-4567-89ab-123456789abc'})) + '\n\n'), 'unknown'],
+        ...[401, 403, 409, 419, 422, 429, 503].map(status => ['HTTP ' + status, async () => new Response('RAW_HTTP_SECRET', {status}), 'failed']),
+        ...['insufficient_funds', 'unexpected_error'].map(reason => [reason, async () => response('data: ' + JSON.stringify(frame('cycle_failed', 1, {title: 'Cycle failed', reason, error: 'RAW_PAYMENT_SECRET', thinking: 'PRIVATE_CHAIN_SECRET'})) + '\r\n\r\n'), 'failed']),
+    ];
+    (async () => {
+        for (const [name, fetchResponse, expected] of scenarios) {
+            chat.cycleState = 'idle';
+            chat.cycleLocked = false;
+            chat.cycleRunning = false;
+            const beforeRequests = requests;
+            const beforeConfirmations = confirmations;
+            const beforeRefresh = refreshCount;
+            window.fetch = async () => {requests++; return fetchResponse();};
+            await chat.runAutonomousCycle();
+            await flush();
+            check(chat.cycleState === expected && chat.cycleLocked && !chat.cycleRunning, name + ': unsafe outcome');
+            if (expected === 'unknown') {
+                check(execution.textContent.includes('UNKNOWN outcome') && execution.textContent.includes('may still be running or some payments may have completed'), name + ': missing uncertainty warning');
+            }
+            if (name === 'insufficient_funds') check(chat.cycleSummary.includes('Insufficient funds.'), 'Safe failure reason missing');
+            Alpine.morph(root, serverHtml, window.arcMorphConfig({id: 'regression'}));
+            await flush();
+            check(execution.querySelector('button').disabled && execution.textContent.includes('Rerun disabled for this page session') && execution.textContent.includes('Review AI Decision Log evidence'), name + ': lock or evidence lost during poll');
+            check(!/RAW_\w+_SECRET|PRIVATE_CHAIN_SECRET/.test(execution.textContent + JSON.stringify(chat.cycleEvents)), name + ': raw error leaked');
+            await chat.runAutonomousCycle();
+            await flush();
+            check(requests === beforeRequests + 1 && confirmations === beforeConfirmations + 1, name + ': duplicate or automatic retry');
+            check(refreshCount === beforeRefresh + 1 && chat.cycleState === expected, name + ': refresh changed outcome');
+        }
+        document.body.setAttribute('data-arc-result', 'passed');
+    })().catch(error => document.body.setAttribute('data-arc-result', error.message));
+    JS_WRAP;
+    arcActivityBrowserProbe($browser, Livewire::test(AdminAiChat::class)->html(), $probe);
 });
 
 test('arc composer visibility follows manual toggle independently of provider consent', function (bool $advisory, bool $disclosure): void {

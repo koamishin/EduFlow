@@ -1,6 +1,8 @@
 <div
     x-data="adminAiChat({
         csrfToken: '{{ csrf_token() }}',
+        cycleUrl: {{ Js::from($cycleUrl ?? null) }},
+        cycleAvailable: {{ Js::from($cycleAvailable ?? false) }},
         manualChatEnabled: {{ Js::from($manualChatEnabled) }},
         providerCallsAllowed: {{ Js::from($providerCallsAllowed) }},
         provider: '{{ $provider }}',
@@ -323,10 +325,16 @@
                     </svg>
                 </button>
 
-                <div class="flex items-center gap-1.5 ps-1">
+                <button
+                    type="button"
+                    @click="viewMode = 'activity'; if (window.innerWidth < 768) sidebarOpen = false"
+                    :aria-pressed="viewMode === 'activity'"
+                    aria-label="Open ARC activity and execution log"
+                    class="flex items-center gap-1.5 rounded-lg px-1 py-1.5 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 dark:hover:bg-zinc-800"
+                >
                     <span class="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{{ $assistantName ?? 'ARC' }}</span>
-                    <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                </div>
+                    <span class="hidden text-xs text-zinc-500 sm:inline dark:text-zinc-400">Activity</span>
+                </button>
             </div>
 
             {{-- Right side: Model indicator & Quick actions --}}
@@ -400,10 +408,69 @@
 
         <section x-show="viewMode === 'activity'" wire:poll.15s class="flex-1 overflow-y-auto px-5 py-8 sm:px-10" aria-label="ARC activity">
             <div class="mx-auto max-w-3xl">
-                <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">Institution operations</p>
-                <h1 class="mt-2 text-2xl font-semibold tracking-tight">ARC AI activity</h1>
-                <p class="mt-3 max-w-xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">Recorded policy decisions appear here without a chat prompt. Financial authority stays with deterministic policy and required human approvals.</p>
-                <p class="mt-2 text-xs text-zinc-500">Manual chat controls input only. It does not schedule or authorize payments.</p>
+                {{-- Alpine owns execution events, independently of chat and Livewire's recorded decisions. --}}
+                <div wire:ignore wire:key="arc-cycle-execution" data-arc-cycle-execution>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">Institution operations</p>
+                            <h1 class="mt-2 text-2xl font-semibold tracking-tight">ARC AI activity</h1>
+                        </div>
+                        <button
+                            type="button"
+                            @click="runAutonomousCycle()"
+                            :disabled="!cycleAvailable || !cycleUrl || cycleRunning || cycleLocked"
+                            :aria-busy="cycleRunning"
+                            aria-describedby="arc-cycle-safety arc-cycle-availability"
+                            class="rounded-xl border border-zinc-300 bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                        >Run Autonomous Agent Cycle</button>
+                    </div>
+                    <p class="mt-3 max-w-xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">Recorded policy decisions appear here without a chat prompt. Financial authority stays with deterministic policy and required human approvals.</p>
+                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Manual chat and provider switches are independent of execution. They do not start or stop a cycle.</p>
+                    <p id="arc-cycle-safety" class="mt-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">This cycle can move real USDC. Confirmation is required. Closing or navigating away from this page does not cancel payments.</p>
+                    <p id="arc-cycle-availability" x-show="!cycleAvailable || !cycleUrl" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Execution unavailable. A valid installation institution and active primary wallet are required.</p>
+
+                    <section class="arc-card mt-6 rounded-2xl p-4 sm:p-5" aria-labelledby="arc-cycle-heading">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 id="arc-cycle-heading" class="text-sm font-semibold">Execution log</h2>
+                            <span class="rounded border border-zinc-200 px-2 py-1 text-[11px] font-medium dark:border-zinc-700" x-text="cycleStateLabel"></span>
+                        </div>
+                        <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">Public operational facts and recorded policy reasons only. No private model reasoning or simulated thinking.</p>
+                        <p role="status" aria-live="polite" aria-atomic="true" class="mt-3 text-xs leading-relaxed">
+                            <span class="sr-only" x-text="cycleStateLabel + '. '"></span>
+                            <span x-text="cycleSummary"></span>
+                        </p>
+                        <p x-show="cycleRunId" x-cloak class="mt-2 break-all font-mono text-[10px] text-zinc-500 dark:text-zinc-400">Run <span x-text="cycleRunId"></span></p>
+                        <p x-show="cycleLocked" x-cloak class="mt-3 rounded-lg border border-amber-300 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-800 dark:text-amber-200">Rerun disabled for this page session. Review recorded decisions and reconcile payment evidence before another run.</p>
+                        <p x-show="cycleRefreshError" x-cloak role="status" class="mt-3 text-xs text-zinc-500 dark:text-zinc-400" x-text="cycleRefreshError"></p>
+                        <p x-show="cycleOmittedEvents > 0" x-cloak class="mt-3 text-[11px] text-zinc-500 dark:text-zinc-400">Showing latest 100 events. <span x-text="cycleOmittedEvents"></span> earlier events omitted; review AI Decision Log for evidence.</p>
+                        <ol role="log" aria-label="Public execution events" aria-live="polite" aria-relevant="additions" tabindex="0" class="mt-4 max-h-80 space-y-3 overflow-y-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500">
+                            <template x-for="event in cycleEvents" :key="event.run_id + ':' + event.sequence">
+                                <li class="border-l-2 border-zinc-200 py-1 pl-3 dark:border-zinc-700">
+                                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] text-zinc-500 dark:text-zinc-400">
+                                        <time :datetime="event.occurred_at" :title="event.occurred_at" x-text="cycleEventTime(event.occurred_at)"></time>
+                                        <span class="break-all font-mono" x-text="event.phase"></span>
+                                        <span x-text="'#' + event.sequence"></span>
+                                    </div>
+                                    <p class="mt-1 break-words text-xs font-semibold" x-text="event.title"></p>
+                                    <p class="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-zinc-600 dark:text-zinc-300" x-text="event.summary"></p>
+                                    <p x-show="cycleEventDetails(event)" class="mt-2 break-words text-[11px] text-zinc-500 dark:text-zinc-400" x-text="cycleEventDetails(event)"></p>
+                                </li>
+                            </template>
+                        </ol>
+                        <div x-show="cycleStats" x-cloak class="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                            <h3 class="text-xs font-semibold">Local results · not verified settlement</h3>
+                            <dl class="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                                <div><dt class="text-zinc-500 dark:text-zinc-400">Auto-paid</dt><dd class="mt-1 font-mono" x-text="cycleStats?.auto_paid ?? 'Not reported'"></dd></div>
+                                <div><dt class="text-zinc-500 dark:text-zinc-400">Escalated</dt><dd class="mt-1 font-mono" x-text="cycleStats?.escalated ?? 'Not reported'"></dd></div>
+                                <div><dt class="text-zinc-500 dark:text-zinc-400">Held</dt><dd class="mt-1 font-mono" x-text="cycleStats?.held ?? 'Not reported'"></dd></div>
+                                <div><dt class="text-zinc-500 dark:text-zinc-400">Rejected</dt><dd class="mt-1 font-mono" x-text="cycleStats?.rejected ?? 'Not reported'"></dd></div>
+                                <div class="col-span-2"><dt class="text-zinc-500 dark:text-zinc-400">Local disbursed (USDC)</dt><dd class="mt-1 break-all font-mono" x-text="cycleStats?.total_disbursed_usdc ?? 'Not reported'"></dd></div>
+                            </dl>
+                            <p class="mt-3 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">These are local workflow results, not proof of on-chain settlement. Reconcile payment evidence before treating funds as settled.</p>
+                        </div>
+                        <a href="{{ $decisionLogUrl }}" class="mt-4 inline-block text-xs font-medium underline underline-offset-4">Review AI Decision Log evidence</a>
+                    </section>
+                </div>
                 @if (! $providerCallsAllowed)
                     <p class="mt-4 rounded-xl border border-amber-300 p-3 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-200">External AI calls disabled. Enable advisory and accept the data disclosure in AI Settings before using manual chat. Policy decision history remains available.</p>
                 @endif
@@ -427,7 +494,7 @@
                         @empty
                             <div class="arc-card rounded-2xl p-6">
                                 <h2 class="text-sm font-medium">No recorded decisions yet</h2>
-                                <p class="mt-2 text-xs leading-relaxed text-zinc-500">Decisions from existing policy workflows appear here and in AI Decision Log. This page does not start a background financial cycle.</p>
+                                <p class="mt-2 text-xs leading-relaxed text-zinc-500">Decisions from policy workflows appear here and in AI Decision Log. A cycle starts only after explicit financial confirmation.</p>
                             </div>
                         @endforelse
                     </div>
