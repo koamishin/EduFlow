@@ -76,6 +76,7 @@ class Dashboard extends BaseDashboard
                 ->modalHeading('Execute Autonomous Financial Cycle')
                 ->modalDescription('EduFlow AI will observe pending invoices, forecast 30-day liquidity, evaluate deterministic policies, disburse approved USDC through the Lepton agent wallet on Arc, and escalate high-value payments to the Approval Center.')
                 ->action(function (EduFlowAgent $agent): void {
+                    @set_time_limit(180);
                     $org = app(InstallationInstitution::class)->current();
 
                     if (! $org) {

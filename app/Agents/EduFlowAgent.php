@@ -44,6 +44,8 @@ class EduFlowAgent
      */
     public function runAutonomousCycle(Organization $org): array
     {
+        @set_time_limit(180);
+
         $wallet = $org->primaryWallet();
         if (! $wallet) {
             throw new InvalidArgumentException("Organization {$org->name} does not have an active Circle wallet.");
