@@ -39,6 +39,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Standing Mandate Lane
+    |--------------------------------------------------------------------------
+    |
+    | A standing mandate authorizes a *class* of recurring payment; the
+    | deterministic evaluator admits each occurrence. Both default off, and the
+    | evaluator is a pure function of evidence with no model and no session in
+    | its path.
+    |
+    | `runtime_enabled` gates whether any automatic release may be recorded at
+    | all; `allow_nonzero_allowance` gates whether a reviewed mandate may carry
+    | a nonzero per-occurrence ceiling. Until the second is on, every mandate
+    | authorizes nothing, which is §18.4's "initial allowance is zero".
+    |
+    */
+
+    'mandate' => [
+        'runtime_enabled' => env('EDUFLOW_MANDATE_ENABLED', false),
+        'allow_nonzero_allowance' => env('EDUFLOW_MANDATE_ALLOWANCE', false),
+        'queue_connection' => env('EDUFLOW_MANDATE_QUEUE_CONNECTION', 'database'),
+        'queue' => 'finance-mandate',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Dual-Currency Display
     |--------------------------------------------------------------------------
     |
