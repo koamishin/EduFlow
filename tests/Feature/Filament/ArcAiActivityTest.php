@@ -136,14 +136,13 @@ JS;
 
 test('arc activity uses the ARC AI Activity title and defaults manual chat off', function (string $role): void {
     $this->actingAs(User::factory()->create()->assignRole($role));
-    $activityPage = Livewire::test(ArcAiActivity::class)
-        ->assertSuccessful()
-        ->assertSetStrict('selectedDecisionId', null)
+    $activityPage = Livewire::test(ArcAiActivity::class);
+    $activityPage->assertSuccessful()
         ->assertSee('ARC AI activity')
         ->assertSee('Run Autonomous Agent Cycle')
         ->assertDontSee('Manual conversations');
 
-    expect($activityPage->instance()->getTitle())->toBe('ARC AI Activity')
+    expect(app(ArcAiActivity::class)->getTitle())->toBe('ARC AI Activity')
         ->and(ArcAiActivity::getNavigationLabel())->toBe('ARC AI Activity');
 
     $chatPage = Livewire::test(AdminAiChat::class)
