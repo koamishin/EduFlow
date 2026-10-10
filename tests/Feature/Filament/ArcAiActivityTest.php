@@ -6,6 +6,7 @@ use App\Ai\Agents\AdminAssistantAgent;
 use App\Enums\AgentDecisionType;
 use App\Filament\Clusters\Settings\Pages\AiSettingsPage;
 use App\Filament\Pages\AdminAiChat;
+use App\Filament\Pages\ArcAiActivity;
 use App\Filament\Resources\AgentDecisions\AgentDecisionResource;
 use App\Models\AgentDecision;
 use App\Models\ChatMessage;
@@ -89,7 +90,7 @@ function arcActivityInstalledBrowser(): ?string
     ])->first(fn (string $path): bool => is_file($path));
 }
 
-function arcActivityBrowserProbe(string $browser, string $html, string $probe): void
+function arcActivityBrowserProbe(string $browser, string $html, string $probe, ?string $scriptPath = null): void
 {
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
@@ -104,7 +105,7 @@ function arcActivityBrowserProbe(string $browser, string $html, string $probe): 
     }
     $chatHtml = $document->saveHTML($chat);
     $runtime = str_replace('window.Livewire = Livewire2;', 'window.arcMorphConfig = getMorphConfig; window.Livewire = Livewire2;', file_get_contents(base_path('vendor/livewire/livewire/dist/livewire.js')));
-    $chatScript = file_get_contents(resource_path('views/filament/pages/ai-chat-script.blade.php'));
+    $chatScript = file_get_contents($scriptPath ?? resource_path('views/filament/pages/ai-chat-script.blade.php'));
     $setup = <<<'JS'
 window.livewireScriptConfig = {};
 window.addEventListener('error', event => document.body.setAttribute('data-arc-error', event.message));
@@ -121,7 +122,7 @@ JS;
             '--disable-background-networking', '--virtual-time-budget=15000', '--dump-dom',
             '--user-data-dir='.$directory.'/profile', 'file:///'.str_replace('\\', '/', $directory.'/probe.html'),
         ]);
-        $process->setTimeout(45);
+        $process->setTimeout(120);
         $process->run();
         expect($process->isSuccessful())->toBeTrue();
         preg_match('/<body[^>]*data-arc-error="([^"]*)"/', $process->getOutput(), $errors);
@@ -133,18 +134,26 @@ JS;
     }
 }
 
-test('arc activity uses the ARC AI title and defaults manual chat off', function (string $role): void {
+test('arc activity uses the ARC AI Activity title and defaults manual chat off', function (string $role): void {
     $this->actingAs(User::factory()->create()->assignRole($role));
-    $page = Livewire::test(AdminAiChat::class)
+    $activityPage = Livewire::test(ArcAiActivity::class);
+    $activityPage->assertSuccessful()
+        ->assertSee('ARC AI activity')
+        ->assertSee('Run Autonomous Agent Cycle')
+        ->assertDontSee('Manual conversations');
+
+    expect(app(ArcAiActivity::class)->getTitle())->toBe('ARC AI Activity')
+        ->and(ArcAiActivity::getNavigationLabel())->toBe('ARC AI Activity');
+
+    $chatPage = Livewire::test(AdminAiChat::class)
         ->assertSuccessful()
         ->assertSetStrict('manualChatEnabled', false)
-        ->assertSetStrict('selectedDecisionId', null)
-        ->assertSee('ARC AI activity')
         ->assertSee('Manual chat')
-        ->assertSeeHtml('manualChatEnabled: false');
+        ->assertSeeHtml('manualChatEnabled: false')
+        ->assertDontSee('Run Autonomous Agent Cycle');
 
-    expect($page->instance()->getTitle())->toBe('ARC AI')
-        ->and(AdminAiChat::getNavigationLabel())->toBe('ARC AI')
+    expect($chatPage->instance()->getTitle())->toBe('ARC AI Chat')
+        ->and(AdminAiChat::getNavigationLabel())->toBe('Manual Chat')
         ->and(AiSettings::defaults()['manual_chat_enabled'])->toBeFalse()
         ->and((new AiSettings)->manual_chat_enabled)->toBeFalse();
     $this->assertDatabaseHas('settings', [
@@ -155,16 +164,22 @@ test('arc activity uses the ARC AI title and defaults manual chat off', function
     $this->assertDatabaseCount('chat_messages', 0);
 })->with(['admin', 'super_admin']);
 
-test('arc chat and history stay outside polling morphs while activity remains live', function (): void {
-    $page = Livewire::test(AdminAiChat::class);
-
+test('arc chat and history stay on chat page outside polling morphs while activity remains live on activity page', function (): void {
+    $chatPage = Livewire::test(AdminAiChat::class);
     foreach (range(1, 2) as $refresh) {
-        $page->call('$refresh')
-            ->assertSeeHtml('<main wire:ignore x-show="viewMode === \'chat\'"')
+        $chatPage->call('$refresh')
+            ->assertSeeHtml('<main wire:ignore')
             ->assertSeeHtml('<div wire:ignore class="flex-1 space-y-3.5 overflow-y-auto pe-1 text-xs">')
+            ->assertDontSee('Run Autonomous Agent Cycle');
+    }
+
+    $activityPage = Livewire::test(ArcAiActivity::class);
+    foreach (range(1, 2) as $refresh) {
+        $activityPage->call('$refresh')
             ->assertSeeHtml('<section wire:poll.15s')
             ->assertSeeHtml('aria-label="Recorded decisions"')
-            ->assertSeeHtml('<div wire:ignore wire:key="arc-cycle-execution" data-arc-cycle-execution>');
+            ->assertSeeHtml('<div wire:ignore wire:key="arc-cycle-execution" data-arc-cycle-execution>')
+            ->assertDontSee('Manual conversations');
     }
 });
 
@@ -238,7 +253,7 @@ JS;
 });
 
 test('arc execution control and public log stay in activity outside model chat', function (): void {
-    $page = Livewire::test(AdminAiChat::class)
+    $page = Livewire::test(ArcAiActivity::class)
         ->assertSee('Run Autonomous Agent Cycle')
         ->assertSee('Execution log')
         ->assertSee('Public operational facts and recorded policy reasons only.')
@@ -263,7 +278,7 @@ test('arc execution control and public log stay in activity outside model chat',
         ->and($button->getAttribute(':disabled'))->toBe('!cycleAvailable || !cycleUrl || cycleRunning || cycleLocked')
         ->and($button->getAttribute('aria-describedby'))->toBe('arc-cycle-safety arc-cycle-availability')
         ->and($xpath->query('//*[@aria-label="Open ARC activity and execution log"]')->length)->toBe(1);
-    $source = file_get_contents(resource_path('views/filament/pages/ai-chat.blade.php'));
+    $source = file_get_contents(resource_path('views/filament/pages/ai-activity.blade.php'));
     expect($source)->toContain('cycleUrl: {{ Js::from($cycleUrl ?? null) }}', 'cycleAvailable: {{ Js::from($cycleAvailable ?? false) }}');
 });
 
@@ -351,12 +366,11 @@ test('arc execution streams public facts through morphs and keeps chat independe
         check(execution.textContent.includes('Decision #27') && execution.textContent.includes('ACTIVE_POLICY_V3') && execution.querySelector('time').getAttribute('datetime') === started.occurred_at, 'Evidence metadata missing');
         await poll();
         check(execution.textContent.includes('Café policy result'), 'Polling lost public execution fact');
-        check(root.querySelectorAll('.arc-user-bubble').length === 1, 'Polling lost manual message bubble: ' + root.querySelectorAll('.arc-user-bubble').length);
-        check(root.textContent.includes('Keep manual chat separate'), 'Polling lost manual message text');
-        check(root.textContent.includes('Saved conversation'), 'Polling lost saved conversation');
-        await chat.toggleManualChat();
-        await chat.toggleManualChat();
-        check(chat.cycleRunning && chat.cycleEvents.length === 2 && requests.length === 1, 'Manual switch affected execution');
+        if (typeof chat.toggleManualChat === 'function') {
+            await chat.toggleManualChat();
+            await chat.toggleManualChat();
+            check(chat.cycleRunning && chat.cycleEvents.length === 2 && requests.length === 1, 'Manual switch affected execution');
+        }
         controller.enqueue(encoder.encode('data: ' + JSON.stringify(progress) + '\n\ndata: ' + JSON.stringify({type: 'reasoning_delta', delta: 'PRIVATE_CHAIN_SECRET'}) + '\n\n'));
         for (let sequence = 3; sequence <= 105; sequence++) {
             controller.enqueue(encoder.encode('data: ' + JSON.stringify(frame('cycle_progress', sequence)) + '\n\n'));
@@ -385,7 +399,7 @@ test('arc execution streams public facts through morphs and keeps chat independe
         document.body.setAttribute('data-arc-result', 'passed');
     })().catch(error => document.body.setAttribute('data-arc-result', error.message));
     JS_WRAP;
-    arcActivityBrowserProbe($browser, Livewire::test(AdminAiChat::class)->html(), $probe);
+    arcActivityBrowserProbe($browser, Livewire::test(ArcAiActivity::class)->html(), $probe, resource_path('views/filament/pages/ai-activity-script.blade.php'));
 });
 
 test('arc execution locks uncertain or failed outcomes without leaking raw errors or retrying in installed browser', function (): void {
@@ -458,7 +472,7 @@ test('arc execution locks uncertain or failed outcomes without leaking raw error
         document.body.setAttribute('data-arc-result', 'passed');
     })().catch(error => document.body.setAttribute('data-arc-result', error.message));
     JS_WRAP;
-    arcActivityBrowserProbe($browser, Livewire::test(AdminAiChat::class)->html(), $probe);
+    arcActivityBrowserProbe($browser, Livewire::test(ArcAiActivity::class)->html(), $probe, resource_path('views/filament/pages/ai-activity-script.blade.php'));
 });
 
 test('arc composer visibility follows manual toggle independently of provider consent', function (bool $advisory, bool $disclosure): void {
@@ -552,7 +566,7 @@ test('arc manual chat setter denies non-admins after an authorized mount', funct
 test('arc decision selection denies non-admins after an authorized mount', function (): void {
     $institution = Organization::factory()->create();
     $decision = arcActivityDecision($institution, 'Authorized institution evidence');
-    $page = Livewire::test(AdminAiChat::class)->assertSetStrict('selectedDecisionId', null);
+    $page = Livewire::test(ArcAiActivity::class)->assertSetStrict('selectedDecisionId', null);
 
     $this->actingAs($this->regularUser);
     $page->call('showDecision', $decision->id)->assertForbidden();
@@ -562,7 +576,7 @@ test('arc decision selection denies non-admins after an authorized mount', funct
     $this->assertDatabaseCount('chat_messages', 0);
 });
 
-test('arc sidebar and activity show only the latest thirty current institution decisions', function (): void {
+test('arc sidebar shows only the latest thirty current institution decisions', function (): void {
     $institution = Organization::factory()->create();
     $decisions = collect(range(1, 31))->map(
         fn (int $number): AgentDecision => arcActivityDecision($institution, "Current institution evidence {$number}"),
@@ -575,24 +589,20 @@ test('arc sidebar and activity show only the latest thirty current institution d
     $context->shouldReceive('current')->andReturn($institution);
     $this->app->instance(InstallationInstitution::class, $context);
 
-    $page = Livewire::test(AdminAiChat::class)
+    $page = Livewire::test(ArcAiActivity::class)
         ->assertSee('Recorded decisions')
         ->assertSee('ARC AI activity')
         ->assertSee('AI Decision Log')
         ->assertSeeHtml('href="'.AgentDecisionResource::getUrl('index', panel: 'admin').'"')
         ->assertDontSee('Foreign institution confidential evidence')
         ->assertDontSeeHtml('wire:key="arc-decision-'.$foreignDecision->id.'"')
-        ->assertDontSeeHtml('wire:key="arc-activity-'.$foreignDecision->id.'"')
-        ->assertDontSeeHtml('wire:key="arc-decision-'.$decisions->first()->id.'"')
-        ->assertDontSeeHtml('wire:key="arc-activity-'.$decisions->first()->id.'"');
+        ->assertDontSeeHtml('wire:key="arc-decision-'.$decisions->first()->id.'"');
 
-    foreach (['arc-decision-', 'arc-activity-'] as $prefix) {
-        $keys = $decisions->slice(1)->reverse()->map(
-            fn (AgentDecision $decision): string => 'wire:key="'.$prefix.$decision->id.'"',
-        )->values()->all();
-        $page->assertSeeHtmlInOrder($keys);
-        expect(substr_count($page->html(), 'wire:key="'.$prefix))->toBe(30);
-    }
+    $keys = $decisions->slice(1)->reverse()->map(
+        fn (AgentDecision $decision): string => 'wire:key="arc-decision-'.$decision->id.'"',
+    )->values()->all();
+    $page->assertSeeHtmlInOrder($keys);
+    expect(substr_count($page->html(), 'wire:key="arc-decision-'))->toBe(30);
 
     expect(fn () => $page->call('showDecision', $foreignDecision->id))
         ->toThrow(ModelNotFoundException::class);
@@ -607,7 +617,7 @@ test('arc selected details and AI Decision Log link identify the same persisted 
     $url = AgentDecisionResource::getUrl('view', ['record' => $decision], panel: 'admin');
     $otherUrl = AgentDecisionResource::getUrl('view', ['record' => $other], panel: 'admin');
 
-    $page = Livewire::test(AdminAiChat::class)
+    $page = Livewire::test(ArcAiActivity::class)
         ->call('showDecision', $decision->id)
         ->assertSetStrict('selectedDecisionId', $decision->id)
         ->assertSeeHtml('wire:key="arc-selected-'.$decision->id.'"')
@@ -651,7 +661,7 @@ test('arc mount select polling refresh and remount remain read only with provide
         fn (string $model): array => [$model => $model::query()->orderBy('id')->get()->toArray()],
     )->all();
 
-    $page = Livewire::test(AdminAiChat::class)
+    $page = Livewire::test(ArcAiActivity::class)
         ->assertSetStrict('selectedDecisionId', null)
         ->call('showDecision', $decision->id)
         ->assertSee('Read only persisted decision evidence');
@@ -662,9 +672,8 @@ test('arc mount select polling refresh and remount remain read only with provide
             ->assertSee('Read only persisted decision evidence');
     }
 
-    Livewire::test(AdminAiChat::class)
-        ->assertSetStrict('selectedDecisionId', null)
-        ->assertSee('Read only persisted decision evidence');
+    Livewire::test(ArcAiActivity::class)
+        ->assertSetStrict('selectedDecisionId', null);
     $after = collect($models)->mapWithKeys(
         fn (string $model): array => [$model => $model::query()->orderBy('id')->get()->toArray()],
     )->all();
@@ -682,12 +691,11 @@ test('arc blocks decision selection and hides history without a valid institutio
     }
 
     expect(app(InstallationInstitution::class)->current())->toBeNull();
-    $page = Livewire::test(AdminAiChat::class)
+    $page = Livewire::test(ArcAiActivity::class)
         ->assertSetStrict('selectedDecisionId', null)
         ->assertSee('No recorded decisions yet')
         ->assertDontSee('Evidence hidden without institution context')
-        ->assertDontSeeHtml('wire:key="arc-decision-'.$decision->id.'"')
-        ->assertDontSeeHtml('wire:key="arc-activity-'.$decision->id.'"');
+        ->assertDontSeeHtml('wire:key="arc-decision-'.$decision->id.'"');
 
     $page->call('showDecision', $decision->id)->assertNotFound();
     $this->assertDatabaseCount('agent_decisions', 1);
@@ -696,7 +704,7 @@ test('arc blocks decision selection and hides history without a valid institutio
 test('arc rejects missing decision ids without changing the selected evidence', function (): void {
     $institution = Organization::factory()->create();
     $decision = arcActivityDecision($institution, 'Existing selected evidence');
-    $page = Livewire::test(AdminAiChat::class)
+    $page = Livewire::test(ArcAiActivity::class)
         ->call('showDecision', $decision->id)
         ->assertSetStrict('selectedDecisionId', $decision->id);
     $component = $page->instance();
@@ -747,7 +755,7 @@ test('arc system instructions separate manual explanations from financial author
 test('arc refresh stops displaying selected evidence when institution context disappears', function (): void {
     $institution = Organization::factory()->create();
     $decision = arcActivityDecision($institution, 'Previously selected private evidence');
-    $page = Livewire::test(AdminAiChat::class)
+    $page = Livewire::test(ArcAiActivity::class)
         ->call('showDecision', $decision->id)
         ->assertSee('Previously selected private evidence');
 

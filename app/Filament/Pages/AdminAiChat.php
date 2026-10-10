@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
-use App\Filament\Resources\AgentDecisions\AgentDecisionResource;
-use App\Models\AgentDecision;
 use App\Models\ChatSession;
 use App\Models\User;
 use App\Services\Ai\AiProviderResolver;
-use App\Services\InstallationInstitution;
 use App\Settings\AiSettings;
 use Filament\Facades\Filament;
 use Filament\Navigation\NavigationItem;
@@ -21,15 +18,15 @@ class AdminAiChat extends Page
 {
     protected static string $layout = 'filament-panels::components.layout.base';
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-sparkles';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chat-bubble-left-right';
 
     protected static string|\UnitEnum|null $navigationGroup = 'AI Intelligence';
 
     protected static ?int $navigationSort = 1;
 
-    protected static ?string $title = 'ARC AI';
+    protected static ?string $title = 'ARC AI Chat';
 
-    protected static ?string $navigationLabel = 'ARC AI';
+    protected static ?string $navigationLabel = 'Manual Chat';
 
     protected static ?string $slug = 'ai-chat';
 
@@ -40,9 +37,6 @@ class AdminAiChat extends Page
 
     #[Locked]
     public bool $providerCallsAllowed = false;
-
-    #[Locked]
-    public ?int $selectedDecisionId = null;
 
     public function mount(): void
     {
@@ -61,20 +55,6 @@ class AdminAiChat extends Page
         $this->manualChatEnabled = $enabled;
 
         return $enabled;
-    }
-
-    public function showDecision(int $id): void
-    {
-        abort_unless(static::canAccess(), 403);
-
-        $institution = app(InstallationInstitution::class)->current();
-        abort_unless($institution, 404);
-
-        $decision = AgentDecision::query()
-            ->where('organization_id', $institution->id)
-            ->findOrFail($id);
-
-        $this->selectedDecisionId = $decision->id;
     }
 
     #[\Override]
@@ -162,32 +142,17 @@ class AdminAiChat extends Page
             ->values()
             ->all();
 
-        $institution = app(InstallationInstitution::class)->current();
-        $decisions = $institution === null ? collect() : AgentDecision::query()
-            ->where('organization_id', $institution->id)
-            ->latest('id')
-            ->limit(30)
-            ->get();
-        $selectedDecision = $institution === null || $this->selectedDecisionId === null ? null : AgentDecision::query()
-            ->where('organization_id', $institution->id)
-            ->find($this->selectedDecisionId);
         $settings = app(AiSettings::class);
         $this->manualChatEnabled = $settings->manual_chat_enabled;
         $this->providerCallsAllowed = $settings->mayCallProvider();
 
         return [
-            'cycleUrl' => route('finance.autonomous-cycle.store'),
-            'cycleAvailable' => $institution?->primaryWallet() !== null,
-            'decisions' => $decisions,
-            'selectedDecision' => $selectedDecision,
-            'decisionLogUrl' => AgentDecisionResource::getUrl('index', panel: 'admin'),
             'providerCallsAllowed' => $this->providerCallsAllowed,
             'provider' => $provider,
             'providerLabel' => $providerLabel,
             'modelName' => $model,
             'assistantName' => 'ARC AI',
             'schoolName' => 'EduFlow',
-            'assistantLogoUrl' => null,
             'workspace' => [
                 'id' => 1,
                 'name' => 'EduFlow Financial Platform',
@@ -204,6 +169,7 @@ class AdminAiChat extends Page
                 'uuid' => $initialActiveSession->uuid ?? (string) $initialActiveSession->id,
                 'title' => $initialActiveSession->title ?: 'New chat',
             ] : null,
+            'activityUrl' => ArcAiActivity::getUrl(),
         ];
     }
 }
