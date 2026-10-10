@@ -11,13 +11,23 @@ plan. 1282 Pest tests pass (3 skipped). No payment path was enabled by that work
 
 **Not built, in dependency order — this is the critical path:**
 
-1. Reviewed **reservation release + funding-window rollover** (§14.8 blocker). Holds are
-   currently terminal and a window lives 15 minutes; nothing can roll over unattended.
+1. **Funding-window rollover** — still open. A window expires in 15 minutes and
+   cannot be reopened; `PrepareFundingWindow` refuses while any approval exists. Its
+   predecessor-reviewed release is now delivered (below), but rollover itself is not.
 2. Durable **outbox + attempt identity** for submission/recovery.
 3. **Isolated executor + Arc settlement verification** (§17 step 12). Every `evidence()`
    still hardcodes `can_execute: false`.
 4. **Bounded autonomous lane** (§18) — depends entirely on 1–3.
 5. **Inbound collection** (§12.5, §15.6) — entirely unmodelled; no payer identity exists.
+
+**Delivered since the dashboards (2026-10-10): reviewed reservation release.**
+`PaymentReservationRelease` + `PaymentReservationReleaseReview`, append-only, maker/checker
+where neither the proposer nor the original holder may decide. Capacity comes back without
+rewriting the hold or its cumulative chain: `ReservationCapacity` distinguishes the
+historical `chainTotal` (what was held, in order, reproducible forever) from
+`consumingTotal` (what is unavailable now). An authorized hold can never be released, a
+release frees capacity but never money, and `ProposePaymentIntentChange` now unblocks once
+the hold is released. `can_execute` remains false throughout.
 
 **Three corrections a new session must not regress on:**
 
@@ -1298,6 +1308,23 @@ approval CLI or dedicated shadow/demo domain is introduced. SQLite upgrade/rollb
 original digests and restores monetary guards; rollback refuses existing recovery evidence.
 Staff recovery UI/import, invoice-source-version successors and safe recovery after reservation
 or external submission remain separate work.
+
+**C1 reviewed reservation release delivered:** `PaymentReservationRelease` and
+`PaymentReservationReleaseReview` return held bill+capacity fee to a department without
+ever editing the reservation or its cumulative chain. `ReservationCapacity` keeps two
+totals deliberately apart: the historical chain total, which every hold recorded as
+`prior_reserved_base_units` and which must reproduce exactly forever, and the consuming
+total, which subtracts approved releases. Release is therefore an append-only fact rather
+than a correction, so an auditor can still see the hold, its position in the sequence, who
+took it and who ended it. Maker/checker applies twice over: neither the proposer nor the
+staff member who took the hold may decide a release, and a hold with any authorization
+decision is not releasable at all, because committed funds are not spare capacity and
+release must not become an un-commit path. Decided releases are final, identical retries
+return recorded evidence, and released capacity unblocks draft recovery. Release frees
+capacity, never money: `payment_approved`, `external_funds_locked`, `can_execute` and
+`local_accounts_changed` are all false, and the reservation chain is re-verified after an
+approval so a release that would leave history unreproducible is refused. **Funding-window
+rollover remains undelivered**, so an unattended lane still cannot renew its evidence.
 
 **C1 bounded funding/reservation foundation delivered:** `FundingWindow` binds an existing
 exact **USDC** `BudgetSnapshot`, its closed set of reviewed invoice versions, current finance
@@ -2771,9 +2798,11 @@ plus finality before recording anything as settled.
 
 Its prerequisites, in order:
 
-1. **Reviewed reservation release and funding rollover.** A `PaymentReservation` is terminal
-   and a `FundingWindow` expires in 15 minutes with no rollover. Expiry blocks new holds while
-   preserving prior ones, which is correct but means an unattended lane starves immediately.
+1. **Reviewed reservation release and funding rollover.** A `PaymentReservation` was
+   terminal and a `FundingWindow` expired in 15 minutes with no rollover, so an unattended
+   lane starved immediately. **Reviewed release is now delivered** (see "Where Things
+   Stand"); **funding-window rollover is not.** `PrepareFundingWindow` still refuses while
+   any approval exists, and cross-window capacity reuse remains unproven.
 2. **Durable outbox and attempt identity**, committed with the domain change and dispatched
    only after commit, with a recovery sweep for committed-but-undispatched work (§14.8).
 3. **The executor itself**, plus the settlement predicate.

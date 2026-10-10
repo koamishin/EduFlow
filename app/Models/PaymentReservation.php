@@ -98,12 +98,40 @@ class PaymentReservation extends Model
         return $this->hasOne(PaymentAuthorization::class);
     }
 
+    /** @return HasOne<PaymentReservationRelease, $this> */
+    public function release(): HasOne
+    {
+        return $this->hasOne(PaymentReservationRelease::class);
+    }
+
+    /**
+     * Whether an independent reviewer returned this hold's capacity.
+     *
+     * Deliberately not a column: release is an append-only fact, so the
+     * reservation row is never updated to say it stopped consuming.
+     */
+    public function isReleased(): bool
+    {
+        return PaymentReservationReleaseReview::query()
+            ->where('payment_reservation_id', $this->id)
+            ->where('decision', 'approve_release')
+            ->exists();
+    }
+
     /** @return array<string, mixed> */
     public function evidence(): array
     {
+        $released = $this->isReleased();
+
         return ['id' => $this->id, 'reservation_key' => $this->reservation_key, 'payment_intent_id' => $this->payment_intent_id,
-            'snapshot' => $this->snapshot, 'snapshot_digest' => $this->snapshot_digest, 'state' => 'held',
-            'funds_reserved' => true, 'reservation_scope' => 'application_capacity_only', 'payment_approved' => false,
+            'snapshot' => $this->snapshot, 'snapshot_digest' => $this->snapshot_digest,
+            /**
+             * The hold still happened and stays in the chain. Releasing it
+             * returns capacity; it does not un-take the reservation.
+             */
+            'state' => $released ? 'released' : 'held',
+            'release_decision' => $this->release?->review?->decision,
+            'funds_reserved' => ! $released, 'reservation_scope' => 'application_capacity_only', 'payment_approved' => false,
             'can_execute' => false, 'external_funds_locked' => false, 'local_accounts_changed' => false,
             'is_fake' => $this->snapshot['balance_observation']['is_fake'] ?? null];
     }
