@@ -6,7 +6,9 @@
 
 **Product direction confirmed by the owner:** Circle Agent Stack and Arc USDC are the primary finance execution infrastructure, not an optional side feature. Keep MIT and one institution per self-hosted instance. Keep **Circle Agent Wallets through Lepton for this hackathon**; Developer-Controlled Wallets remain a later institutional deployment decision. The first finance pilot must operate with zero students. Installation, fake simulation and read-only previews must not submit payments; actual testnet execution requires separate explicit authorization. Mainnet and real college fund movement remain out of scope. LLM advisory stays optional.
 
-**Current hackathon focus:** Fee collections and budget planning in shadow/parallel mode, starting with **one college department, its approved budget and approved bills due over the next couple of weeks**. Use staff-verified aggregate realized receipts or approved opening funds, not a new student payment portal. The college keeps collecting and paying in local currency through its existing process. Each eligible admin-approved bill must produce a linked, verified USDC mirror payment on Arc testnet; read-only analysis plus an unrelated transfer is not completion. Add a separately approved, small capped testnet-only lane for existing recurring obligations after the human-approved path is safe. Confirm the selected problem with college staff before expanding. See [Section 14](#14-college-shadow-pilot--hackathon-execution-contract).
+**Operating model clarified by the owner:** cashier is the institution's receipt/transaction intake hub; finance/accounting staff supervises event-driven background work and receives approval notifications. Approved recurring bills may run automatically on testnet within a separately reviewed standing mandate. Background activity must not depend on an open browser or a human chat prompt. Sections 14.7–14.10 define this target; no scheduler, supervisor UI or payment authority is enabled by documenting it.
+
+**Current hackathon focus:** Answer **what should the institution do with student fees already collected?** Review realized aggregate fee receipts and propose their use within an existing approved allocation; this is not an assistance-request workflow or a new student payment portal. Fee collections and budget planning run in shadow/parallel mode, starting with **one college department, its approved budget and approved bills due over the next couple of weeks**. Use staff-verified aggregate realized receipts or approved opening funds, not a new student payment portal. The college keeps collecting and paying in local currency through its existing process. Each eligible admin-approved bill must produce a linked, verified USDC mirror payment on Arc testnet; read-only analysis plus an unrelated transfer is not completion. Add a separately approved, small capped testnet-only lane for existing recurring obligations after the human-approved path is safe. Confirm the selected problem with college staff before expanding. See [Section 14](#14-college-shadow-pilot--hackathon-execution-contract).
 
 ---
 
@@ -1158,8 +1160,10 @@ flowchart TD
     K[Optional student aid module] --> B
 ```
 
-**Existing seam:** `EduFlowAgent::runAutonomousCycle(Organization)` forecasts and processes
-vendor `Invoice` rows before assistance. A `Student` is not required for that vendor path.
+**Existing legacy seam, not the background execution contract:** `EduFlowAgent::runAutonomousCycle(Organization)` forecasts and processes
+vendor `Invoice` rows before assistance. It is invoked by the developer command/dashboard,
+not a safe scheduled departmental executor. Do not schedule this legacy float-based cycle
+or reuse its assistance approval path to implement Sections 14.7–14.10. A `Student` is not required for that vendor path.
 `SettlementOperatorFactory` previously required an assistance fund and policy. C0 now
 builds an institution operator without them; active institution-scoped aid setup enables
 those tools separately. No fake student or duplicate finance application is introduced.
@@ -1243,10 +1247,47 @@ original digests and restores monetary guards; rollback refuses existing recover
 Staff recovery UI/import, invoice-source-version successors and safe recovery after reservation
 or external submission remain separate work.
 
-**Still proposed:** exact legacy treasury migration, selected account roles, authorized reservations/outbox,
-settlement verification and posting. Draft/recovery digest is not payment approval, proof of
-ownership or a digital signature. Raw DB writes/admin access and untested production
-concurrency are not covered by model immutability. SQLite float storage cannot recover exact values.
+**C1 bounded funding/reservation foundation delivered:** `FundingWindow` binds an existing
+exact **USDC** `BudgetSnapshot`, its closed set of reviewed invoice versions, current finance
+policy, Circle treasury identity and fresh block-bound Arc balance. `ArcBalanceObservation`
+checks RPC chain identity and matching committed block hash, reads native USDC at that block,
+and preserves 18-decimal quantities/residuals as arbitrary-precision strings. Native and
+ERC-20 interfaces are not added together. RPC failures/malformed/stale quantities fail closed;
+no legacy wallet float supplies exact funding. Balance reads are not settlement proof.
+
+A separate verified admin approves expected window digest and attests allocation, disjoint
+exclusions and exclusive treasury use; neither budget-evidence nor window maker can review.
+Capacity is the lower of exact realized cash and observed Arc cash, after restricted cash,
+other commitments and the higher of policy/snapshot reserve. Total bill **plus maximum fee**
+consumes allocation and cash conservatively. `ReserveVendorPayment` rechecks current evidence
+and a fresh balance before taking institution-serialized, uniquely identified immutable holds.
+Cumulative arithmetic includes every prior hold; corrupt/missing intermediate evidence blocks
+new capacity. Exact retries preserve original hold/audit and work without RPC availability.
+
+**Deliberate initial limit:** one approved funding window per institution, for one department,
+closed bill set and Circle wallet; maximum 15-minute observation window. No refresh, second
+wallet/department window, automatic expiry release, or rollover can reset held capacity.
+Expiry/drift blocks new holds while preserving previous holds. Reserved drafts cannot accept
+cancellation/replacement until reviewed release exists. Preparation/review/reservation use
+normal `finance.funding-windows.*` / `finance.payment-reservations.store` JSON workflows,
+not a shadow/demo domain. Fake observations/holds carry explicit `is_fake`. Application
+capacity hold is **not** a Circle wallet lock, payment approval, bank balance or statutory
+posting. Outside wallet activity remains a risk requiring exclusive-use attestation and fresh
+execution preflight later. No transfer, invoice-payment-state or legacy balance mutation occurs.
+SQLite independent-worker contention is covered; PostgreSQL/provider production concurrency
+and external withdrawal races remain uncertified. Empty rollback is supported; retained funding
+or reservation evidence refuses destructive rollback.
+
+**README scope alignment:** fee evidence now precedes planning; zero students remain required.
+Local collection review is not treasury observation or FX. New funding windows require the
+review-bound schema-v2 budget contract; legacy unbound receipts cannot be promoted. Review
+UI/import and local-to-testnet authority remain immediate product gaps alongside safe release.
+
+**Still proposed:** reviewed reservation release and funding rollover, multi-department shared
+capacity, exact legacy treasury migration, selected account roles, MFA-backed payment approval,
+outbox/attempt identity, settlement verification and posting. Draft/recovery/funding digest is
+not payment approval, proof of ownership or a digital signature. Raw DB writes/admin access
+are not covered by model immutability. SQLite float storage cannot recover exact values.
 
 ### 12.2 Wallet Ownership, Authorization and Operational Budget
 
@@ -1524,8 +1565,10 @@ purchase, grant condition or academic service justifies a payment.
 **Repository evidence:** C0 tests exercise institution treasury observation and vendor-policy
 review without students, aid funds or aid policies. Reviews cover holds, escalation, budget
 failure, invalid destinations, institution/network mismatch and replay without payment.
-This verifies a read-only foundation, not institution-wide live execution. Receipt verification,
-exact treasury migration, atomic cumulative reservations and recovery are still required.
+This verifies a read-only foundation, not institution-wide live execution. C1 now adds bounded,
+reviewed USDC funding and cumulative capacity holds for one closed department bill set.
+Receipt verification, exact legacy treasury migration, reviewed release/rollover and durable
+submission/recovery are still required.
 
 **Benefit verification is separate:** The owner reports a local college agreed to explore
 EduFlow, with concern about AI handling money. This is an interested pilot partner, not a
@@ -1716,7 +1759,7 @@ which useful, feasible problem to validate; organizer preference does not replac
 | State | What exists or is required | What it does not prove |
 | --- | --- | --- |
 | C0 foundation | Read-only institution observation, indicative vendor review and audited no-op; no student/aid/AI requirement | `can_execute=false`; not an approved-payment pilot |
-| C1 foundation, partial | Exact non-executable vendor drafts, independently reviewed cancellation/replacement, reviewed immutable finance-policy activation, normal invoice-version evidence/review and exact closed-set departmental budget/cash planning | No payment approval, atomic reservation, outbox, safe execution or settlement certification from a draft/activation/evidence review |
+| C1 foundation, partial | Independently reviewed aggregate collections bound to local departmental plans; exact non-executable vendor drafts, reviewed cancellation/replacement, immutable policy activation, invoice evidence, reviewed USDC funding window and cumulative bill/fee holds | No payment approval, external wallet lock, reservation release/rollover, outbox, safe execution or settlement certification |
 | Current delivery target | Departmental source records, policy-linked proposals, authenticated staff review, each eligible approval's actual testnet payment, verified evidence and capped automation | Target is not shipped by this documentation update |
 | Later institution release | Exact legacy migration, production concurrency/recovery and full operational/provider/jurisdiction gates | Testnet success does not authorize mainnet, college treasury custody or local-bank payments |
 
@@ -1726,7 +1769,15 @@ parallel finance domain. Testnet execution is separately configured and authoriz
 
 ### 14.2 One Workflow, One Department
 
-**Product wedge:** fee collections and budget planning. **First executable slice:** one
+**Product wedge:** cashier-confirmed fees already collected, then background proposals for
+their permitted use under finance supervision. Students continue paying through the college's
+current process and keeping official receipts. Cashier records/reconciles intake; separate staff
+verifies aggregate received funds; a student-uploaded receipt or expected payment is not cash.
+Agent proposes which existing approved obligations fit available cash and allocation, not
+new percentage splits, fee policies or interdepartmental transfers. Assistance stays deferred;
+no student record or assistance request starts this loop.
+
+**First executable slice:** one
 college department, its already-approved budget and approved vendor/service bills due over
 the next couple of weeks. Use the college's most important feasible problem, confirmed by
 its finance owner. Do not begin with a generalized agent handling every inflow/outflow.
@@ -1735,7 +1786,10 @@ Minimum inputs, supplied or confirmed by authorized staff:
 - Department and budget period, approved allocation, already-spent/committed amounts and
   any restricted funds or protected reserves. Budget allocation is not proof of cash.
 - Staff-verified aggregate realized fee receipts or approved opening funds, with source/date
-  evidence. Expected tuition, promised grants and forecast revenue are not available funds.
+  evidence. Aggregate source stream/reference, nonoverlapping collection interval, source-document
+  digest, exact original currency/received amount, restrictions and independent review bind
+  receipts to a plan. Opening funds must exclude the same receipts. Expected tuition, promised
+  grants and forecast revenue are not available funds.
 - Anonymized approved bills: stable source reference, original amount/currency, due date,
   budget category, vendor alias, business approval and recurring-obligation evidence if relevant.
 - Current approved finance policy, authorized reviewers, exact mirror-rate/rounding rule,
@@ -1866,6 +1920,29 @@ draft recipients and chain identity. No invoice payment state, wallet or budget 
 review or planning. Outputs remain `can_execute=false`, no reservation, no verified funding,
 no payment approval or transfer. Staff attestation is not independent bank/rate verification.
 
+**Delivered collections-to-budget foundation (partial Step 2):** `CollectionBatch` captures
+exact aggregate received fee money and restrictions in supported currencies, source stream,
+canonical reference, SHA-256 source-document digest, half-open collection interval and source
+cash evidence. Separate verified admin `CollectionBatchReview` records `approve_receipts`,
+`reject` or `hold`, expected digest, independent verification reference and reason. Self-review,
+conflicting retries, duplicate source documents/references and overlapping intervals within
+one declared stream are refused. Held/rejected/unreviewed batches cannot fund a plan. Source
+streams must be genuinely disjoint; staff attestation and document hashes cannot detect the
+same underlying receipts repackaged into a different report/stream. No individual matching,
+bank API reconciliation, official receipt issuance or student adverse decision is introduced.
+
+New schema-v2 `BudgetSnapshot` binds reviewed collection IDs/digests through restrictive FKs.
+Gross realized receipts must equal the exact sum; restricted cash must include every bound
+restriction. Opening funds explicitly exclude selected receipts. Planner rechecks complete
+bindings and blocks the whole plan on missing/tampered evidence. Schema-v1 snapshots remain
+readable as `legacy_staff_attestation`; they are not backfilled with inferred reviews and
+cannot create new funding windows. Reusing receipts across alternative read-only snapshots
+is not duplicate income or a funded allocation; institution-wide posting/department allocation
+and rollover remain future controls. JSON endpoints are `finance.collection-batches.*`.
+No gateway call, currency conversion, new cash, wallet mutation or transfer occurs. PHP/local
+fee evidence does not become USDC; approved testnet mirroring still needs separate mapping
+and funding authority. Staff review UI/import and collection correction/revocation remain open.
+
 **Delivered draft recovery foundation (partial Step 3):** `PaymentIntentChange` and separate
 `PaymentIntentChangeReview` preserve staff correction/rejection reasons, independently
 accept terminal cancellation or create an exact fresh successor, and prevent new-key bypass.
@@ -1875,18 +1952,59 @@ Outputs remain `payment_approved=false`, `funds_reserved=false`, `can_execute=fa
 No gateway call, invoice-payment-state change or balance mutation occurs. Source-version
 replacement, staff UI and post-reservation/submission recovery are not delivered by this slice.
 
-Step 1 still requires college confirmation and separate permissions. Independent budget/
-policy sign-off, destination suspension/cooling-off and control certification, source-version successors,
-reservations, authenticated payment authorization,
-durable attempts/recovery, network fees/funding, verified Arc settlement and production
-concurrency remain gates. Model immutability/digests do not protect against privileged DB
+**Delivered bounded funding/reservation foundation (partial Step 3):** one independently
+reviewed `FundingWindow` binds exact USDC departmental evidence and block-bound native Arc
+balance, then `PaymentReservation` holds cumulative bill and fee capacity atomically.
+No local reference-rate valuation becomes executable FX or a testnet mirror funding lane.
+One approved window per institution prevents cross-window/cross-wallet capacity reuse until
+reviewed rollover exists. New holds require fresh matching treasury/policy/evidence; expiry
+and conflicts keep previous holds counted. Independent SQLite-worker contention is tested;
+PostgreSQL production concurrency is not certified. Reserved drafts require future reviewed
+release before cancellation/replacement. Fake evidence stays labeled; hold output is
+`funds_reserved=true`, `external_funds_locked=false`, `payment_approved=false`, `can_execute=false`.
+
+**Delivered payment review foundation (partial B4):** `PaymentAuthorization` records an
+independent `approve_payment`, `reject_payment` or `hold_payment` for an exact reserved bill.
+`PaymentReviewerEnrollment` pins an existing authenticator after another verified admin's
+password/TOTP-backed identity/control attestation. Payment reviewer needs verified email,
+finance/admin role and directly assigned `AuthorizePayment:PaymentIntent`; role inheritance
+or seeding cannot grant it. Draft/reservation maker cannot review own payment. Factor
+replacement/disablement or permission removal invalidates current payment eligibility.
+Review requires fresh password/TOTP, exact bound digests, current policy/document/destination/
+funding and all cumulative held costs against fresh Arc cash. Approval expires within five
+minutes and funding expiry. Replay steps persist atomically with review; login markers are
+checked; authentication attempt counters survive failed transactions. Safe evidence excludes
+passwords, OTPs and factor fingerprints. `PaymentReviews` uses ordinary finance panel and
+same action as authenticated JSON endpoints, not a dedicated demo workflow.
+
+Same-key retry returns historical evidence without renewal; changed decisions/new keys are
+refused. Reject/hold never frees reservations. Fake evidence remains simulation-only;
+mainnet is blocked and every output retains `can_execute=false`. This first slice permits
+one review per reserved bill: append-only renewal/withdrawal, reviewed factor recovery and
+cross-endpoint MFA race certification remain gates before any execution. No outbox, transfer,
+local accounting mutation or settlement proof is introduced.
+
+Step 1 still requires college confirmation and separate permissions. Destination suspension/
+cooling-off and control certification, source-version successors, reviewed reservation release/
+funding rollover, local-to-testnet mapping authority, approval renewal/withdrawal and factor
+recovery, durable attempts/recovery, execution-time fees/funding, verified Arc settlement and
+production concurrency remain gates. Model immutability/digests do not protect against privileged DB
 rewrites with recomputed hashes. No completed staff pilot or actual payment is claimed.
+
+**Background/supervision delivery overlay:** Sections 14.7–14.10 extend this sequence with
+cashier handoff, durable event-driven work, a finance supervisor dashboard and notifications.
+Build non-executable background planning/approval routing before enabling payments; then
+prove the human payment lane before the separately reviewed recurring lane. Cashier receipt
+entry, business approval, payment authorization and notification acknowledgement are different
+acts. A browser button or chat prompt is an optional trigger, never the runtime requirement.
 
 1. **Confirm pilot with college.** Name finance/department/operator owners; agree problem,
    baseline, records, budget, dates, permissions, reference-rate mapping and limits. Record
    separate consent for external AI processing, testnet transfers and public evidence.
-2. **Capture source and mirror evidence.** Add the minimum authorized input/review path,
-   exact source/mirror amounts, document references and separate local/pilot states. Resolve
+2. **Bind collected-fee evidence and proposals.** Capture/review exact aggregate receipts and
+   restrictions; bind them to local approved bills, allocation, opening-fund exclusions and
+   commitments. Next add staff input/review UI/import and explicit approved local-to-testnet
+   mapping with separate actual/mirror states. Resolve
    required legacy float/storage gaps on this path; preview cannot supply guessed exact funds.
 3. **Complete C1 authorization.** Reviewed destinations, authenticated staff review, immutable
    decision/proposal history, safe successor workflow, atomic cumulative reservations and
@@ -1956,3 +2074,272 @@ bank/FX adapters; payroll execution/tax calculations; assistance eligibility, di
 installments and student employment; grades/attendance/hardship assessment; Developer-Controlled
 Wallet migration; Gateway/x402/escrow/Earn/Borrow. Preserve existing modules and revisit them
 only after college validation, not because the broad architecture makes them possible.
+
+### 14.7 Cashier Intake, Policy Decisions and Bounded Autonomy
+
+**Status: operating contract and implementation targets, not delivered cashier screens or
+background payment execution.** Tuition is the first example; the institution's intake can
+later cover laboratory/registration/examination fees, service charges, donations, grants,
+rentals and other approved receipts. Different receipt types must not be collapsed into
+unrestricted tuition revenue. Refundable deposits, overpayments, restricted gifts and
+unidentified receipts require separate liability/restriction/suspense treatment.
+
+**Cashier is a workflow hub, not the destination of every payment rail.** Physical cash,
+bank deposits and supported electronic payments stay in institution-approved accounts and
+processes, not a cashier's personal wallet. Cashier records the official reference, source,
+exact amount/currency, category, time and reconciliation evidence. Finance/accounting sees
+incoming and outgoing evidence in one supervised workspace; collection entries, approved
+payables, refunds, transfers and accounting adjustments remain distinct document types.
+Do not force supplier payments, payroll or every source system through a new cashier app.
+
+| Owner | Permitted responsibility | Prohibited shortcut |
+| --- | --- | --- |
+| Student/payer | Pay through approved college channels; retain official receipt/reference | Uploading a receipt cannot declare funds reconciled or approve spending |
+| Cashier/intake staff | Record/import received money, classify against approved categories, flag unmatched or reversed items and prepare reconciled collection batches | Cannot independently verify their own batch, alter budget policy or grant payment authority merely by entering money |
+| Accounting/reconciliation reviewer | Independently verify collections, restrictions, opening-fund exclusions, receipt matching and source consistency | Does not infer bank balance from an upload or treat a testnet transfer as real tuition revenue |
+| Finance officer/supervisor | Review proposals, funding and exceptions; authorize permitted payments or submit policy/mandate changes for independent review | Dashboard access is not universal payment approval; no approval overrides a hard rule |
+| Authorized policy/mandate reviewers | Approve allocation, reserves, limits, vendor/destination versions and recurring scope with maker/checker separation | No agent or policy maker may self-authorize a mandate |
+| Background workflow service | Observe approved evidence, calculate exact headroom, prepare bounded proposals and route tasks under explicit institution-scoped service permissions | Must not impersonate a human admin, invent approver IDs, verify cashier evidence or change its own privileges |
+| Isolated executor/reconciler | Submit authorized exact intents through Circle/Lepton and independently verify Arc outcomes | No unrestricted shell, arbitrary beneficiaries, silent mainnet fallback or hash-only settlement |
+
+Cashier/accountant are business responsibilities above, **not newly shipped role enum values**.
+Initial staff can receive explicit capabilities under existing roles; add dedicated roles
+only with policies, scoped queries and separation tests. A read-only accountant/auditor may
+supervise without release permission. Optional later individual student matching must be
+institution-owned and must not make the zero-student aggregate pilot depend on a student row.
+
+Target lifecycle for receipts:
+1. Record a received or reported receipt against its authoritative source. Expected fees,
+   pending bank transfers and uploaded claims remain unverified; do not count them as cash.
+2. Cashier reconciles sources and prepares aggregate batches. Independent reviewer approves,
+   holds or rejects source evidence; unresolved items remain outside available funds.
+3. Committed review triggers background re-evaluation of affected approved departmental plans.
+   Preserve exact original currency, collection references, restrictions and as-of/expiry.
+4. Compute cash and allocation separately; deduct commitments, protected amounts and active
+   reservations without overlap. Student payment does not authorize a new spending split.
+5. Classify each existing approved obligation as hard-blocked, eligible for human review,
+   or eligible under a previously authorized recurring mandate. Store rule results/reasons.
+6. Submit only after payment/mapping/funding/identity gates exist and pass. Pilot receipts
+   remain local; a separately funded Circle wallet pays approved USDC mirrors on Arc testnet.
+7. Reconcile outcomes and notify owners. Receipt corrections/reversals create new evidence,
+   re-evaluate dependent proposals and freeze unsafe new releases; do not rewrite history or
+   undo a settled transfer. Current collection correction/revocation remains implementation work.
+
+**Two authorization levels, not two kinds of safety:** humans first authorize institution
+policy and recurring mandate. Eligible occurrences can then run without another approval;
+other otherwise-valid bills require per-item authorization. Cashier receipt review, business
+approval, policy/mandate approval, funding review and payment approval remain separate.
+
+Proposed recurring mandate must bind institution, department/budget, business-approved
+contract/obligation, vendor and independently reviewed destination, exact `ARC-TESTNET` /
+`5042002` identity, currency/mirror mapping, start/end dates, due window, allowed frequency,
+per-occurrence amount ceiling, fee ceiling, cumulative daily and mandate-period limits,
+policy version, independent reviewers and revocation state. Initial allowance is zero.
+Missing evidence means no automatic payment; an LLM cannot infer that a bill is recurring.
+
+An occurrence is automatically authorized only when **every** check passes:
+- It corresponds to an actual approved bill/contract period, within mandate dates and due
+  window, with a unique obligation-plus-occurrence identity and no prior fulfilment.
+- Exact bill/mirror amount is at or below the approved ceiling; changed price/scope or
+  destination is held for renewed review, not guessed from last month's payment.
+- Current source/collection/policy/destination evidence and separately approved mapping
+  remain valid. The bill fits approved budget and actual available USDC after reserves,
+  restrictions, commitments, all active holds and fee protection.
+- Per-payment and cumulative caps count submitted/unknown attempts, settled spending and
+  outstanding reservations without double-counting. No bill splitting or mandate reset
+  bypass; retries of one occurrence retain provider identity, even across multiple triggers.
+- Rail/session/funding readiness and stop switch permit new submission. Reserve and record
+  durable authorization/outbox before external I/O; revalidate in the isolated executor.
+
+At the exact cap boundary `amount <= ceiling` is permitted if all other checks pass.
+Eligible bills outside mandate scope go to human review; invalid destination, restricted-use,
+insufficient budget/cash, integrity or network failures are **blocked**, not approvable overrides.
+Missed cycles do not auto-pay an unbounded backlog; catch-up requires reviewed scope and caps.
+A recurring schedule creates a work item, not a new debt, price agreement or consent.
+
+### 14.8 Background Operation and Safe System-Generated Prompts
+
+**Requirement:** work continues while no one is chatting or viewing the dashboard. Use one
+institution orchestration service with persisted specialist tasks; several AI processes or
+one autonomous LLM per department are not required. Separate task ownership from reasoning
+technology: deterministic workers can perform most finance tasks without an AI provider.
+
+| Logical worker/task | Wake condition | Result / authority |
+| --- | --- | --- |
+| Collections observer | Cashier capture/review, approved import, receipt reversal or reconciliation event | Identify missing evidence, summarize reviewed totals; never verify itself |
+| Budget planner | Reviewed collection, approved bill/budget/policy change, scheduled due-date scan | Exact pay/hold/review proposals and cash-impact evidence; no allocation change |
+| Approval coordinator | New review-required proposal, reviewer decision, deadline/reminder | Durable approval work item and role-scoped notification; silence never means consent |
+| Recurring payment operator | Approved mandate occurrence becomes due or an eligible hold is explicitly re-evaluated | Deterministic automatic authorization within mandate after all release gates; no model-only authority |
+| Circle execution worker | Durable authorized outbox item, not an arbitrary prompt | Idempotent submission through Lepton, bounded fee/chain checks and stored attempt |
+| Settlement reconciler | Submitted/pending/unknown attempt, provider event or scheduled sweep | Matching receipt/finality evidence or unresolved case; no blind new transfer |
+| Optional AI analyst | New material facts/proposal or authorized staff question | Evidence-grounded explanation and allowed next-task suggestion; no direct signing or policy edits |
+
+These names describe proposed capabilities, not seven shipped agents or required new models.
+Reuse existing planner, reviewed records and gateway seams; add only durable event/run/work-item
+records needed for restart-safe coordination. Human chat may ask for explanation or request a
+recheck, but must call the same authorization and deduplication path as background events.
+
+**Event and runtime contract:**
+- Persist source event and workflow/outbox entry atomically with the domain change. Dispatch
+  only after commit; a periodic sweeper recovers committed-but-undispatched work. Laravel
+  `afterCommit` prevents early reads but alone does not close the commit-to-broker crash gap.
+- Bound each event by institution, source event ID/type, affected document/version/digest,
+  actor or service principal, occurred/received times and correlation ID. Reload current
+  evidence/permissions in the job; stale events never replay an outdated approval.
+- Use a supervised durable database/Redis queue, not `sync`, request-only `defer`, or the
+  non-durable `background` driver for financial work. Initial target: scheduler tick every
+  minute enqueues bounded scans; choose institution-approved due windows and reconciliation
+  intervals instead of treating every tick as authority. HTTP, scheduler and worker processes
+  share the release but run independently; production supervisors restart failed processes.
+- Apply scheduler overlap/single-server controls and shared per-institution/resource job
+  locks where relevant. DB uniqueness, atomic reservations and durable transitions remain
+  authoritative: queue uniqueness/cache locks alone cannot guarantee one payment.
+- Persist run state (`queued`, `running`, `waiting_for_approval`, `blocked`, `completed`,
+  `failed`, `paused`), current stage, last heartbeat, attempts, last error and bounded next
+  wake time. Keep external payment states separate; a completed planning run is not paid.
+- Bound documents per pass, execution time, retry count/backoff and AI tokens/tool steps/cost.
+  Set queue visibility/retry delay longer than job timeout. Exhausted or uncertain work opens
+  an explicit investigation case, rather than creating a new payment identity.
+- Approval wait is a persisted pause, not a sleeping worker or repeated model polling.
+  Only a scoped reviewer decision, relevant evidence change or bounded reminder wakes it.
+- Multi-step work can enqueue an allowlisted dependent task after durable completion. A model
+  may suggest an allowed follow-up, but PHP chooses whether/when it runs, validates its
+  context, caps task depth and deduplicates the dependency. No arbitrary cron, shell command,
+  web target or self-spawn loop may be accepted from model output.
+
+**Meaning of “prompt themselves”:** authenticated events and the scheduler create bounded
+work automatically; PHP builds a task-specific prompt from institution-owned evidence when
+optional AI is enabled. A recurring bill can be detected, checked, authorized and paid under
+standing policy without any chat prompt or synchronous LLM call. Agent initiative is deciding
+which eligible work to process or escalate inside approved authority—not inventing goals,
+obligations, recipients or spending policies. Documents/messages remain untrusted prompt data.
+AI disclosure/provider controls still apply; no secrets, OTPs or unrestricted financial data
+are passed to the model. Unavailable AI degrades explanations, not deterministic finance checks.
+
+**Delivered background foundation:** `FinanceWorkflowRun` persists cashier-review/budget-plan
+work, bounded attempts/heartbeat/backoff, review wait and notification delivery state.
+`ProcessFinanceWorkflow` uses durable `finance-planning` queue; per-minute
+`eduflow:dispatch-finance-workflows` recovers committed work with scheduler overlap controls.
+Finance Supervisor/Collections pages inspect evidence and record independent plan/receipt
+decisions. Runtime defaults off and refuses `sync`. None of these tasks submits payments.
+
+**Current blockers:** existing `EduFlowAgent::runAutonomousCycle` and dashboard button use
+legacy execution and must not be scheduled as this workflow. New model/sessionless work needs explicit institution-scoped
+service authority, not a fabricated human actor passed to current staff actions. Current
+one-window/15-minute funding holds cannot roll over unattended: build reviewed release,
+rollover and fresh funding authorization first. Do not silently refresh expiry, re-review
+collection evidence or reset cumulative caps on each scheduler tick. Background read-only
+planning can ship before these payment gates; signing remains disabled meanwhile.
+
+### 14.9 Finance Supervisor Dashboard and Approval Notifications
+
+**Target:** normal finance workspace for cashier, accounting and finance operations. Start
+with the existing Filament finance panel rather than a parallel demo app; reuse existing
+notification storage. Finance Supervisor, Collections and Payment Reviews now expose normal
+planning/intake/review workflows. Run polling is not worker execution, and configured panel
+login MFA alone does not prove privileged-action MFA or vendor-payment approval.
+Existing legacy Approval Center must not be presented as the new safe authorization path.
+
+Dashboard must show:
+- Collections by source/type/currency: reported, reconciled, independently reviewed,
+  restricted, suspense/unmatched and reversed; no fabricated available balance.
+- Exact approved allocation versus local cash, commitments and held capacity, plus separate
+  observed Arc testnet balance/fees, network, source time, freshness and fake labels.
+- Work by logical worker/run: task purpose, triggering event, affected document, stage,
+  last/next run, queued/running/waiting/blocked/failed state, last heartbeat and actionable error.
+- Approval inbox with assigned owner, age/deadline, exact original/mirror amounts, due date,
+  policy/mandate version, source evidence, checks, reservation impact and destination version.
+- Automatic lane with mandate owner/expiry, per-item/daily/period remaining allowances,
+  upcoming occurrences and auto-authorized/submitted/verified/held counts. Automatic work
+  remains visible even when no approval notification is needed.
+- Evidence-linked timeline: source event, deterministic decision, optional AI summary,
+  human/standing authorization, reservation, provider attempt, verification and follow-up.
+  Show recorded rule results and public summaries, not hidden model chain-of-thought.
+- Operations health: scheduler/worker heartbeat, queue lag, stale funding, notifications
+  awaiting delivery, provider-session readiness and unresolved payment outcomes.
+
+Supervisor actions: inspect evidence, assign/reassign work, approve/reject within capability,
+request correction through reviewed successor workflows, retry known-safe read/reconciliation
+work, suspend a mandate and pause new submissions. Changing policy needs its own independent
+review. Approval binds an exact immutable version and fresh step-up/MFA evidence; changed
+payloads require new authorization. Batch approval must validate each item, never bypass caps.
+A service principal cannot approve its own run; maker/checker follows evidence makers, not
+merely whoever clicked the last UI button.
+
+**Notifications:**
+- Persist an approval/investigation work item before sending. Target currently authorized
+  institution reviewers who can act independently; no eligible reviewer is itself an alert.
+- In-app database inbox first, with bounded polling in the finance panel; queued email is
+  optional. Reuse Laravel/Filament notifications, not a new messaging dependency. WebSockets
+  may follow later; polling updates visibility and never drives background finance execution.
+- Queue delivery after commit through durable notification/outbox work, deduplicate by work
+  item/version, recipient and alert stage, retry delivery independently of payment processing.
+- Notify for approval required, approaching cutoff, hard hold/shortfall, worker/provider
+  failure, unknown/mismatched payment or integrity incident. Group routine automatic successes
+  into a digest; preserve their detailed timeline without flooding supervisors.
+- Reminder intervals, quiet hours, escalation owner and maximum reminders are configurable.
+  Failure to open/read/respond must never approve, submit, refresh funding or release holds.
+- Email/push contains minimal opaque references; authenticated dashboard resolves sensitive
+  content. Reading/dismissing notification is not approving work. Links recheck role, institution,
+  current version and MFA; no money-moving approval by GET link or trusted email reply.
+- Stop switch blocks newly queued and already queued-but-not-submitted releases at executor
+  time. Preserve in-flight reconciliation, evidence and read access; do not erase unknowns or
+  assume stopping a worker reverses a submitted transfer.
+
+### 14.10 Delivery Order, Example and Acceptance Tests
+
+**Priority now:** cashier handoff and background read-only planning with supervised approval
+routing, while completing the C1/C2 safety gates. Do not implement an autonomous execution
+shortcut to make a dashboard look active. Proposed delivery batches:
+
+| Batch | Deliverable | Exit evidence |
+| --- | --- | --- |
+| B1 — cashier handoff | Role-scoped collection capture/review screens or approved import; source/category/reference and restrictions visible; approved bill/budget inputs | Tuition aggregate reaches reviewed local plan with zero student rows; duplicate/unverified/restricted money cannot increase spendable cash |
+| B2 — background coordination | Durable finance event/run records, after-commit dispatch with recovery sweep, bounded planning jobs and explicit service permissions | Reviewed receipt or scheduled due scan creates one non-executable proposal without chat/browser; crash/replay produces no duplicate work |
+| B3 — supervision | Finance dashboard, evidence timeline, assigned approval work and queued in-app notifications; safe pause/retry controls | Authorized supervisor sees active/waiting/failed work, gets one actionable notification and can review exact version; unauthorized actor cannot see/approve |
+| B4 — human execution | MFA-backed exact reserved-payment review/enrollment delivered; reviewed release/rollover, approval renewal/withdrawal, factor recovery, explicit local/mirror authority, durable outbox/attempts and certified Arc evidence remain | One permitted staff authorization produces one matching verified testnet payment; rejection, drift, crash and unknowns cannot pay twice |
+| B5 — standing automation | Independently approved recurring mandate, due occurrence identity, cumulative caps and isolated scheduled execution | Scheduler pays one eligible approved occurrence automatically on testnet without chat/per-item click; over-limit valid bill routes to staff and hard failure stays blocked |
+| B6 — college evaluation | Permissioned staff demo, background/approval/autonomy evidence and agreed value metrics | Staff confirms usefulness; record baseline, corrections, delays and unresolved cases without claiming bank settlement or production readiness |
+
+**Hypothetical walkthrough; figures are not defaults:** cashier reconciles `PHP 50,000.00`
+of tuition receipts, including `PHP 10,000.00` restricted funds. Separate reviewer confirms
+source and restrictions. With no opening funds, outflows or other commitments, and protected
+reserve `PHP 15,000.00`, local available cash is `PHP 25,000.00`. Approved department allocation
+is independently `PHP 20,000.00`; neither number is the Circle wallet balance. A background
+planning run observes the review without anyone asking it a question and considers existing
+approved bills within those two limits. It never chooses a new percentage split of tuition.
+
+For an approved recurring internet bill of `PHP 1,000.00`, a separately approved hypothetical
+mirror rate `50 PHP per USDC` gives `20.000000 USDC`. If a current standing mandate permits
+that exact obligation/destination, at most `25.000000 USDC` per occurrence plus a separately
+bounded fee, and cumulative limits/reservations/actual testnet funds all pass, the future
+executor may submit its one testnet payment without a new approval click. Record standing
+mandate authority visibly. No conversion of tuition or local bill settlement is claimed.
+Another approved one-off laboratory bill goes to a supervisor; insufficient budget, altered
+recipient or restricted use stays blocked regardless of bill size. Notify the responsible
+staff and retain the reason/evidence; do not make an urgent label bypass controls.
+
+Required additional acceptance tests:
+- Cashier maker cannot self-verify collections or authorize spending; accountant read access
+  does not imply payment permission; institution/service identity survives queued execution.
+- Events after rollback produce no work; committed events survive broker failure through
+  recovery sweep. Duplicate/out-of-order events and multiple scheduler instances do not
+  duplicate proposals, alerts, reservations, occurrence fulfilment or payment attempts.
+- With browser closed and no user prompt, reviewed collections produce a plan, a due scan
+  opens eligible work and a review-required item reaches the correct supervisor inbox.
+- Approval waits consume no occupied worker or repeated model call. Delivery failure retries
+  notification only; stale links, duplicate decisions and unanswered reminders cannot release funds.
+- Same occurrence triggered by chat, import, due scan and retry is fulfilled once. Boundary,
+  cumulative/period limits, price/destination drift, revocation, expiry, insufficient reserve,
+  stop switch and catch-up backlog behave correctly under concurrent workers.
+- AI disabled/unavailable or malicious document instructions cannot alter exact amounts,
+  beneficiaries, policy, authority, scheduling privileges, caps or signing access; autonomous
+  deterministic lane remains testable without an LLM.
+- Pause prevents new submissions but allows reconciliation. A restart/timeout after provider
+  acceptance recovers existing attempt; unknown outcome retains capacity until resolved.
+- Dashboard scopes financial data and fake/network labels correctly, reports stale/failed
+  heartbeats honestly and distinguishes planning completion from verified settlement.
+
+These are proposed acceptance gates. Existing tests/legacy demo do not prove background
+execution, this dashboard, notification routing or the recurring lane. No payment path is
+enabled by this plan update.

@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Actions\CaptureBudgetSnapshot;
+use App\Actions\CaptureCollectionBatch;
 use App\Actions\CaptureInvoiceVersion;
+use App\Actions\ReviewCollectionBatch;
 use App\Actions\ReviewInvoiceVersion;
 use App\Models\Budget;
 use App\Models\BudgetSnapshot;
+use App\Models\CollectionBatch;
 use App\Models\Invoice;
 use App\Models\InvoiceVersion;
 use App\Models\InvoiceVersionReview;
@@ -73,16 +76,37 @@ function budgetPlanContext(): array
 /** @param list<InvoiceVersion> $bills
  * @return array<string, mixed>
  */
-function budgetPlanInput(array $bills): array
+function budgetPlanInput(array $bills, string $receipts = '10'): array
 {
+    $collectionIds = [];
+    if ($receipts !== '0') {
+        /** @var User $maker */
+        $maker = User::query()->findOrFail($bills[0]->prepared_by);
+        /** @var InvoiceVersionReview $billReview */
+        $billReview = InvoiceVersionReview::query()->where('invoice_version_id', $bills[0]->id)->firstOrFail();
+        /** @var User $reviewer */
+        $reviewer = User::query()->findOrFail($billReview->reviewed_by);
+        /** @var CollectionBatch|null $batch */
+        $batch = CollectionBatch::query()->where('organization_id', $bills[0]->organization_id)->where('source_reference', 'planning-fixture-receipts')->first();
+        $batch ??= app(CaptureCollectionBatch::class)->handle($maker, [
+            'capture_key' => (string) Str::uuid(), 'source_stream' => 'cashier-test', 'source_reference' => 'planning-fixture-receipts',
+            'source_document_digest' => hash('sha256', 'planning-test-collection'), 'currency' => 'PHP', 'received_amount' => $receipts, 'restricted_amount' => '0',
+            'collected_from' => now()->subDays(2)->toIso8601String(), 'collected_until' => now()->subDay()->toIso8601String(),
+            'cash_evidence_reference' => 'synthetic-reconciled-cashier-report', 'source_stream_disjoint' => true, 'received_not_forecast' => true,
+        ]);
+        $collectionIds[] = app(ReviewCollectionBatch::class)->handle($reviewer, $batch, $batch->snapshot_digest, 'approve_receipts',
+            'synthetic-independent-report-check', 'Actual receipts and restrictions checked.')->id;
+    }
+
     return ['capture_key' => (string) Str::uuid(), 'currency' => 'PHP', 'department' => 'IT department',
         'period_start' => now()->toDateString(), 'period_end' => now()->addDays(14)->toDateString(),
         'as_of' => now()->subMinute()->toIso8601String(), 'valid_until' => now()->addHour()->toIso8601String(),
         'bill_ids' => array_map(fn (InvoiceVersion $bill): int => $bill->id, $bills), 'allocation' => '100.00', 'already_spent' => '10.00',
-        'other_budget_commitments' => '0', 'opening_funds' => '80', 'realized_receipts' => '10', 'actual_outflows' => '5',
+        'other_budget_commitments' => '0', 'opening_funds' => '80', 'realized_receipts' => $receipts, 'actual_outflows' => '5',
         'restricted_cash' => '10', 'protected_reserve' => '30', 'other_cash_commitments' => '0',
         'budget_evidence' => 'approved-budget-extract', 'cash_evidence' => 'verified-realized-receipts', 'commitment_evidence' => 'other-obligations-extract',
-        'commitments_exclude_selected_bills' => true, 'cash_buckets_disjoint' => true];
+        'commitments_exclude_selected_bills' => true, 'cash_buckets_disjoint' => true,
+        'opening_funds_exclude_collections' => true, 'collection_review_ids' => $collectionIds];
 }
 
 test('exact department budget and realized cash headroom stay separate and cumulative across bills', function (): void {
@@ -102,7 +126,7 @@ test('exact department budget and realized cash headroom stay separate and cumul
 
 test('budget alone cannot make a local cash shortfall affordable and exact boundary is inclusive', function (string $case): void {
     $context = budgetPlanContext();
-    $data = budgetPlanInput($context['bills']);
+    $data = budgetPlanInput($context['bills'], '0');
     $data['opening_funds'] = $case === 'empty_cash' ? '0' : '25';
     foreach (['realized_receipts', 'actual_outflows', 'restricted_cash', 'protected_reserve'] as $field) {
         $data[$field] = '0';
@@ -181,7 +205,7 @@ test('budget planner is replay safe and stays bound to selected bills rather tha
 
 test('arbitrary precision headroom handles sums beyond signed integer range without float conversion', function (): void {
     $context = budgetPlanContext();
-    $data = budgetPlanInput($context['bills']);
+    $data = budgetPlanInput($context['bills'], '92233720368547758.07');
     $data['opening_funds'] = '92233720368547758.07';
     $data['realized_receipts'] = '92233720368547758.07';
     foreach (['actual_outflows', 'restricted_cash', 'protected_reserve', 'other_cash_commitments'] as $field) {

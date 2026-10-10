@@ -4,6 +4,12 @@ return [
     // Required outside local/testing; never choose an institution by row order.
     'institution_id' => env('EDUFLOW_INSTITUTION_ID'),
 
+    'background_finance' => [
+        'enabled' => env('EDUFLOW_BACKGROUND_FINANCE', false),
+        'queue_connection' => env('EDUFLOW_FINANCE_QUEUE_CONNECTION', 'database'),
+        'queue' => 'finance-planning',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Dual-Currency Display

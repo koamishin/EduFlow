@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Collections;
+use App\Filament\Pages\FinanceSupervisor;
+use App\Filament\Pages\PaymentReviews;
 use App\Filament\Resources\AssistanceRequests\AssistanceRequestResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\TuitionAccounts\TuitionAccountResource;
@@ -30,6 +33,8 @@ class FinancePanelProvider extends PanelProvider
         return $panel
             ->id('finance')
             ->path('finance')
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('30s')
             ->login()
             ->multiFactorAuthentication([
                 AppAuthentication::make()->recoverable(),
@@ -37,6 +42,11 @@ class FinancePanelProvider extends PanelProvider
             ])
             ->colors([
                 'primary' => Color::Amber,
+            ])
+            ->pages([
+                FinanceSupervisor::class,
+                Collections::class,
+                PaymentReviews::class,
             ])
             ->resources([
                 StudentResource::class,

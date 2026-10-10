@@ -22,25 +22,45 @@ use Illuminate\Validation\ValidationException;
 /** Cumulative suggestion for one closed bill set, not reservations or funded payment authority. */
 final readonly class DepartmentBudgetPlanner
 {
-    public function __construct(private InstallationInstitution $institutions) {}
+    public function __construct(private InstallationInstitution $institutions, private ReviewedCollections $collections) {}
 
     /** @return array<string, mixed> */
     public function handle(User $actor, BudgetSnapshot $evidence): array
     {
         Gate::forUser($actor)->authorize('view', $evidence);
-        $institution = $this->institutions->require();
+
+        return $this->build($evidence, $this->institutions->require()->id);
+    }
+
+    /** Read-only service capability: no human identity, posting or payment authority.
+     * @return array<string, mixed>
+     */
+    public function forBackground(BudgetSnapshot $evidence): array
+    {
+        if (! config('eduflow.background_finance.enabled', false) || $evidence->organization_id !== $this->institutions->require()->id
+            || ($evidence->snapshot['schema_version'] ?? null) !== 2) {
+            throw ValidationException::withMessages(['background' => 'Background planning requires explicit enablement and current institution reviewed evidence.']);
+        }
+
+        return $this->build($evidence, $evidence->organization_id);
+    }
+
+    /** @return array<string, mixed> */
+    private function build(BudgetSnapshot $evidence, int $institutionId): array
+    {
         /** @var BudgetSnapshot $stored */
-        $stored = BudgetSnapshot::query()->where('organization_id', $institution->id)->whereKey($evidence->id)->firstOrFail();
+        $stored = BudgetSnapshot::query()->where('organization_id', $institutionId)->whereKey($evidence->id)->firstOrFail();
         if (! $stored->hasValidSnapshot() || Carbon::parse($stored->snapshot['as_of'])->isFuture()
             || Carbon::parse($stored->snapshot['valid_until'])->lte(now())) {
             throw ValidationException::withMessages(['snapshot' => 'Planning evidence is stale or failed integrity checks.']);
         }
         /** @var Budget|null $budget */
-        $budget = Budget::query()->where('organization_id', $institution->id)->whereKey($stored->budget_id)->first();
+        $budget = Budget::query()->where('organization_id', $institutionId)->whereKey($stored->budget_id)->first();
         if ($budget === null || $budget->status !== 'active'
             || ($stored->snapshot['budget_fingerprint'] ?? null) !== CaptureBudgetSnapshot::budgetFingerprint($budget)) {
             throw ValidationException::withMessages(['budget' => 'Planning requires the recorded active institution budget.']);
         }
+        $this->collections->requireBound($stored);
         $headroom = $stored->headroom();
         $remainingBudget = BigInteger::of($headroom['budget_minor_units']);
         $remainingCash = BigInteger::of($headroom['cash_minor_units']);
@@ -49,7 +69,7 @@ final readonly class DepartmentBudgetPlanner
             $bound[$entry['id']] = $entry;
         }
         /** @var Collection<int, InvoiceVersion> $bills */
-        $bills = InvoiceVersion::query()->where('organization_id', $institution->id)->whereIn('id', array_keys($bound))->get();
+        $bills = InvoiceVersion::query()->where('organization_id', $institutionId)->whereIn('id', array_keys($bound))->get();
         if ($bills->count() !== count($bound)) {
             throw ValidationException::withMessages(['bills' => 'Bound source bill evidence is missing.']);
         }
@@ -59,7 +79,7 @@ final readonly class DepartmentBudgetPlanner
             /** @var InvoiceVersionReview|null $mapping */
             $mapping = InvoiceVersionReview::query()->where('invoice_version_id', $bill->id)->first();
             /** @var Invoice|null $invoice */
-            $invoice = Invoice::query()->where('organization_id', $institution->id)->whereKey($bill->invoice_id)->first();
+            $invoice = Invoice::query()->where('organization_id', $institutionId)->whereKey($bill->invoice_id)->first();
             $intact = $bill->hasValidSnapshot() && $bill->budget_id === $stored->budget_id && $bill->source_currency === $stored->currency
                 && hash_equals($entry['digest'], $bill->snapshot_digest) && $mapping !== null && $mapping->hasValidEvidence($bill)
                 && $mapping->id === $entry['review_id'] && hash_equals($entry['review_digest'], $mapping->review_digest)
@@ -91,6 +111,10 @@ final readonly class DepartmentBudgetPlanner
 
         return ['snapshot_id' => $stored->id, 'snapshot_digest' => $stored->snapshot_digest, 'currency' => $stored->currency,
             'department' => $stored->snapshot['department'], 'as_of' => $stored->snapshot['as_of'], 'valid_until' => $stored->snapshot['valid_until'],
+            'collection_evidence' => ['mode' => ($stored->snapshot['schema_version'] ?? null) === 2 ? 'reviewed_batches' : 'legacy_staff_attestation',
+                'review_ids' => array_column($stored->snapshot['collections'] ?? [], 'review_id'),
+                'received_minor_units' => $stored->snapshot['amounts']['realized_receipts'], 'bank_balance_verified' => false,
+                'opening_funds_exclude_collections' => $stored->snapshot['opening_funds_exclude_collections'] ?? null],
             'headroom' => $headroom, 'bills' => $reviews, 'suggested_usdc_valuation_base_units' => (string) $valuationTotal,
             'remaining_budget_minor_units' => (string) $remainingBudget, 'remaining_cash_minor_units' => (string) $remainingCash,
             'can_execute' => false, 'funds_reserved' => false, 'settlement_funding_verified' => false, 'actual_accounts_changed' => false];

@@ -7,6 +7,8 @@ namespace App\Models;
 use App\Enums\CurrencyCode;
 use Brick\Math\BigInteger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use LogicException;
@@ -63,7 +65,7 @@ class BudgetSnapshot extends Model
                 || ! is_array($content['department'] ?? null) || ! is_array($content['evidence'] ?? null)) {
                 return false;
             }
-            if (($content['schema_version'] ?? null) !== 1 || ($content['purpose'] ?? null) !== 'department_budget_planning'
+            if (! in_array($content['schema_version'] ?? null, [1, 2], true) || ($content['purpose'] ?? null) !== 'department_budget_planning'
                 || ($content['capture_key'] ?? null) !== $this->capture_key || ! Str::isUuid($this->capture_key)
                 || $this->capture_key !== strtolower($this->capture_key)
                 || ($content['institution_id'] ?? null) !== $this->organization_id || $this->organization_id < 1
@@ -107,11 +109,65 @@ class BudgetSnapshot extends Model
             $end = Carbon::createFromFormat('!Y-m-d', $content['department']['period_end']);
 
             return $asOf instanceof Carbon && $validUntil instanceof Carbon && $start instanceof Carbon && $end instanceof Carbon
-                && $asOf->lt($validUntil) && $start->lte($end)
+                && $asOf->lt($validUntil) && $start->lte($end) && $this->hasValidCollectionBindings($content)
                 && hash_equals($this->snapshot_digest, PaymentIntent::digest($content));
         } catch (Throwable) {
             return false;
         }
+    }
+
+    /** @param array<string, mixed> $content */
+    private function hasValidCollectionBindings(array $content): bool
+    {
+        if ($content['schema_version'] === 1) {
+            return ! array_key_exists('collections', $content);
+        }
+        if (! is_array($content['collections'] ?? null) || ! array_is_list($content['collections']) || count($content['collections']) > 100
+            || ($content['opening_funds_exclude_collections'] ?? null) !== true) {
+            return false;
+        }
+        $received = BigInteger::zero();
+        $restricted = BigInteger::zero();
+        $lastReviewId = 0;
+        $batchIds = [];
+        foreach ($content['collections'] as $entry) {
+            if (! is_array($entry) || ! is_int($entry['review_id'] ?? null) || $entry['review_id'] <= $lastReviewId
+                || ! is_int($entry['batch_id'] ?? null) || $entry['batch_id'] < 1 || in_array($entry['batch_id'], $batchIds, true)) {
+                return false;
+            }
+            foreach (['batch_digest', 'review_digest'] as $field) {
+                if (! is_string($entry[$field] ?? null) || preg_match('/^[0-9a-f]{64}$/D', $entry[$field]) !== 1) {
+                    return false;
+                }
+            }
+            foreach (['received_minor_units', 'restricted_minor_units'] as $field) {
+                if (! is_string($entry[$field] ?? null) || preg_match('/^(?:0|[1-9][0-9]*)$/D', $entry[$field]) !== 1
+                    || BigInteger::of($entry[$field])->isGreaterThan(PHP_INT_MAX)) {
+                    return false;
+                }
+            }
+            if (BigInteger::of($entry['received_minor_units'])->isZero() || BigInteger::of($entry['restricted_minor_units'])->isGreaterThan($entry['received_minor_units'])) {
+                return false;
+            }
+            $lastReviewId = $entry['review_id'];
+            $batchIds[] = $entry['batch_id'];
+            $received = $received->plus($entry['received_minor_units']);
+            $restricted = $restricted->plus($entry['restricted_minor_units']);
+        }
+
+        return (string) $received === $content['amounts']['realized_receipts'] && $restricted->isLessThanOrEqualTo($content['amounts']['restricted_cash']);
+    }
+
+    /** @return HasMany<FinanceWorkflowRun, $this> */
+    public function workflowRuns(): HasMany
+    {
+        return $this->hasMany(FinanceWorkflowRun::class);
+    }
+
+    /** @return BelongsToMany<CollectionBatchReview, $this> */
+    public function collectionReviews(): BelongsToMany
+    {
+        return $this->belongsToMany(CollectionBatchReview::class, 'budget_snapshot_collection_review');
     }
 
     /** @return array{budget_minor_units: string, cash_minor_units: string} */

@@ -13,7 +13,9 @@ use App\Models\InvoiceVersionReview;
 use App\Models\Organization;
 use App\Models\PaymentIntent;
 use App\Models\User;
+use App\Services\FinanceWorkflows;
 use App\Services\InstallationInstitution;
+use App\Services\ReviewedCollections;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
@@ -24,7 +26,7 @@ use Throwable;
 
 final readonly class CaptureBudgetSnapshot
 {
-    public function __construct(private InstallationInstitution $institutions) {}
+    public function __construct(private InstallationInstitution $institutions, private ReviewedCollections $collections, private FinanceWorkflows $workflows) {}
 
     /** @param array<string, mixed> $data */
     public function handle(User $actor, Budget $budget, array $data): BudgetSnapshot
@@ -53,6 +55,10 @@ final readonly class CaptureBudgetSnapshot
             if ($storedBudget->status !== 'active') {
                 throw ValidationException::withMessages(['budget' => 'An active institution department budget is required.']);
             }
+            Gate::forUser($actor)->authorize('create', BudgetSnapshot::class);
+            $reviewIds = array_map(intval(...), $data['collection_review_ids'] ?? []);
+            $collections = $this->collections->capture($institution->id, $currency->value, $reviewIds, $data['as_of'],
+                $amounts['realized_receipts'], $amounts['restricted_cash']);
             $ids = array_map(intval(...), $data['bill_ids']);
             sort($ids, SORT_NUMERIC);
             $bills = [];
@@ -70,13 +76,14 @@ final readonly class CaptureBudgetSnapshot
                 $bills[] = ['id' => $bill->id, 'digest' => $bill->snapshot_digest, 'review_id' => $review->id, 'review_digest' => $review->review_digest];
             }
             $snapshot = [
-                'schema_version' => 1, 'purpose' => 'department_budget_planning', 'capture_key' => Str::lower($data['capture_key']),
+                'schema_version' => 2, 'purpose' => 'department_budget_planning', 'capture_key' => Str::lower($data['capture_key']),
                 'institution_id' => $institution->id, 'budget_id' => $storedBudget->id, 'prepared_by' => $actor->id,
                 'budget_fingerprint' => self::budgetFingerprint($storedBudget),
                 'currency' => $currency->value, 'department' => $department, 'as_of' => $data['as_of'], 'valid_until' => $data['valid_until'],
                 'amounts' => $amounts, 'bills' => $bills,
                 'evidence' => ['budget' => $data['budget_evidence'], 'cash' => $data['cash_evidence'], 'commitments' => $data['commitment_evidence']],
                 'commitments_exclude_selected_bills' => true, 'cash_buckets_disjoint' => true,
+                'opening_funds_exclude_collections' => true, 'collections' => $collections,
             ];
             /** @var BudgetSnapshot|null $existing */
             $existing = BudgetSnapshot::query()->where('capture_key', $snapshot['capture_key'])->first();
@@ -87,12 +94,17 @@ final readonly class CaptureBudgetSnapshot
                     throw ValidationException::withMessages(['capture_key' => 'Capture identity conflicts with previously recorded budget/cash evidence.']);
                 }
 
+                $this->collections->requireBound($existing);
+
                 return $existing;
             }
             /** @var BudgetSnapshot $record */
             $record = BudgetSnapshot::query()->create(['capture_key' => $snapshot['capture_key'], 'organization_id' => $institution->id,
                 'budget_id' => $storedBudget->id, 'prepared_by' => $actor->id, 'currency' => $currency->value,
                 'snapshot' => $snapshot, 'snapshot_digest' => PaymentIntent::digest($snapshot)]);
+            $record->collectionReviews()->attach(array_column($collections, 'review_id'));
+            $this->collections->requireBound($record);
+            $this->workflows->budgetCaptured($record);
             activity('finance')->causedBy($actor)->performedOn($record)->event('budget_snapshot_captured')
                 ->withProperties(['budget_id' => $storedBudget->id, 'snapshot_digest' => $record->snapshot_digest, 'can_execute' => false])
                 ->log('Exact departmental allocation and realized local cash captured for closed-set department planning');
@@ -124,6 +136,9 @@ final readonly class CaptureBudgetSnapshot
             'budget_evidence' => ['required', 'string', 'min:3', 'max:255'], 'cash_evidence' => ['required', 'string', 'min:3', 'max:255'],
             'commitment_evidence' => ['required', 'string', 'min:3', 'max:255'],
             'commitments_exclude_selected_bills' => ['required', 'accepted'], 'cash_buckets_disjoint' => ['required', 'accepted'],
+            'opening_funds_exclude_collections' => ['required', 'accepted'],
+            'collection_review_ids' => ['sometimes', 'array', 'list', 'max:100'],
+            'collection_review_ids.*' => ['required', 'integer', 'min:1', 'distinct'],
         ];
         foreach (BudgetSnapshot::AMOUNT_FIELDS as $field) {
             $rules[$field] = ['required', 'string', 'max:30'];

@@ -29,6 +29,18 @@ class PaymentIntentPolicy
         return $intent->exists && $this->view($user, $intent);
     }
 
+    public function reserve(User $user, PaymentIntent $intent): bool
+    {
+        return $intent->exists && $user->hasVerifiedEmail() && $this->view($user, $intent);
+    }
+
+    public function authorizePayment(User $user, PaymentIntent $intent): bool
+    {
+        return $intent->exists && $user->hasVerifiedEmail() && $this->view($user, $intent)
+            && $user->id !== $intent->prepared_by && $user->checkPermissionTo('AuthorizePayment:PaymentIntent', 'web')
+            && $user->hasDirectPermission('AuthorizePayment:PaymentIntent');
+    }
+
     public function update(User $user, PaymentIntent $intent): bool
     {
         return false;

@@ -322,6 +322,18 @@ class PaymentIntent extends Model
     /** @return array<string, mixed> */
     public function evidence(): array
     {
+        /** @var PaymentReservation|null $reservation */
+        $reservation = $this->exists ? PaymentReservation::query()->where('payment_intent_id', $this->id)->first() : null;
+        /** @var FundingWindowApproval|null $fundingApproval */
+        $fundingApproval = $reservation === null ? null : FundingWindowApproval::query()->find($reservation->funding_window_approval_id);
+        /** @var FundingWindow|null $window */
+        $window = $fundingApproval === null ? null : FundingWindow::query()->find($fundingApproval->funding_window_id);
+        $reservationValid = $reservation !== null && $fundingApproval !== null && $window !== null
+            && $fundingApproval->hasValidEvidence($window) && $reservation->hasValidEvidence($this, $fundingApproval);
+        /** @var PaymentAuthorization|null $authorization */
+        $authorization = $this->exists ? PaymentAuthorization::query()->where('payment_intent_id', $this->id)->first() : null;
+        $reviewEvidence = $authorization?->evidence();
+
         return [
             'intent_key' => $this->intent_key,
             'institution_id' => $this->organization_id,
@@ -338,8 +350,12 @@ class PaymentIntent extends Model
             'chain_id' => $this->chain_id,
             'snapshot_digest' => $this->snapshot_digest,
             'snapshot_valid' => $this->hasValidSnapshot(),
-            'approved' => false,
-            'funds_reserved' => false,
+            'approved' => $reviewEvidence['payment_approved'] ?? false,
+            'payment_authorization' => $reviewEvidence,
+            'funds_reserved' => $reservation !== null,
+            'reservation_id' => $reservation?->id,
+            'reservation_valid' => $reservation === null ? null : $reservationValid,
+            'external_funds_locked' => false,
             'can_execute' => false,
         ];
     }

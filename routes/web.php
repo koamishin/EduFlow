@@ -7,10 +7,15 @@ use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\AutonomousCycleController;
 use App\Http\Controllers\BudgetSnapshotController;
 use App\Http\Controllers\ChatHistoryController;
+use App\Http\Controllers\CollectionBatchController;
 use App\Http\Controllers\FinanceApprovalController;
+use App\Http\Controllers\FundingWindowController;
 use App\Http\Controllers\InvoiceVersionController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PaymentAuthorizationController;
 use App\Http\Controllers\PaymentIntentChangeController;
+use App\Http\Controllers\PaymentReservationController;
+use App\Http\Controllers\PaymentReviewerEnrollmentController;
 use App\Http\Controllers\StudentAssistanceController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentPaymentsController;
@@ -51,6 +56,28 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('finance/autonomous-cycle', AutonomousCycleController::class)
         ->middleware('throttle:3,1')->name('finance.autonomous-cycle.store');
+
+    Route::post('finance/collection-batches', [CollectionBatchController::class, 'store'])
+        ->middleware('throttle:10,1')->name('finance.collection-batches.store');
+    Route::get('finance/collection-batches/{collectionBatch}', [CollectionBatchController::class, 'show'])
+        ->name('finance.collection-batches.show');
+    Route::post('finance/collection-batches/{collectionBatch}/review', [CollectionBatchController::class, 'review'])
+        ->middleware('throttle:10,1')->name('finance.collection-batches.review');
+
+    Route::post('finance/funding-windows', [FundingWindowController::class, 'store'])
+        ->middleware('throttle:10,1')->name('finance.funding-windows.store');
+    Route::get('finance/funding-windows/{fundingWindow}', [FundingWindowController::class, 'show'])
+        ->name('finance.funding-windows.show');
+    Route::post('finance/funding-windows/{fundingWindow}/approve', [FundingWindowController::class, 'approve'])
+        ->middleware('throttle:10,1')->name('finance.funding-windows.approve');
+    Route::post('finance/payment-intents/{paymentIntent}/reserve', [PaymentReservationController::class, 'store'])
+        ->middleware('throttle:10,1')->name('finance.payment-reservations.store');
+    Route::post('finance/payment-reviewers/{reviewer}/enroll', [PaymentReviewerEnrollmentController::class, 'store'])
+        ->middleware('throttle:5,1')->name('finance.payment-reviewers.enroll');
+    Route::post('finance/payment-intents/{paymentIntent}/authorize', [PaymentAuthorizationController::class, 'store'])
+        ->middleware('throttle:5,1')->name('finance.payment-authorizations.store');
+    Route::get('finance/payment-intents/{paymentIntent}/authorization', [PaymentAuthorizationController::class, 'show'])
+        ->name('finance.payment-authorizations.show');
 
     Route::post('finance/payment-intents/{paymentIntent}/changes', [PaymentIntentChangeController::class, 'store'])
         ->middleware('throttle:10,1')->name('finance.payment-intent-changes.store');

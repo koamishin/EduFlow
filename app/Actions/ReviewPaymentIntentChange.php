@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\PaymentIntent;
 use App\Models\PaymentIntentChange;
 use App\Models\PaymentIntentChangeReview;
+use App\Models\PaymentReservation;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
@@ -60,6 +61,9 @@ final readonly class ReviewPaymentIntentChange
                 return $existing;
             }
             $this->lifecycle->requireActive($source);
+            if ($decision === 'approve_change' && PaymentReservation::query()->where('invoice_id', $source->invoice_id)->exists()) {
+                throw ValidationException::withMessages(['payment' => 'Bill has held capacity; reviewed reservation release is required before draft recovery.']);
+            }
             if ($decision === 'approve_change' && $stored->kind === 'replace') {
                 $this->verifyReplacement($institution, $source, $stored);
             }

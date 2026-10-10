@@ -4,8 +4,8 @@
 
 **Bounded departmental finance on Circle Agent Wallets + Arc**
 
-Current pilot target: one college department, approved budget and bills, staff-reviewed
-proposals and linked USDC payments on Arc testnet.
+Current pilot target: review collected student fees, propose their use within one
+department's approved budget, and link authorized bills to USDC payments on Arc testnet.
 
 </div>
 
@@ -19,24 +19,31 @@ EduFlow is institution-owned finance orchestration using
 approved obligations; current hackathon scope is deliberately one departmental workflow,
 not an unrestricted AI treasurer or replacement for the college's accounting system.
 
-The existing developer cycle reviews invoices and optional student aid against a
-deterministic policy engine. The college pilot target uses the same bounded principle:
+The current product question is **what should the institution do with fees already
+collected from students?** EduFlow's target is to review verified collections, protect
+restricted funds and reserves, and explain how available cash can cover approved obligations.
+The college pilot uses deterministic policy checks to:
 
-- **propose and explain** payments within the approved department budget,
+- **review verified collections** and distinguish available cash from expected fees,
+- **propose and explain** use of funds and payments within the approved department budget,
 - **request human approval** for eligible proposals outside a separately authorized capped lane,
 - **hold or reject** when policy, evidence, budget or reserve checks fail, and
 - **execute and verify** permitted USDC mirror payments on **Arc testnet**, not college bank payments.
 
-Current C0 institution inspection is read-only. C1 exact vendor drafts and reviewed finance
-policy versions exist, but cannot approve, reserve or execute payments. The connected
+Current C0 institution inspection is read-only. C1 includes reviewed aggregate collection
+evidence, local departmental planning, exact vendor drafts, reviewed policy/destination and
+draft recovery, plus a bounded reviewed USDC funding window and cumulative capacity holds.
+Holds do not approve payments or lock Circle funds; execution remains disabled. The connected
 college pilot and capped recurring-payment lane below are **delivery targets, not shipped
 capabilities**. Existing student-aid features remain available for development but are not
 this pilot's focus. Wider operational use cases remain in `PLAN.md` Section 13.
 
 **Production limits:** Exact-money handling exists at intake/conversion, draft/policy boundaries
 and Arc observation, but legacy treasury/payment floats and two-decimal storage remain.
-Executable durable intents, destination verification, atomic reservations, authenticated
-approval, retry/recovery and stronger settlement verification are still required. A draft,
+Reviewed destinations, bounded atomic capacity holds and independently enrolled MFA-backed
+payment review exist. Reservation release/funding rollover, approval renewal/withdrawal and
+factor recovery, local-to-testnet mapping authority, durable outbox/attempts, execution recovery
+and matching settlement verification are still required. A draft,
 policy activation or developer demo is not a certified school treasury system.
 
 ### Five design rules and remaining release gates
@@ -91,8 +98,8 @@ configuration. Do not introduce dedicated shadow models, tables, routes or scree
 
 AI may propose or explain, never authorize transfers, change policy or access signing keys.
 A staff edit preserves the original proposal and requires a reviewed successor and fresh
-checks/approval; it does not mutate an approved intent. That successor workflow is still
-pending. Application limits remain mandatory; do not claim Circle's mainnet-only native
+checks/approval; it does not mutate an approved intent. Reviewed draft cancellation/replacement
+exists; reserved or submitted payments still need separate safe release/recovery work. Application limits remain mandatory; do not claim Circle's mainnet-only native
 wallet controls enforce the testnet lane.
 
 ### Amount, state and privacy boundaries
@@ -152,7 +159,9 @@ commands; they are not a ready-made college pilot or permission to use legacy ex
 - [Fund the wallet](#fund-the-wallet)
 - [Run the demo](#run-the-demo)
 - [The seeded scenarios](#the-seeded-scenarios)
-- [Using the app](#using-the-app)
+- [Using the app: fee collections and budget decisions](#using-the-app)
+- [Student fee-payment role](#student-side--fee-payment-and-confirmation)
+- [Agent collections-to-budget workflow](#agent-side--review-collected-fees-and-propose-their-use)
 - [Verify it really settled](#verify-it-really-settled)
 - [Institution finance preview](#institution-finance-preview-no-students-required)
 - [Commands](#commands)
@@ -166,7 +175,21 @@ commands; they are not a ready-made college pilot or permission to use legacy ex
 
 ## What you'll see
 
-The **existing seeded developer demo**, not the college pilot, looks like this:
+**Intended college workflow, not a claim that the complete UI/execution path ships today:**
+Students pay through the college's existing process; staff confirms realized fee receipts.
+EduFlow reviews those funds alongside approved budgets and commitments, proposes which
+approved departmental bills can be funded, and explains any holds or shortfalls. Finance
+staff reviews the proposals. Each eligible authorized bill is then linked to a verified
+USDC payment on Arc testnet while the college continues paying locally in parallel.
+
+No student assistance request is needed to start this workflow. The first slice uses
+staff-verified aggregate collections or approved opening funds, not individual student
+records or a new payment portal.
+
+### Legacy seeded developer demo
+
+The existing seed/command below still includes optional assistance fixtures. It is retained
+for development and does not represent the fee-collections pilot or its planned student UI:
 
 ```
 $ php artisan eduflow:demo
@@ -192,25 +215,53 @@ real permitted source records, staff review and connected verified testnet evide
 
 ---
 
-## Requirements
+## Requirements & Prerequisites
 
-| | |
-|---|---|
-| PHP | 8.5 recommended; locked dependencies require at least 8.4.1, with `pdo_sqlite`, `mbstring`, `openssl` |
-| Composer | 2.x |
-| Node.js | 20.18.2+ |
-| Circle CLI | `npm install -g @circle-fin/cli` |
-| arc-canteen | `uv tool install arc-canteen && arc-canteen login` — gives you an Arc testnet RPC endpoint |
+### System prerequisites & installation links
 
-Check the toolchain before anything else:
+| Tool | Minimum Version | Installation / Official Documentation |
+|---|---|---|
+| **PHP** | 8.4.1+ (8.5 recommended) | [PHP Installation Guide](https://www.php.net/downloads) — Required extensions: `pdo_sqlite`, `mbstring`, `openssl`, `curl` |
+| **Composer** | 2.x | [Composer Download](https://getcomposer.org/download/) |
+| **Node.js & npm** | 20.18.2+ | [Node.js Downloads](https://nodejs.org/en/download) |
+| **Circle CLI** | 1.1.4+ | [Circle CLI Documentation](https://developers.circle.com/agent-stack/circle-cli) · `npm i -g @circle-fin/cli` |
+| **uv** (Astral) | Latest | [Astral uv Documentation](https://docs.astral.sh/uv/) · Python package & tool manager |
+| **arc-canteen** | Latest | [Arc Network Docs](https://docs.arc.io) · [The Canteen App](https://arc-node.thecanteenapp.com/) · CLI for Arc testnet RPC & wallet |
 
-```bash
-php artisan lepton:doctor
-```
+### Installing the prerequisites
 
-It verifies the binaries, your Circle session, your treasury address, chain reads and
-ledger parity, and tells you which of those are broken. Run it first; it saves a lot of
-guessing later.
+1. **Install Node.js & Circle CLI:**
+   ```bash
+   # Install Circle CLI globally via npm
+   npm install -g @circle-fin/cli
+
+   # Verify installation
+   circle --version
+   ```
+
+2. **Install `uv` and `arc-canteen` CLI:**
+   ```bash
+   # Install Astral uv (fast Python tool installer)
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   # Or via homebrew / package manager: brew install uv
+
+   # Install arc-canteen using uv
+   uv tool install arc-canteen
+
+   # Authenticate arc-canteen to provision your Arc testnet RPC endpoint
+   arc-canteen login
+   ```
+
+3. **Check the toolchain:**
+   Run the doctor command inside the repository to verify that all binaries and configurations are recognized:
+
+   ```bash
+   php artisan lepton:doctor
+   ```
+
+   It verifies the binaries, your Circle session, your treasury address, chain reads and
+   ledger parity, and tells you which of those are broken. Run it first; it saves a lot of
+   guessing later.
 
 ---
 
@@ -236,7 +287,8 @@ php artisan migrate:fresh --seed
 
 `migrate:fresh --seed` gives you the organization, the wallets, the budgets, the policy
 versions, six invoices, two vendors' worth of vendor records, and one pending student
-aid request. It is the whole demo.
+aid request. These are legacy developer fixtures, not college collection records or the
+new collections-to-budget workflow.
 
 Start the app:
 
@@ -253,7 +305,9 @@ That runs the PHP server, Vite, and the queue worker together. Open the printed 
 | Student | `juan@eduflow.test` | `password` |
 | Finance officer | `finance@eduflow.test` | `password` |
 
-Log in as each to see both sides of the approval loop.
+These accounts belong to the existing developer demo. The student account still exposes
+legacy assistance screens; it is not a fee-payment portal or a prerequisite for the college
+pilot. Use authorized finance staff and permitted source records for pilot validation.
 
 ### School identity setup and first administrator
 
@@ -452,19 +506,121 @@ decisions.
 
 ## Using the app
 
-**Student side** (Inertia + shadcn/ui) — log in as `juan@eduflow.test`:
+**Current focus: fee collections and decisions about their use, not student assistance.**
+The workflow below defines the intended user experience. Existing source-evidence and
+planning foundations are documented later in this README; the complete student collection
+portal, staff review UI and safe payment-execution lifecycle are not yet shipped.
 
-- Submit an assistance request and watch the split explained in plain language.
-- Ask the policy questions directly: *"Why didn't you send the full 15 USDC?"*,
-  *"What are the assistance guidelines?"*, *"What's the current rate?"*
+### Student side — fee payment and confirmation
 
-**Staff side** (Filament) — log in as `finance@eduflow.test` at `/admin`:
+- Students pay tuition or other fees through the college's existing approved payment process.
+  The pilot does not require students to hold USDC or use a new EduFlow payment portal.
+- Students retain the official receipt/reference. Authorized staff verifies received funds
+  before including them in the institution's collections data; an expected payment or
+  uploaded receipt alone is not confirmed cash.
+- A later student-facing view may show fee balances, verified payment status and receipt
+  history. Those collection views and individual payment-matching workflows are future
+  work, not capabilities of the current legacy student dashboard.
+- Students do not request assistance, approve departmental budgets or decide institutional
+  spending as part of this pilot. Assistance remains a separate deferred workload.
 
-- **Dashboard** — live chain state, ledger drift, treasury balance.
-- **Approval Center** — approve or reject escalated decisions.
-- **Invoices** — settlement status and an explorer link for each.
-- **Transactions** — a **Chain Proof** column; run *Verify against Arc* on any row.
-- **Agent Decisions** — the recorded input snapshot and reasoning for every call.
+### Cashier side — transaction intake and reconciliation
+
+Cashier is the institution's intake/reconciliation hub for tuition and other approved
+receipts, not a personal wallet or an unrestricted spending approver. Students pay through
+existing college channels; cashier records/imports authoritative references, exact amounts,
+currencies, categories and received evidence. Separate authorized staff reviews collection
+batches. Pending/unmatched receipts, refundable deposits and restricted income cannot be
+treated as unrestricted money. Donations, grants and other institution income can follow
+reviewed categories later; tuition is the first example, not the only future source.
+
+Cashier entry, independent reconciliation, business approval, payment authorization and
+accounting posting remain separate acts. No new cashier portal or complete cash-management
+system ships from this plan. Aggregate inputs keep the pilot independent of student rows.
+
+### Agent side — review collected fees and propose their use
+
+1. **Observe confirmed collections.** Read staff-verified aggregate realized receipts,
+   approved opening funds, actual outflows and approved bills. Keep source references,
+   original currency and observation times; unresolved receipts stay outside spendable cash.
+2. **Determine available funds.** Account for restricted cash, protected reserves and existing
+   commitments without double-counting them. Check cash availability separately from the
+   department's remaining approved allocation; a budget is not proof of money received.
+3. **Propose use within approved budgets.** Compare bill due dates, categories and policy
+   with available funds. Recommend which approved obligations can be funded now, which need
+   human review and which must wait. Show exact amounts, remaining headroom and reasons.
+4. **Route business decisions to staff.** A new allocation, transfer between departments or
+   change in priority requires the college's authorized decision-maker. The agent cannot
+   invent percentage splits, redirect restricted funds or override a hard policy failure.
+5. **Prepare authorized testnet payments.** Once the remaining execution gates pass, connect
+   each eligible admin-approved bill to its exact approved USDC mirror through the existing
+   Circle Agent Wallet. Only separately approved recurring obligations qualify for the
+   small capped autonomous testnet lane; everything else needs the appropriate review.
+6. **Verify and audit.** Verify successful matching Arc testnet movement and finality; link
+   the collection/budget evidence, proposal, policy checks, approval and payment record.
+   Unknown outcomes remain unresolved. A testnet mirror never marks the college's real
+   local-currency bill paid or creates new institutional income.
+
+For example, verified fees may support an approved internet renewal and laboratory-supply
+bill. The agent explains whether both fit the department's allocation and available cash,
+while preserving reserves and commitments. If they do not both fit, staff decides the
+trade-off. Payroll reserves can be protected in planning; payroll execution remains deferred.
+
+### Background work — no chat prompt required
+
+**Delivered opt-in planning runtime:** cashier capture and budget snapshots create durable
+finance runs; scheduler recovery dispatches bounded planning/review jobs without chat or an
+open browser. Finance Supervisor shows progress and queued review alerts. Background payment
+execution, recurring occurrences and settlement reconciliation remain later gated work.
+Optional AI must receive bounded system-generated evidence prompts, never an endless loop,
+invented obligations, self-set schedules or self-granted authority.
+
+Enable `EDUFLOW_BACKGROUND_FINANCE=true` only with a durable `database` or `redis` connection
+configured through `EDUFLOW_FINANCE_QUEUE_CONNECTION`. Keep a supervised queue worker on
+`finance-planning` and invoke Laravel scheduler every minute. The scheduled
+`eduflow:dispatch-finance-workflows` recovers committed work; `sync` is refused. Background
+finance defaults off, and no scheduler task submits money.
+
+One institution workflow service coordinates specialist tasks; several unrestricted LLMs
+are not required. Deterministic PHP decides financial eligibility. Human-approved recurring
+mandates let eligible bills from reviewed vendors/destinations run automatically on
+`ARC-TESTNET`, within exact per-payment and cumulative caps, allocation, cash/reserve and
+fees. Larger/one-off otherwise-valid bills need human approval; hard failures stay blocked.
+Human approval of a standing mandate is distinct from a click for each occurrence.
+
+Use supervised durable queue workers plus scheduler, durable event/outbox recovery,
+deduplicated occurrences and bounded retries. Do not schedule the legacy developer agent
+cycle: it is not the safe new lifecycle. Current funding windows cannot refresh/release
+unattended; reviewed rollover, complete payment authorization lifecycle and execution/evidence gates must pass
+before this automatic lane is enabled. See `PLAN.md` Sections 14.7–14.10 for delivery order.
+
+### Staff side — review proposals and retain control
+
+- Confirm collection evidence, available funding and the department's approved allocation.
+- Inspect proposed use of funds, due dates, policy results and resulting budget/cash headroom.
+- Approve or reject eligible payment proposals. Material edits require a reviewed successor
+  and fresh checks/authorization, not mutation of an approved payment intent.
+- Investigate holds, missing evidence and uncertain outcomes; approval cannot bypass policy.
+- Compare verified testnet transaction evidence with each authorized bill, while keeping
+  actual local collections/payments in the college's existing accounting process.
+- Supervise logical worker runs from a finance dashboard: active/queued/waiting/blocked/failed
+  tasks, triggering evidence, policy results, cash/budget holds and automatic mandate usage.
+- Receive role-scoped in-app approval/investigation alerts, with optional queued email and
+  bounded reminders. Reading a notification is not approval; silence never authorizes payment.
+- Pause new submissions or suspend a mandate while preserving in-flight reconciliation and
+  audit. View recorded rule results and evidence summaries, not hidden model reasoning.
+
+Finance Supervisor and Collections pages now expose durable planning/review runs and queued
+in-app review alerts. Background planning is opt-in; a durable queue worker and scheduler must
+run separately. Payment Reviews adds exact reserved-payment evidence and fresh password/TOTP
+review. Automatic execution, reminder escalation, assignment and operational health summaries
+remain pending. Dashboard access never grants payment permission.
+
+**Implementation boundary:** C0 inspection is read-only; current invoice evidence and
+budget planning do not authorize transfers. Existing student-assistance screens and
+assistance approval endpoints must not be presented as a fee-collection or vendor-payment
+workflow. Reuse ordinary invoice, budget, review and intent foundations as the remaining
+[Section 14 pilot gates](PLAN.md#14-college-shadow-pilot--hackathon-execution-contract) are built.
 
 ---
 
@@ -523,7 +679,8 @@ The report always sets `can_execute=false`: no invoice status changes, budget sp
 reservations or transfers. Native USDC observations preserve 18-decimal quantities and
 sub-micro residuals as strings; fake observations say `simulated`, never settled. Invalid
 network/address or unavailable RPC produces no inferred chain balance. Legacy policy and
-forecast float APIs remain indicative; exact-money/reservation/evidence work is still open.
+forecast float APIs remain indicative; newer exact evidence and bounded capacity holds are
+separate normal workflows, not authority granted by this preview.
 SQLite floating-point money storage is refused rather than presented as exact. A preview
 is not live-payment readiness, signing authority or proof of custody/settlement. It is the
 first read-only step, **not** the complete hackathon pilot: eligible approved college bills
@@ -555,15 +712,18 @@ approval, recipient-ownership proof or payment receipt.
 
 Migration is additive and not run against the school database by this change. Existing
 money is not backfilled or guessed; inexact SQLite monetary values are refused. Legacy
-exact treasury migration, destination verification, reservations,
-approvals, outbox/attempts and actual settlement remain open. Foreign keys retain source
+exact treasury migration, cryptographic destination/control certification, payment
+approval, reservation release/rollover, outbox/attempts and actual settlement remain open. Foreign keys retain source
 documents, wallet, budget, vendor, preparer and reviewed policy evidence; model updates/deletes are refused.
 Rollback drops the new table only when empty; populated-table rollback refuses to erase
 draft evidence and requires reviewed archival/forward migration. Malformed snapshot shape
 fails integrity validation. Factory fixtures explicitly bind existing source documents with
 `PaymentIntent::factory()->forVendorBill($invoice, $wallet, $preparer)`.
 Database admins/raw writes remain outside the model guard, and restored drafts must be
-reconciled/reviewed before any future execution. No cancellation/successor workflow ships yet.
+reconciled/reviewed before any future execution. `finance.payment-intent-changes.*` provides
+independently reviewed terminal cancellation or one fresh non-executable successor. Original
+snapshots/reasons remain intact; another key cannot reopen cancellation. Reserved drafts
+require future reviewed release first. Recovery review never grants payment authority.
 
 ## Reviewed institution finance policy (C1 foundation)
 
@@ -583,8 +743,8 @@ Activations are append-only, bind predecessor digest and validate actual policy 
 through the complete recorded history (up to 10,000 activations; beyond that fails closed
 pending reviewed archival design). Policy replacement makes existing payment drafts stale.
 New drafts persist restrictive policy version/activation references; upgraded legacy drafts
-retain nullable context, are not backfilled, and fail verification until a reviewed successor
-workflow exists. SQLite table rebuilds restore exact-money bounds triggers.
+retain nullable context and are not backfilled; intact historical drafts can now use reviewed
+replacement to bind current evidence without mutating the originals. SQLite table rebuilds restore exact-money bounds triggers.
 
 **Policy activation is not payment approval or permission to execute.** Limits record
 reviewed configuration for the future intent engine; they do not retrofit legacy payment
@@ -618,7 +778,8 @@ verified opening funds, realized aggregate receipts, actual outflows, restricted
 protected reserve and other cash commitments. Allocation is never added to cash; forecast
 revenue is not available funds. `DepartmentBudgetPlanner` checks an explicitly bound closed
 bill set cumulatively by due date and ID. Staff attests other commitments exclude selected
-bills and cash protection buckets are disjoint. Negative headroom stays visible. Source,
+bills and cash protection buckets are disjoint. New snapshots also require opening funds to exclude
+selected reviewed collections. Negative headroom stays visible. Source,
 review, budget drift or expired/corrupt evidence blocks the complete plan.
 
 Capture with `POST finance/budget-snapshots` (`finance.budget-snapshots.store`). Context:
@@ -626,7 +787,10 @@ Capture with `POST finance/budget-snapshots` (`finance.budget-snapshots.store`).
 `valid_until`, selected `bill_ids`, `budget_evidence`, `cash_evidence`, `commitment_evidence`.
 Required exact decimal strings: `allocation`, `already_spent`, `other_budget_commitments`,
 `opening_funds`, `realized_receipts`, `actual_outflows`, `restricted_cash`, `protected_reserve`,
-`other_cash_commitments`. Accept `commitments_exclude_selected_bills` and `cash_buckets_disjoint`.
+`other_cash_commitments`. Accept `commitments_exclude_selected_bills`, `cash_buckets_disjoint`
+and `opening_funds_exclude_collections`. Supply `collection_review_ids` for nonzero receipts;
+`realized_receipts` must equal their exact reviewed gross sum, in the same currency, received
+by `as_of`. `restricted_cash` must include all bound collection restrictions.
 Inspect through `GET finance/budget-snapshots/{budgetSnapshot}`; plan through
 `POST finance/budget-snapshots/{budgetSnapshot}/plan`.
 
@@ -639,10 +803,97 @@ Every response retains `can_execute=false`; plans reserve nothing and verify no 
 funding. Plans cannot be combined as a funded institution-wide plan. Staff attestation is
 not independent bank reconciliation or source/rate authenticity proof.
 
-Staff UI/imports, independent budget/policy sign-off, destination suspension/cooling-off,
-safe successors, atomic reservations, durable submission/recovery and verified Arc settlement remain open.
+Staff UI/imports, destination suspension/cooling-off, source/collection corrections, reviewed
+reservation release/rollover, local-to-testnet authority, approval renewal/withdrawal and factor
+recovery, durable submission/recovery and verified Arc settlement remain open. Existing capacity holds are
+bounded to one approved USDC funding window, not a production treasury ledger.
 The college shadow demo uses these ordinary workflows in a separately authorized testnet
 environment; it is not a parallel application domain or production-readiness claim.
+
+## Reviewed aggregate fee collections
+
+`CollectionBatch` records aggregate received fee amounts and restrictions, not individual
+student payments. Verified finance staff use `POST finance/collection-batches` with UUID
+`capture_key`, stable `source_stream`, `source_reference`, SHA-256 `source_document_digest`,
+`currency`, exact string `received_amount` / `restricted_amount`, ISO-8601 `collected_from`
+and `collected_until`, and `cash_evidence_reference`. Accept `source_stream_disjoint` and
+`received_not_forecast`. Intervals are half-open: adjacent reports are allowed, overlapping
+reports in one stream are refused. Duplicate document digests/references cannot be retried
+with new keys. Document digests detect duplicates, not report authenticity.
+
+Separate verified admin uses `POST finance/collection-batches/{collectionBatch}/review`
+with `expected_digest`, `decision` (`approve_receipts`, `reject`, `hold`),
+`verification_reference`, `reason` and accepted `received_and_restrictions_verified`.
+`GET finance/collection-batches/{collectionBatch}` exposes source/review evidence. Self-review
+and changed review feedback are refused. Pending, held or rejected receipts cannot supply
+planning cash. Corrections/revocation and student receipt matching remain future work.
+
+New budget snapshots bind approved collection records/reviews and exact sums. Missing or
+changed bindings block the entire plan. Original schema-v1 snapshots remain readable as
+`legacy_staff_attestation`, never silently upgraded; they cannot create new funding windows.
+Opening funds stay separately staff-attested and must exclude selected receipts. Streams
+must represent disjoint underlying receipts; relabeling/repackaging the same receipts cannot
+be reliably detected without later source integrations. Alternative read-only plans may
+reference the same receipts; they are not new income or funded department allocations.
+
+Collection approval is independent **staff attestation**, not verified bank balance, Arc
+funding, executable FX, receipt issuance or authorization to spend. No gateway call, cash
+posting or student record is required. Local fees stay local; testnet uses separate funding.
+
+## Bounded funding and capacity reservations
+
+`finance.funding-windows.*` prepares/shows/independently approves one exact USDC funding
+window per institution. It binds schema-v2 budget evidence, approved bills, current policy,
+Circle treasury and a fresh block-bound Arc native balance. `finance.payment-reservations.store`
+holds each current draft's bill plus maximum fee against cumulative allocation/cash capacity.
+Exact native units and residuals stay strings; legacy wallet floats never supply funding.
+
+Maximum window lifetime is 15 minutes. Expiry or drift blocks new holds, never releases old
+ones. No new window/department/wallet can reset capacity until reviewed rollover exists.
+Reserved drafts cannot be cancelled/replaced without future reviewed release. These are
+application holds, not Circle wallet locks. Fake holds are labeled; payment approval and
+execution remain false. SQLite two-worker contention is tested; production PostgreSQL/provider
+concurrency and outside-wallet withdrawal races are not certified. Local reference valuations
+cannot enter this USDC funding lane; separately approved mirror authority remains pending.
+
+## Independent payment review (partial B4)
+
+Finance panel **Payment Reviews** lists held vendor payments, exact six-decimal USDC amounts,
+fee ceilings, treasury/recipient, funding bindings and recorded decisions. It requires zero
+student records. Actions record `approve_payment`, `reject_payment` or `hold_payment` through
+`ReviewVendorPayment`; neither approval nor notification acknowledgement sends a transfer.
+
+A payment reviewer needs a directly assigned `AuthorizePayment:PaymentIntent` permission,
+verified email and a finance/admin role. Role inheritance or reseeding alone is insufficient.
+A different verified admin must first pin that reviewer's existing Filament app or confirmed
+Fortify authenticator through **Enroll payment reviewer** or `finance.payment-reviewers.enroll`, using their own fresh
+password/TOTP and an independent identity/authenticator verification reference. This is staff
+attestation, not hardware-key or identity-provider certification. Account MFA replacement or
+disablement invalidates payment eligibility; factor recovery/rotation needs a later reviewed
+workflow. Checker and reviewer cannot share an authenticator secret.
+
+`finance.payment-authorizations.store` and `.show` expose payment-review operations/evidence.
+A new review binds displayed draft/reservation digests, exact amount/fee and destination;
+fresh password and an unused six-digit TOTP are required. Payment and enrollment replay
+steps persist atomically; login replay markers are checked and updated after durable commit. Failed transactions
+retain authentication rate-limit attempts. Production needs one shared authoritative cache
+for rate limiting/login replay state; PostgreSQL concurrent review and cross-endpoint MFA
+races are not certified. Passwords, OTPs and factor fingerprints are excluded from exported
+review evidence, notifications and activity logs; validation never flashes `mfa_code`.
+
+Approval expires within five minutes and cannot outlive funding. Current bill, policy,
+destination, treasury, closed-set evidence and cumulative holds must still fit observed Arc
+cash. Same-key retries return existing evidence, never renew expiry or create another review.
+Changed reviewer permission/factor invalidates current authority without rewriting history.
+Reject/hold retains capacity. This first slice allows one decision per reserved bill; expired
+approval, changed decision, withdrawal and factor rotation require future append-only recovery
+before execution can be enabled. No bypass by a new request key or deleting history.
+
+Only `ARC-TESTNET`/`5042002` is accepted. Fake reviews say `simulation_only` and never grant
+network payment authority. All outputs retain `can_execute=false`; no submission job,
+Circle transfer, ledger posting, invoice-paid mutation or local/testnet conversion is enabled.
+B4 remains incomplete until reviewed release/rollover, renewal/withdrawal, local mirror
+authority, durable attempts and successful matching final settlement evidence pass.
 
 ## Reviewed vendor destinations
 
@@ -669,8 +920,8 @@ recorded vendor address. Replacement makes old drafts stale. Exact reviewed USDC
 versions bind six-decimal source/review evidence; local reference valuation remains blocked
 from executable USDC intent. Additive FK migration leaves old drafts nullable/unapproved
 rather than inventing evidence, restores SQLite monetary guards and refuses populated
-rollback. Destination revocation/suspension workflow, cooling-off, safe successors,
-reservations, payment approval, recovery and verified settlement remain open.
+rollback. Destination revocation/suspension workflow, cooling-off, source corrections,
+reservation release/rollover, approval renewal/withdrawal, durable recovery and verified settlement remain open.
 
 ## Commands
 
@@ -891,7 +1142,42 @@ hash lookup alone does not provide that guarantee.
 
 ## How the money moves
 
-**Existing developer path, not the new college pilot lifecycle:**
+**Target collections-to-budget lifecycle; complete execution remains gated:**
+
+```text
+Student fees paid through the college's existing local process
+        |
+        v
+Staff-verified realized collections or approved opening funds
+        |
+        v
+Available cash, restrictions, reserves and commitments
+        |
+        v
+Agent proposes use within the department's approved budget
+        |
+        v
+Deterministic checks: permit review, hold or reject
+        |
+        v
+Staff authorization or separately approved capped recurring policy
+        |
+        v
+Reserved payment intent and recoverable Circle Agent Wallet submission
+        |
+        v
+Matching successful Arc testnet settlement and linked audit evidence
+```
+
+Budget allocation is an accounting decision, not automatically a wallet transfer.
+Collected local fees are **not** automatically converted or bridged into USDC. The pilot
+uses a separately funded testnet wallet and a staff-approved exact mirror mapping; real
+local receipts and bill-payment status remain in the college's existing process.
+
+### Legacy developer execution path
+
+This existing invoice/assistance path is not the fee-collections intake, departmental
+review UI or the safe new payment lifecycle:
 
 ```
 Invoices + Aid requests
