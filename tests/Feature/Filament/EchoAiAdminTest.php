@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Ai\Agents\AdminAssistantAgent;
 use App\Filament\Clusters\Settings\Pages\AiSettingsPage;
 use App\Filament\Pages\AdminAiChat;
+use App\Filament\Pages\ArcAiActivity;
 use App\Filament\Resources\AiProviders\AiProviderConnectionTest;
 use App\Http\Responses\AiSseResponse;
 use App\Models\AiProvider;
@@ -36,6 +37,16 @@ test('arc ai page is accessible by super admin', function (): void {
     filament()->setCurrentPanel('admin');
 
     $this->get(AdminAiChat::getUrl())->assertSuccessful();
+});
+
+test('arc ai activity page is accessible by super admin and denied to non-admins', function (): void {
+    $this->actingAs($this->admin);
+    filament()->setCurrentPanel('admin');
+
+    $this->get(ArcAiActivity::getUrl())->assertSuccessful();
+
+    $this->actingAs($this->regularUser);
+    $this->get(ArcAiActivity::getUrl())->assertForbidden();
 });
 
 test('arc ai shows the saved default provider name and model after refresh', function (): void {

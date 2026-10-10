@@ -1,8 +1,8 @@
 <div
     x-data="adminAiChat({
         csrfToken: '{{ csrf_token() }}',
-        cycleUrl: {{ Js::from($cycleUrl ?? null) }},
-        cycleAvailable: {{ Js::from($cycleAvailable ?? false) }},
+        cycleUrl: null,
+        cycleAvailable: false,
         manualChatEnabled: {{ Js::from($manualChatEnabled) }},
         providerCallsAllowed: {{ Js::from($providerCallsAllowed) }},
         provider: '{{ $provider }}',
@@ -24,29 +24,6 @@
         style="min-width: 0;"
     >
         <div x-show="sidebarOpen" class="flex h-full flex-col p-3" style="width: 18rem;">
-            <section wire:poll.15s class="mb-4 border-b border-zinc-200 pb-3 dark:border-zinc-800" aria-label="Recorded decisions">
-                <div class="mb-2 flex items-center justify-between px-2">
-                    <button type="button" @click="viewMode = 'activity'" class="text-xs font-semibold">Activity</button>
-                    <a href="{{ $decisionLogUrl }}" class="text-[11px] text-zinc-500 hover:underline">AI Decision Log</a>
-                </div>
-                <div class="max-h-64 space-y-1 overflow-y-auto">
-                    @forelse ($decisions as $decision)
-                        <button
-                            wire:key="arc-decision-{{ $decision->id }}"
-                            type="button"
-                            wire:click="showDecision({{ $decision->id }})"
-                            @click="viewMode = 'activity'; if (window.innerWidth < 768) sidebarOpen = false"
-                            class="w-full rounded-lg px-2 py-2 text-left hover:bg-zinc-200/50 dark:hover:bg-zinc-800"
-                        >
-                            <span class="block truncate text-xs font-medium">{{ str($decision->action_type)->replace('_', ' ')->title() }}</span>
-                            <span class="mt-1 block text-[10px] text-zinc-500 dark:text-zinc-400">{{ $decision->decision->getLabel() }} · {{ $decision->created_at?->diffForHumans() }}</span>
-                        </button>
-                    @empty
-                        <p class="px-2 py-2 text-xs text-zinc-500">No recorded decisions yet.</p>
-                    @endforelse
-                </div>
-            </section>
-
             <p class="mb-2 px-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">Manual conversations</p>
             {{-- Sidebar Header & New Chat button --}}
             <div class="mb-2 flex items-center justify-between gap-1.5">
@@ -281,8 +258,26 @@
                 </div>
             </div>
 
+            {{-- Link to ARC AI Activity --}}
+            <div class="py-2.5">
+                <a
+                    href="{{ $activityUrl }}"
+                    class="flex items-center justify-between rounded-xl border border-zinc-200/90 bg-white px-3 py-2 text-xs font-medium text-zinc-800 shadow-2xs transition hover:border-zinc-300 hover:bg-zinc-50 active:scale-[0.99] dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
+                >
+                    <span class="flex items-center gap-2">
+                        <svg class="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>ARC AI Activity</span>
+                    </span>
+                    <svg class="h-3 w-3 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+
             {{-- Sidebar Footer: Admin User Profile --}}
-            <div class="mt-2 border-t border-zinc-200/80 pt-2.5 dark:border-zinc-800">
+            <div class="mt-auto border-t border-zinc-200/80 pt-2.5 dark:border-zinc-800">
                 <div class="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-zinc-700 dark:text-zinc-300">
                     <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
                         <span x-text="adminUser.name ? adminUser.name.charAt(0).toUpperCase() : 'A'"></span>
@@ -325,20 +320,25 @@
                     </svg>
                 </button>
 
-                <button
-                    type="button"
-                    @click="viewMode = 'activity'; if (window.innerWidth < 768) sidebarOpen = false"
-                    :aria-pressed="viewMode === 'activity'"
-                    aria-label="Open ARC activity and execution log"
-                    class="flex items-center gap-1.5 rounded-lg px-1 py-1.5 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 dark:hover:bg-zinc-800"
-                >
-                    <span class="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{{ $assistantName ?? 'ARC' }}</span>
-                    <span class="hidden text-xs text-zinc-500 sm:inline dark:text-zinc-400">Activity</span>
-                </button>
+                <div class="flex items-center gap-1.5 rounded-lg px-1 py-1.5">
+                    <span class="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{{ $assistantName ?? 'ARC AI' }}</span>
+                    <span class="text-xs text-zinc-500 dark:text-zinc-400">Manual Chat</span>
+                </div>
             </div>
 
             {{-- Right side: Model indicator & Quick actions --}}
             <div class="flex items-center gap-1.5">
+                {{-- Quick Link to ARC AI Activity --}}
+                <a
+                    href="{{ $activityUrl }}"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200/90 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 shadow-2xs transition hover:border-zinc-300 hover:bg-zinc-50 active:scale-95 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                    <svg class="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span>ARC AI Activity</span>
+                </a>
+
                 <button
                     type="button"
                     role="switch"
@@ -352,6 +352,7 @@
                     <span>Manual chat</span>
                     <span class="font-semibold" x-text="manualChatEnabled ? 'On' : 'Off'"></span>
                 </button>
+
                 {{-- Provider/Model Badge --}}
                 <div class="hidden items-center gap-1.5 rounded-full border border-zinc-200/80 bg-zinc-100/70 px-2.5 py-0.5 text-[11px] text-zinc-600 sm:flex dark:border-zinc-800/80 dark:bg-zinc-900/60 dark:text-zinc-400">
                     <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
@@ -406,106 +407,13 @@
 
         <p x-show="toggleError" x-cloak role="alert" class="border-b border-red-200 p-3 text-xs text-red-700 dark:border-red-900 dark:text-red-300" x-text="toggleError"></p>
 
-        <section x-show="viewMode === 'activity'" wire:poll.15s class="flex-1 overflow-y-auto px-5 py-8 sm:px-10" aria-label="ARC activity">
-            <div class="mx-auto max-w-3xl">
-                {{-- Alpine owns execution events, independently of chat and Livewire's recorded decisions. --}}
-                <div wire:ignore wire:key="arc-cycle-execution" data-arc-cycle-execution>
-                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">Institution operations</p>
-                            <h1 class="mt-2 text-2xl font-semibold tracking-tight">ARC AI activity</h1>
-                        </div>
-                        <button
-                            type="button"
-                            @click="runAutonomousCycle()"
-                            :disabled="!cycleAvailable || !cycleUrl || cycleRunning || cycleLocked"
-                            :aria-busy="cycleRunning"
-                            aria-describedby="arc-cycle-safety arc-cycle-availability"
-                            class="rounded-xl border border-zinc-300 bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                        >Run Autonomous Agent Cycle</button>
-                    </div>
-                    <p class="mt-3 max-w-xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">Recorded policy decisions appear here without a chat prompt. Financial authority stays with deterministic policy and required human approvals.</p>
-                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Manual chat and provider switches are independent of execution. They do not start or stop a cycle.</p>
-                    <p id="arc-cycle-safety" class="mt-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">This cycle can move real USDC. Confirmation is required. Closing or navigating away from this page does not cancel payments.</p>
-                    <p id="arc-cycle-availability" x-show="!cycleAvailable || !cycleUrl" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Execution unavailable. A valid installation institution and active primary wallet are required.</p>
-
-                    <section class="arc-card mt-6 rounded-2xl p-4 sm:p-5" aria-labelledby="arc-cycle-heading">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <h2 id="arc-cycle-heading" class="text-sm font-semibold">Execution log</h2>
-                            <span class="rounded border border-zinc-200 px-2 py-1 text-[11px] font-medium dark:border-zinc-700" x-text="cycleStateLabel"></span>
-                        </div>
-                        <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">Public operational facts and recorded policy reasons only. No private model reasoning or simulated thinking.</p>
-                        <p role="status" aria-live="polite" aria-atomic="true" class="mt-3 text-xs leading-relaxed">
-                            <span class="sr-only" x-text="cycleStateLabel + '. '"></span>
-                            <span x-text="cycleSummary"></span>
-                        </p>
-                        <p x-show="cycleRunId" x-cloak class="mt-2 break-all font-mono text-[10px] text-zinc-500 dark:text-zinc-400">Run <span x-text="cycleRunId"></span></p>
-                        <p x-show="cycleLocked" x-cloak class="mt-3 rounded-lg border border-amber-300 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-800 dark:text-amber-200">Rerun disabled for this page session. Review recorded decisions and reconcile payment evidence before another run.</p>
-                        <p x-show="cycleRefreshError" x-cloak role="status" class="mt-3 text-xs text-zinc-500 dark:text-zinc-400" x-text="cycleRefreshError"></p>
-                        <p x-show="cycleOmittedEvents > 0" x-cloak class="mt-3 text-[11px] text-zinc-500 dark:text-zinc-400">Showing latest 100 events. <span x-text="cycleOmittedEvents"></span> earlier events omitted; review AI Decision Log for evidence.</p>
-                        <ol role="log" aria-label="Public execution events" aria-live="polite" aria-relevant="additions" tabindex="0" class="mt-4 max-h-80 space-y-3 overflow-y-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500">
-                            <template x-for="event in cycleEvents" :key="event.run_id + ':' + event.sequence">
-                                <li class="border-l-2 border-zinc-200 py-1 pl-3 dark:border-zinc-700">
-                                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-                                        <time :datetime="event.occurred_at" :title="event.occurred_at" x-text="cycleEventTime(event.occurred_at)"></time>
-                                        <span class="break-all font-mono" x-text="event.phase"></span>
-                                        <span x-text="'#' + event.sequence"></span>
-                                    </div>
-                                    <p class="mt-1 break-words text-xs font-semibold" x-text="event.title"></p>
-                                    <p class="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-zinc-600 dark:text-zinc-300" x-text="event.summary"></p>
-                                    <p x-show="cycleEventDetails(event)" class="mt-2 break-words text-[11px] text-zinc-500 dark:text-zinc-400" x-text="cycleEventDetails(event)"></p>
-                                </li>
-                            </template>
-                        </ol>
-                        <div x-show="cycleStats" x-cloak class="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-                            <h3 class="text-xs font-semibold">Local results · not verified settlement</h3>
-                            <dl class="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-                                <div><dt class="text-zinc-500 dark:text-zinc-400">Auto-paid</dt><dd class="mt-1 font-mono" x-text="cycleStats?.auto_paid ?? 'Not reported'"></dd></div>
-                                <div><dt class="text-zinc-500 dark:text-zinc-400">Escalated</dt><dd class="mt-1 font-mono" x-text="cycleStats?.escalated ?? 'Not reported'"></dd></div>
-                                <div><dt class="text-zinc-500 dark:text-zinc-400">Held</dt><dd class="mt-1 font-mono" x-text="cycleStats?.held ?? 'Not reported'"></dd></div>
-                                <div><dt class="text-zinc-500 dark:text-zinc-400">Rejected</dt><dd class="mt-1 font-mono" x-text="cycleStats?.rejected ?? 'Not reported'"></dd></div>
-                                <div class="col-span-2"><dt class="text-zinc-500 dark:text-zinc-400">Local disbursed (USDC)</dt><dd class="mt-1 break-all font-mono" x-text="cycleStats?.total_disbursed_usdc ?? 'Not reported'"></dd></div>
-                            </dl>
-                            <p class="mt-3 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">These are local workflow results, not proof of on-chain settlement. Reconcile payment evidence before treating funds as settled.</p>
-                        </div>
-                        <a href="{{ $decisionLogUrl }}" class="mt-4 inline-block text-xs font-medium underline underline-offset-4">Review AI Decision Log evidence</a>
-                    </section>
-                </div>
-                @if (! $providerCallsAllowed)
-                    <p class="mt-4 rounded-xl border border-amber-300 p-3 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-200">External AI calls disabled. Enable advisory and accept the data disclosure in AI Settings before using manual chat. Policy decision history remains available.</p>
-                @endif
-                @if ($selectedDecision)
-                    <article class="arc-card mt-8 rounded-2xl p-5" wire:key="arc-selected-{{ $selectedDecision->id }}">
-                        <p class="text-xs text-zinc-500">Decision #{{ $selectedDecision->id }} · {{ $selectedDecision->created_at?->format('M d, Y H:i:s') }}</p>
-                        <h2 class="mt-2 text-lg font-semibold">{{ str($selectedDecision->action_type)->replace('_', ' ')->title() }}</h2>
-                        <p class="mt-2 text-sm">{{ $selectedDecision->decision->getLabel() }} · {{ str($selectedDecision->status)->replace('_', ' ')->title() }}</p>
-                        <p class="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{{ $selectedDecision->reasoning_summary }}</p>
-                        <p class="mt-4 text-xs text-zinc-500">Policy: {{ $selectedDecision->policy_checked }}</p>
-                        <a href="{{ \App\Filament\Resources\AgentDecisions\AgentDecisionResource::getUrl('view', ['record' => $selectedDecision], panel: 'admin') }}" class="mt-4 inline-block text-xs font-medium underline underline-offset-4">View full decision evidence</a>
-                    </article>
-                @else
-                    <div class="mt-8 space-y-3">
-                        @forelse ($decisions as $decision)
-                            <button wire:key="arc-activity-{{ $decision->id }}" type="button" wire:click="showDecision({{ $decision->id }})" class="arc-card block w-full rounded-xl p-4 text-left">
-                                <span class="flex flex-wrap justify-between gap-2 text-xs text-zinc-500"><span>Decision #{{ $decision->id }}</span><span>{{ $decision->created_at?->diffForHumans() }}</span></span>
-                                <span class="mt-2 block text-sm font-semibold">{{ str($decision->action_type)->replace('_', ' ')->title() }} · {{ $decision->decision->getLabel() }}</span>
-                                <span class="mt-2 block text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{{ str($decision->reasoning_summary)->limit(180) }}</span>
-                            </button>
-                        @empty
-                            <div class="arc-card rounded-2xl p-6">
-                                <h2 class="text-sm font-medium">No recorded decisions yet</h2>
-                                <p class="mt-2 text-xs leading-relaxed text-zinc-500">Decisions from policy workflows appear here and in AI Decision Log. A cycle starts only after explicit financial confirmation.</p>
-                            </div>
-                        @endforelse
-                    </div>
-                @endif
-                <a href="{{ $decisionLogUrl }}" class="mt-6 inline-block text-xs font-medium underline underline-offset-4">Open AI Decision Log</a>
-            </div>
-        </section>
-
         {{-- Main Chat Content Area --}}
-        {{-- Alpine owns streamed messages and composer state; polling must not morph their DOM. --}}
-        <main wire:ignore x-show="viewMode === 'chat'" x-cloak class="relative flex flex-1 flex-col overflow-hidden">
+        <main wire:ignore class="relative flex flex-1 flex-col overflow-hidden">
+            @if (! $providerCallsAllowed)
+                <p class="mx-4 mt-4 rounded-xl border border-amber-300 p-3 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-200">
+                    External AI calls disabled. Enable advisory and accept the data disclosure in AI Settings before using manual chat. Policy decision history remains available.
+                </p>
+            @endif
             <p x-show="manualChatEnabled && !providerCallsAllowed" x-cloak role="status" class="mx-4 mt-4 rounded-xl border border-amber-300 p-3 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-200">
                 Manual chat is on. Sending is disabled until advisory is enabled and the data disclosure is accepted.
                 <a href="{{ \App\Filament\Clusters\Settings\Pages\AiSettingsPage::getUrl(panel: 'admin') }}" class="font-medium underline underline-offset-4">Open AI Settings</a>
@@ -519,7 +427,7 @@
                 <template x-if="messages.length === 0">
                     <div class="relative flex min-h-full flex-col items-center justify-center px-4 py-8 text-center sm:py-12">
                         <div class="relative z-10 m-auto flex w-full max-w-xl flex-col items-center">
-                            {{-- Brand mark — Quiet, elegant glyph mark --}}
+                            {{-- Brand mark --}}
                             <div class="welcome-logo mb-5 flex flex-col items-center">
                                 <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-xs ring-1 ring-black/5 dark:bg-zinc-100 dark:text-zinc-950 dark:ring-white/10 sm:h-12 sm:w-12">
                                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
