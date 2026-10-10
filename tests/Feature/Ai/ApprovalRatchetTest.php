@@ -26,7 +26,6 @@ use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Tools\Request;
-use ReflectionMethod;
 
 /**
  * The ratchet: the model proposes, PHP disposes.

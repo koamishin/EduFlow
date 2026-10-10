@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\Notification;
 use Tests\TestCase;
 
 /*
@@ -44,7 +45,37 @@ expect()->extend('toBeOne', fn () => $this->toBe(1));
 |
 */
 
-function something(): void
-{
-    // ..
+if (! function_exists('makeDatabaseNotification')) {
+    /**
+     * Minimal database-channel notification so tests can seed real rows without
+     * committing a notification class to app/.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    function makeDatabaseNotification(array $data): Notification
+    {
+        return new class($data) extends Notification
+        {
+            /**
+             * @param  array<string, mixed>  $data
+             */
+            public function __construct(private readonly array $data) {}
+
+            /**
+             * @return list<string>
+             */
+            public function via(object $notifiable): array
+            {
+                return ['database'];
+            }
+
+            /**
+             * @return array<string, mixed>
+             */
+            public function toArray(object $notifiable): array
+            {
+                return $this->data;
+            }
+        };
+    }
 }
