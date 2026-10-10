@@ -10,6 +10,7 @@ use Database\Factories\PaymentIntentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 use JsonException;
 use LogicException;
@@ -376,5 +377,34 @@ class PaymentIntent extends Model
     public function preparer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'prepared_by');
+    }
+
+    /** @return BelongsTo<FinancePolicyVersion, $this> */
+    public function financePolicyVersion(): BelongsTo
+    {
+        return $this->belongsTo(FinancePolicyVersion::class, 'finance_policy_version_id');
+    }
+
+    /** @return BelongsTo<VendorDestinationVersion, $this> */
+    public function vendorDestinationVersion(): BelongsTo
+    {
+        return $this->belongsTo(VendorDestinationVersion::class, 'vendor_destination_version_id');
+    }
+
+    /** @return BelongsTo<InvoiceVersionReview, $this> */
+    public function invoiceVersionReview(): BelongsTo
+    {
+        return $this->belongsTo(InvoiceVersionReview::class, 'invoice_version_review_id');
+    }
+
+    /**
+     * At most one hold may exist per intent, so this is the inverse of the
+     * reservation's belongsTo rather than a collection.
+     *
+     * @return HasOne<PaymentReservation, $this>
+     */
+    public function reservation(): HasOne
+    {
+        return $this->hasOne(PaymentReservation::class, 'payment_intent_id');
     }
 }

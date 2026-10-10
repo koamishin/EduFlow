@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\CurrencyCode;
 use Brick\Math\BigInteger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -68,6 +69,12 @@ class CollectionBatch extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(CollectionBatchReview::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function preparer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'prepared_by');
     }
 
     public function getCollectedFromAttribute(string $value): Carbon
