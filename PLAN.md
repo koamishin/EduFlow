@@ -11,14 +11,39 @@ plan. 1282 Pest tests pass (3 skipped). No payment path was enabled by that work
 
 **Not built, in dependency order — this is the critical path:**
 
-1. **Funding-window rollover** — still open. A window expires in 15 minutes and
-   cannot be reopened; `PrepareFundingWindow` refuses while any approval exists. Its
-   predecessor-reviewed release is now delivered (below), but rollover itself is not.
-2. Durable **outbox + attempt identity** for submission/recovery.
+1. **Funding-window rollover** — still open. A window expires in 15 minutes and cannot be
+   reopened; `PrepareFundingWindow` refuses while any approval exists. **This blocks the
+   autonomous lane, not the human lane**: a supervised approval can use its window in place.
+2. Durable **outbox + attempt identity** — **delivered**, see below.
 3. **Isolated executor + Arc settlement verification** (§17 step 12). Every `evidence()`
-   still hardcodes `can_execute: false`.
-4. **Bounded autonomous lane** (§18) — depends entirely on 1–3.
+   still hardcodes `can_execute: false`. This is now the only blocker to the §14.4 Step 4
+   target.
+4. **Bounded autonomous lane** (§18) — depends on 1 and 3.
 5. **Inbound collection** (§12.5, §15.6) — entirely unmodelled; no payer identity exists.
+
+**Ordering correction (2026-10-10):** an earlier revision listed rollover first. That was
+wrong. Rollover is an unattended-operation blocker; the §14.4 Step 4/5 human lane already
+has its 15-minute window in hand. The outbox was therefore built first, and the executor is
+the single remaining blocker to the current delivery target.
+
+**Delivered (2026-10-10): durable submission outbox and attempt identity.**
+`PaymentSubmissionOutbox` is written inside the authorization's own transaction, so an
+approved payment can never exist without a durable obligation to submit it — the
+commit-to-broker gap is closed by construction rather than by a retry. Identity
+(`request_key`, `provider_idempotency_key = eduflow:{request_key}`, and every bound digest)
+is immutable and stable across replays; only queue progress moves, and a concluded entry can
+never be reopened. `PaymentSubmissionAttempt` is append-only with dense numbering, so a gap
+means a lost write rather than a silent skip. The submission key is a UUIDv5 derived from the
+authorization digest, so re-running the same review recomputes the same identity instead of
+minting a second owed payment. A simulated (fake-driver) approval is deliberately **not**
+queued: rehearsal must never become work a rail could act on. The runtime
+(`EDUFLOW_SUBMISSION_ENABLED`) defaults off and refuses a `sync` connection; the worker
+re-reads authority rather than trusting the enqueue moment, treats an expired approval or
+expired worker lease as `unknown` to be reconciled rather than retried blindly, honours the
+stop switch without erasing evidence or releasing a hold, and **submits nothing** — no
+executor ships, so each pass records one append-only attempt and concludes `blocked` with an
+explicit reason. `can_execute`, `payments_submitted` and `external_funds_locked` stay false
+throughout.
 
 **Delivered since the dashboards (2026-10-10): reviewed reservation release.**
 `PaymentReservationRelease` + `PaymentReservationReleaseReview`, append-only, maker/checker
@@ -2805,6 +2830,7 @@ Its prerequisites, in order:
    any approval exists, and cross-window capacity reuse remains unproven.
 2. **Durable outbox and attempt identity**, committed with the domain change and dispatched
    only after commit, with a recovery sweep for committed-but-undispatched work (§14.8).
+   **Delivered** — see "Where Things Stand".
 3. **The executor itself**, plus the settlement predicate.
 
 Until those exist, any "the agent pays the vendor" claim is false regardless of how complete

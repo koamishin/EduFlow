@@ -12,6 +12,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Payment Submission Runtime
+    |--------------------------------------------------------------------------
+    |
+    | Durable submission work is recorded the moment a payment is authorized,
+    | but nothing is ever handed to a worker unless an operator turns this on.
+    | Enabling it is a separate, reviewed decision because it is the first step
+    | toward an executor that talks to a rail, and the release it points at.
+    |
+    | No executor ships in this build. A dispatched entry is inspected and
+    | concluded as blocked with an explicit reason; it is never submitted.
+    | `stop_switch` holds new submissions without erasing evidence or
+    | releasing a hold.
+    |
+    */
+
+    'submission' => [
+        'enabled' => env('EDUFLOW_SUBMISSION_ENABLED', false),
+        'queue_connection' => env('EDUFLOW_SUBMISSION_QUEUE_CONNECTION', 'database'),
+        'queue' => 'finance-submission',
+        'stop_switch' => env('EDUFLOW_SUBMISSION_STOP', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Dual-Currency Display
     |--------------------------------------------------------------------------
     |
