@@ -1,11 +1,13 @@
 ---
 paths:
-  - app/Services/Lepton*.php
-  - app/Services/Lepton/**/*.php
-  - app/Console/Commands/Lepton*.php
+  - 'app/Services/Lepton*.php'
+  - 'app/Services/Lepton/**/*.php'
+  - 'app/Console/Commands/Lepton*.php'
   - app/Console/Commands/EduFlowDemo.php
-  - database/seeders/**/*Lepton*.php
-  - database/seeders/**/*Financial*.php
+  - 'database/seeders/**/*Lepton*.php'
+  - 'database/seeders/**/*Financial*.php'
+  - app/Services/ArcSettlementVerifier.php
+  - app/Services/IsolatedPaymentExecutor.php
 ---
 
 # Lepton / Arc testnet settlement
@@ -74,3 +76,9 @@ Explanations that restate fixed figures (`AskEduFlow`, dashboard copy, suggested
 questions) drift the moment a threshold changes, and then contradict the decision they
 are describing. Read the active `AssistancePolicyVersion` and the recorded decision, and
 assert in tests that the only USDC figure in a split explanation is the live auto-limit.
+
+## Settlement verdicts are never blame-assigning
+Only the `verified` verdict means money moved, and only after successful execution in a committed block with matching sender, recipient and amount. Every other verdict (pending, dropped, not_found, unreadable, mismatched, reverted, fee_exceeded) must keep `settled: false` and `fabricated: false`. Never derive `fabricated` from a null/failed lookup — an unreadable chain is unresolved, not evidence of wrongdoing.
+
+## The executor is the only signer and reports uncertainty honestly
+Gated on EDUFLOW_SUBMISSION_ENABLED plus an Arc-testnet-only rail check with no mainnet fallback. A provider timeout or malformed response is `unknown`, never `failed` — a blind resend risks paying twice, so reconcile the existing attempt instead. It decides nothing about which bill, what amount or which recipient; those arrive bound in the outbox snapshot.

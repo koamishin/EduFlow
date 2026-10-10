@@ -1,0 +1,621 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Actions\ReviewVendorPayment;
+use App\Enums\TransactionType;
+use App\Jobs\ProcessPaymentSubmission;
+use App\Models\PaymentIntent;
+use App\Models\PaymentSubmissionAttempt;
+use App\Models\PaymentSubmissionOutbox;
+use App\Models\Transaction;
+use App\Services\ArcSettlementVerifier;
+use App\Services\IsolatedPaymentExecutor;
+use App\Services\PaymentSettlementReconciler;
+use Brick\Math\BigInteger;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Mockery\MockInterface;
+use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
+use Yukazakiri\Lepton\Contracts\WalletGateway;
+use Yukazakiri\Lepton\DTOs\BalanceResult;
+use Yukazakiri\Lepton\DTOs\TransferResult;
+
+/**
+ * The isolated executor and the Arc settlement predicate.
+ *
+ * These tests exist because the failure they guard against is invisible: a
+ * payment system that reports success without money moving looks identical to
+ * one that worked, until a vendor is unpaid. So the properties under test are
+ * the uncomfortable ones — that a hash alone proves nothing, that a lookup
+ * failure is never fabrication, that inclusion is not finality, and that a
+ * mismatched amount is a mismatch even when everything else lines up.
+ */
+function verifierExpected(array $overrides = []): array
+{
+    return $overrides + [
+        'chain' => 'ARC-TESTNET',
+        'chain_id' => 5042002,
+        'sender' => '0x'.str_repeat('1', 40),
+        'recipient' => '0x'.str_repeat('2', 40),
+        'amount_base_units' => 25_000000,
+        'max_fee_base_units' => 1_000000,
+    ];
+}
+
+function hexQty(int|string|BigInteger $value): string
+{
+    return '0x'.(is_string($value) ? $value : BigInteger::of($value)->toBase(16));
+}
+
+/**
+ * @param  array<string, mixed>  $responses
+ */
+function stubArc(array $responses, string $expectation = 'any'): ArcNetworkGateway&MockInterface
+{
+    $arc = Mockery::mock(ArcNetworkGateway::class);
+    $arc->shouldReceive('chainCode')->andReturn('ARC-TESTNET');
+    $arc->shouldReceive('chainId')->andReturn(5042002);
+    $arc->shouldReceive('rpcUrl')->andReturn('https://rpc.testnet.arc.network');
+    $arc->shouldReceive('explorerUrl')->andReturnUsing(fn (string $hash): string => 'https://explorer.testnet.arc.network/tx/'.$hash);
+    $arc->shouldReceive('rpc')->andReturnUsing(function (string $method, array $params) use ($responses): mixed {
+        if (! array_key_exists($method, $responses)) {
+            throw new RuntimeException('Unexpected Arc read: '.$method);
+        }
+
+        $value = $responses[$method];
+
+        if ($value instanceof Throwable) {
+            throw $value;
+        }
+
+        return $value;
+    });
+
+    app()->instance(ArcNetworkGateway::class, $arc);
+
+    return $arc;
+}
+
+/** A committed, successful native-value receipt for the authorized movement. */
+function settledReceipt(array $overrides = []): array
+{
+    return $overrides + [
+        'eth_getTransactionReceipt' => [
+            'transactionHash' => '0x'.str_repeat('f', 64),
+            'blockNumber' => '0x64',
+            'status' => '0x1',
+            'gasUsed' => hexQty(21000),
+            'effectiveGasPrice' => hexQty(1_000000000),
+            'logs' => [],
+        ],
+        'eth_getTransactionByHash' => [
+            'from' => '0x'.str_repeat('1', 40),
+            'to' => '0x'.str_repeat('2', 40),
+            'value' => hexQty(BigInteger::of(25_000000)->multipliedBy(BigInteger::of('1000000000000'))),
+            'blockNumber' => '0x64',
+        ],
+        'eth_getBlockByNumber' => ['number' => '0x64', 'hash' => '0x'.str_repeat('a', 64), 'timestamp' => '0x65'],
+    ];
+}
+
+/**
+ * A committed, successful native-value receipt for an actual owed payment.
+ *
+ * The chain reads have to describe the movement that was actually authorized,
+ * so the fixture is built from the entry rather than from hardcoded values —
+ * otherwise the test would pass a predicate that is only ever asked about a
+ * payment nobody made.
+ */
+function settledReceiptFor(PaymentSubmissionOutbox $entry, array $overrides = []): array
+{
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['from'] = $entry->snapshot['source_address'];
+    $responses['eth_getTransactionByHash']['to'] = $entry->snapshot['recipient_address'];
+    $responses['eth_getTransactionByHash']['value'] = hexQty(
+        BigInteger::of((int) $entry->snapshot['amount_base_units'])->multipliedBy(BigInteger::of('1000000000000')),
+    );
+
+    // Gas is priced at the floor so the fee lands under whatever ceiling the
+    // reviewer actually approved for this payment. Fee enforcement has its own
+    // tests that set the price deliberately.
+    $responses['eth_getTransactionReceipt']['effectiveGasPrice'] = '0x1';
+
+    foreach ($overrides as $method => $value) {
+        $responses[$method] = $value;
+    }
+
+    return $responses;
+}
+
+// ---------------------------------------------------------------------------
+// The settlement predicate
+// ---------------------------------------------------------------------------
+
+test('a committed successful receipt with matching movement is the only path to verified', function (): void {
+    stubArc(settledReceipt());
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('verified')
+        ->and($verdict['settled'])->toBeTrue()
+        ->and($verdict['reason'])->toContain('matching sender, recipient and amount');
+});
+
+test('a hash that is merely present is not settlement', function (): void {
+    // The exact trap: a receipt exists, execution succeeded, but the amount
+    // moved is not the amount that was authorized.
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['value'] = hexQty(BigInteger::of(1_000000)->multipliedBy(BigInteger::of('1000000000000')));
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('mismatched')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['reason'])->toContain('No native value or canonical Transfer log');
+});
+
+test('a payment to the wrong recipient is a mismatch even at the right amount', function (): void {
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['to'] = '0x'.str_repeat('9', 40);
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('mismatched')
+        ->and($verdict['reason'])->toContain('No native value or canonical Transfer log')
+        ->and($verdict['settled'])->toBeFalse();
+});
+
+test('a payment from the wrong treasury is a mismatch before economics are even read', function (): void {
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['from'] = '0x'.str_repeat('9', 40);
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('mismatched')
+        ->and($verdict['reason'])->toContain('Sender on chain does not match')
+        ->and($verdict['settled'])->toBeFalse();
+});
+
+test('inclusion is not finality: a reverted execution is not a settlement', function (): void {
+    $responses = settledReceipt();
+    $responses['eth_getTransactionReceipt']['status'] = '0x0';
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('reverted')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['reason'])->toContain('can still revert');
+});
+
+test('an uncommitted block leaves the outcome unresolved', function (): void {
+    $responses = settledReceipt();
+    $responses['eth_getBlockByNumber'] = null;
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('unreadable')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['requires_investigation'])->toBeTrue();
+});
+
+test('a transaction known to the chain but not yet in a block is pending, not failed', function (): void {
+    stubArc([
+        'eth_getTransactionReceipt' => null,
+        'eth_getTransactionByHash' => ['from' => '0x'.str_repeat('1', 40), 'blockNumber' => null],
+    ]);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('pending')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['reason'])->toContain('may still settle');
+});
+
+test('a transaction claiming a block but carrying no receipt is dropped, not settled', function (): void {
+    stubArc([
+        'eth_getTransactionReceipt' => null,
+        'eth_getTransactionByHash' => ['from' => '0x'.str_repeat('1', 40), 'blockNumber' => '0x64'],
+    ]);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('dropped')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['fabricated'])->toBeFalse();
+});
+
+test('a missing hash is never reported as fabrication', function (): void {
+    // This is the defect the predicate exists to replace: an RPC that cannot
+    // answer is not evidence that nobody was paid.
+    stubArc(['eth_getTransactionReceipt' => null, 'eth_getTransactionByHash' => null]);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('not_found')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['fabricated'])->toBeFalse()
+        ->and($verdict['reason'])->toContain('Absence is not evidence of fabrication')
+        ->and($verdict['requires_investigation'])->toBeTrue();
+});
+
+test('an unreadable chain is unknown rather than a verdict', function (): void {
+    stubArc(['eth_getTransactionReceipt' => new RuntimeException('gateway timeout')]);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('unreadable')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['fabricated'])->toBeFalse()
+        ->and($verdict['reason'])->toContain('unknown and requires investigation');
+});
+
+test('a malformed provider reference is refused before any chain read', function (): void {
+    // No stub is registered: reaching the chain at all is the failure.
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), 'not-a-hash');
+
+    expect($verdict['verdict'])->toBe('not_found')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['reason'])->toContain('not a transaction hash');
+});
+
+test('an ERC-20 Transfer log settles a payment carried on the token interface', function (): void {
+    // Arc exposes the same USDC through a native 18-decimal balance and a
+    // 6-decimal ERC-20 interface; either may carry the authorized amount.
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['to'] = '0x'.str_repeat('7', 40);
+    $responses['eth_getTransactionByHash']['value'] = '0x0';
+    $responses['eth_getTransactionReceipt']['logs'] = [[
+        'topics' => [
+            '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+            '0x000000000000000000000000'.str_repeat('1', 40),
+            '0x000000000000000000000000'.str_repeat('2', 40),
+        ],
+        'data' => hexQty(BigInteger::of(25_000000)),
+    ]];
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('verified')
+        ->and($verdict['settled'])->toBeTrue();
+});
+
+test('the amount present on both interfaces is refused rather than double-counted', function (): void {
+    $responses = settledReceipt();
+    $responses['eth_getTransactionReceipt']['logs'] = [[
+        'topics' => [
+            '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+            '0x000000000000000000000000'.str_repeat('1', 40),
+            '0x000000000000000000000000'.str_repeat('2', 40),
+        ],
+        'data' => hexQty(BigInteger::of(25_000000)),
+    ]];
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('mismatched')
+        ->and($verdict['reason'])->toContain('Refusing to double-count')
+        ->and($verdict['settled'])->toBeFalse();
+});
+
+test('a fee above the approved ceiling is not a settlement', function (): void {
+    // 2e9 gas at 1 gwei is 2e18 wei, i.e. 2 USDC — over the 1 USDC ceiling
+    // the reviewer approved.
+    stubArc(settledReceipt([
+        'eth_getTransactionReceipt' => [
+            'transactionHash' => '0x'.str_repeat('f', 64),
+            'blockNumber' => '0x64',
+            'status' => '0x1',
+            'gasUsed' => hexQty(2_000000000),
+            'effectiveGasPrice' => hexQty(1_000000000),
+            'logs' => [],
+        ],
+    ]));
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(['max_fee_base_units' => 1_000000]), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('fee_exceeded')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($verdict['reason'])->toContain('exceeded the approved ceiling');
+});
+
+test('a native interface amount is read at eighteen decimals, not truncated', function (): void {
+    // 25.000001 USDC must not be rounded to 25.00 and accepted.
+    $expected = verifierExpected(['amount_base_units' => 25_000001]);
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['value'] = hexQty(BigInteger::of(25_000000)->multipliedBy(BigInteger::of('1000000000000')));
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify($expected, '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('mismatched')
+        ->and($verdict['settled'])->toBeFalse();
+});
+
+// ---------------------------------------------------------------------------
+// The isolated executor
+// ---------------------------------------------------------------------------
+
+/**
+ * @return array{0: PaymentSubmissionOutbox, 1: array<string, mixed>}
+ */
+function executorEntry(): array
+{
+    $c = paymentAuthorizationContext();
+    $authorization = app(ReviewVendorPayment::class)->handle($c['reviewer'], $c['drafts'][0], paymentAuthorizationInput($c));
+
+    $entry = PaymentSubmissionOutbox::query()
+        ->where('payment_authorization_id', $authorization->id)
+        ->firstOrFail();
+
+    return [$entry, $c];
+}
+
+function executorGateway(?Throwable $throws = null, bool $fake = false): WalletGateway&MockInterface
+{
+    $wallets = Mockery::mock(WalletGateway::class);
+    $wallets->shouldReceive('transfer')->andReturnUsing(
+        function (string $from, string $to, int $amount, array $options = []) use ($throws, $fake): TransferResult {
+            if ($throws instanceof Throwable) {
+                throw $throws;
+            }
+
+            return new TransferResult(
+                txHash: '0x'.str_repeat('f', 64),
+                fromAddress: $from,
+                toAddress: $to,
+                amountBaseUnits: $amount,
+                chain: (string) $options['chain'],
+                isFake: $fake,
+                explorerUrl: 'https://explorer.testnet.arc.network/tx/'.str_repeat('f', 64),
+            );
+        },
+    );
+    $wallets->shouldReceive('balance')->andReturn(new BalanceResult('0x'.str_repeat('1', 40), 100_000000, 'ARC-TESTNET'));
+
+    app()->instance(WalletGateway::class, $wallets);
+
+    return $wallets;
+}
+
+test('the executor refuses to run while the submission runtime is off', function (): void {
+    [$entry] = executorEntry();
+    executorGateway();
+    config(['eduflow.submission.enabled' => false]);
+
+    expect(fn () => app(IsolatedPaymentExecutor::class)->submit($entry))
+        ->toThrow(ValidationException::class, 'Payment submission runtime is disabled');
+});
+
+test('the executor refuses anything but the explicitly configured Arc testnet rail', function (): void {
+    [$entry] = executorEntry();
+    executorGateway();
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    $entry->snapshot = ['chain' => 'ARC-MAINNET', 'chain_id' => 12345] + $entry->snapshot;
+
+    expect(fn () => app(IsolatedPaymentExecutor::class)->submit($entry))
+        ->toThrow(ValidationException::class, 'mainnet remains blocked');
+});
+
+test('the executor refuses a destination address that is not a usable address', function (): void {
+    [$entry] = executorEntry();
+    executorGateway();
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    $entry->snapshot = ['recipient_address' => '0xnothex'] + $entry->snapshot;
+
+    expect(fn () => app(IsolatedPaymentExecutor::class)->submit($entry))
+        ->toThrow(ValidationException::class, 'not a usable address');
+});
+
+test('the stop switch holds submission without erasing the owed payment', function (): void {
+    [$entry] = executorEntry();
+    executorGateway();
+    config(['eduflow.submission.enabled' => true, 'eduflow.submission.stop_switch' => true]);
+
+    expect(fn () => app(IsolatedPaymentExecutor::class)->submit($entry))
+        ->toThrow(ValidationException::class, 'stop switch is engaged')
+        ->and($entry->fresh()->state)->toBe('queued')
+        ->and(Transaction::query()->count())->toBe(0);
+});
+
+test('the fee preflight validates without broadcasting a write', function (): void {
+    [$entry] = executorEntry();
+
+    $seen = [];
+    $wallets = Mockery::mock(WalletGateway::class);
+    $wallets->shouldReceive('transfer')->andReturnUsing(
+        function (string $from, string $to, int $amount, array $options = []) use (&$seen): TransferResult {
+            $seen = $options;
+
+            return new TransferResult('0x'.str_repeat('f', 64), $from, $to, $amount, 'ARC-TESTNET');
+        },
+    );
+    app()->instance(WalletGateway::class, $wallets);
+
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    app(IsolatedPaymentExecutor::class)->estimate($entry);
+
+    expect($seen['estimate'])->toBeTrue()
+        ->and($seen['idempotencyKey'])->toBe($entry->provider_idempotency_key)
+        ->and($seen['chain'])->toBe('ARC-TESTNET');
+});
+
+test('an uncertain provider response is unknown, never a failure', function (): void {
+    [$entry] = executorEntry();
+    executorGateway(new RuntimeException('read: timeout'));
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    $outcome = app(IsolatedPaymentExecutor::class)->submit($entry);
+
+    // A blind retry here risks paying twice, so the executor reports the
+    // uncertainty rather than resolving it on the caller's behalf.
+    expect($outcome['outcome'])->toBe('unknown')
+        ->and($outcome['provider_reference'])->toBeNull()
+        ->and($outcome['detail']['provider_exception'])->toBeTrue();
+});
+
+test('a simulated transfer is never submitted as a network movement', function (): void {
+    [$entry] = executorEntry();
+    executorGateway(fake: true);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'fake']);
+
+    $outcome = app(IsolatedPaymentExecutor::class)->submit($entry);
+
+    expect($outcome['outcome'])->toBe('blocked')
+        ->and($outcome['detail']['is_fake'])->toBeTrue();
+});
+
+test('a submitted reference is recorded as submitted, never as settled', function (): void {
+    [$entry] = executorEntry();
+    executorGateway();
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    (new ProcessPaymentSubmission($entry->id))
+        ->handle(app(IsolatedPaymentExecutor::class));
+
+    $entry->refresh();
+
+    expect($entry->state)->toBe('submitted')
+        ->and($entry->stage)->toBe('awaiting_settlement_verification')
+        ->and($entry->result['settled'])->toBeFalse()
+        ->and($entry->result['can_execute'])->toBeFalse()
+        ->and($entry->result['provider_reference'])->toBe('0x'.str_repeat('f', 64));
+
+    $attempt = PaymentSubmissionAttempt::query()
+        ->where('payment_submission_outbox_id', $entry->id)
+        ->firstOrFail();
+
+    expect($attempt->outcome)->toBe('submitted')
+        ->and($attempt->provider_idempotency_key)->toBe($entry->provider_idempotency_key)
+        ->and(Transaction::query()->count())->toBe(0);
+});
+
+// ---------------------------------------------------------------------------
+// Reconciliation: the only path from a reference to a settlement
+// ---------------------------------------------------------------------------
+
+test('only a verified verdict completes an entry, and the hold is what releases capacity', function (): void {
+    [$entry] = executorEntry();
+    executorGateway();
+    stubArc(settledReceiptFor($entry));
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
+
+    $verdict = app(PaymentSettlementReconciler::class)->reconcile($entry->fresh());
+
+    expect($verdict['settled'])->toBeTrue()
+        ->and($entry->fresh()->state)->toBe('completed')
+        ->and($entry->fresh()->stage)->toBe('verified_settled')
+        ->and($entry->fresh()->result['can_execute'])->toBeFalse();
+});
+
+test('an unresolved verdict keeps the entry owed and holds its capacity', function (): void {
+    [$entry, $c] = executorEntry();
+    executorGateway();
+    stubArc(['eth_getTransactionReceipt' => null, 'eth_getTransactionByHash' => ['blockNumber' => null]]);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
+
+    $verdict = app(PaymentSettlementReconciler::class)->reconcile($entry->fresh());
+
+    expect($verdict['verdict'])->toBe('pending')
+        ->and($entry->fresh()->state)->toBe('unknown')
+        ->and($entry->fresh()->result['fabricated'])->toBeFalse()
+        ->and($c['hold']->fresh()->isReleased())->toBeFalse()
+        ->and(Transaction::query()->count())->toBe(0);
+});
+
+test('an entry with no provider reference is not verifiable and never settles', function (): void {
+    [$entry] = executorEntry();
+    stubArc(settledReceipt());
+
+    $verdict = app(PaymentSettlementReconciler::class)->reconcile($entry);
+
+    expect($verdict['verdict'])->toBe('not_applicable')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($entry->fresh()->state)->toBe('queued');
+});
+
+test('a fee above the approved ceiling leaves the entry owed end to end', function (): void {
+    // Guards the reconciler path specifically: a verdict that says "verified"
+    // while silently under-reading the fee would complete an entry the
+    // reviewer never actually authorised at that cost.
+    [$entry] = executorEntry();
+    executorGateway();
+
+    $ceiling = (int) $entry->snapshot['max_fee_base_units'];
+    $responses = settledReceiptFor($entry);
+    $responses['eth_getTransactionReceipt']['effectiveGasPrice'] = hexQty(1_000000000);
+    stubArc($responses);
+
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
+
+    $verdict = app(PaymentSettlementReconciler::class)->reconcile($entry->fresh());
+
+    expect($ceiling)->toBe(2)
+        ->and($verdict['verdict'])->toBe('fee_exceeded')
+        ->and($verdict['settled'])->toBeFalse()
+        ->and($entry->fresh()->state)->toBe('unknown')
+        ->and($entry->fresh()->stage)->toBe('unverified_fee_exceeded')
+        ->and(app(PaymentSettlementReconciler::class)->mirrorSettlement($entry->fresh(), $verdict))->toBeNull()
+        ->and(Transaction::query()->count())->toBe(0);
+});
+
+test('a mirrored settlement records the full six-decimal amount without rounding', function (): void {
+    // The intent pays 25.000001 USDC. A 2-decimal ledger column would render
+    // this as 25.00 — a figure the chain never confirmed.
+    [$entry] = executorEntry();
+    executorGateway();
+    stubArc(settledReceiptFor($entry));
+
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
+
+    $entry->refresh();
+    $verdict = app(PaymentSettlementReconciler::class)->reconcile($entry);
+    $mirror = app(PaymentSettlementReconciler::class)->mirrorSettlement($entry, $verdict);
+
+    expect((int) $entry->snapshot['amount_base_units'])->toBe(25_000001)
+        ->and($mirror)->not->toBeNull()
+        ->and($mirror->metadata['amount_base_units'])->toBe('25000001')
+        // The integer in metadata is the authoritative amount: the column is
+        // a convenience view, and SQLite stores a `decimal` as a double, so
+        // only the integer is exact everywhere. This asserts the figure
+        // rounds to 25.000001 rather than 25.00 — the rounding the old
+        // 2-decimal column would have applied.
+        ->and(round((float) DB::table('transactions')->where('id', $mirror->id)->value('amount'), 6))->toBe(25.000001);
+});
+
+test('a mirrored settlement records the exact amount and never settles the local payable', function (): void {
+    [$entry] = executorEntry();
+    executorGateway();
+    stubArc(settledReceiptFor($entry));
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
+
+    $entry->refresh();
+    $verdict = app(PaymentSettlementReconciler::class)->reconcile($entry);
+    $mirror = app(PaymentSettlementReconciler::class)->mirrorSettlement($entry, $verdict);
+
+    expect($mirror)->not->toBeNull()
+        ->and($mirror->type)->toBe(TransactionType::VENDOR_PAYMENT)
+        ->and($mirror->metadata['settles_local_payable'])->toBeFalse()
+        ->and($mirror->metadata['local_accounts_changed'])->toBeFalse()
+        ->and($mirror->provider_tx_hash)->toBe('0x'.str_repeat('f', 64))
+        ->and($mirror->network)->toBe('ARC-TESTNET')
+        ->and(PaymentIntent::query()->findOrFail($entry->payment_intent_id)->exists())->toBeTrue();
+});

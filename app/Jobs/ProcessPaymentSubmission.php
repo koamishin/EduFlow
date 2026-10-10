@@ -8,26 +8,22 @@ use App\Models\PaymentIntent;
 use App\Models\PaymentSubmissionAttempt;
 use App\Models\PaymentSubmissionOutbox;
 use App\Models\Transaction;
+use App\Services\IsolatedPaymentExecutor;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
- * Picks up one durably owed submission.
+ * Picks up one durably owed submission and, when an executor is enabled,
+ * submits it once through the isolated component.
  *
- * **This job submits nothing.** No executor ships in this build, so the worker
- * re-checks its own authority, records exactly one append-only attempt, and
- * concludes the entry as `blocked` with an explicit reason. Every property
- * that a real executor must satisfy — dense attempt numbering, a stable
- * provider idempotency key, an append-only outcome, no transaction row — is
- * therefore already exercised, and the only thing left to write later is the
- * gateway call itself.
- *
- * Writing a fake "submitted" result here would be the single most damaging
- * thing this class could do: the plan is explicit that a stored hash is a
- * claim, not proof, and that unknown outcomes are reconciled rather than
- * retried.
+ * Submission and settlement are separate acts. This job can only reach
+ * `submitted`, which records a provider reference and nothing more. Whether
+ * that reference became money on Arc is decided later by
+ * `ReconcilePaymentSubmission` through `ArcSettlementVerifier`, and only a
+ * `verified` verdict moves an entry to `completed`. A stored hash is a claim.
  */
 class ProcessPaymentSubmission implements ShouldQueue
 {
@@ -37,12 +33,12 @@ class ProcessPaymentSubmission implements ShouldQueue
 
     public function __construct(public readonly int $outboxId) {}
 
-    public function handle(): void
+    public function handle(IsolatedPaymentExecutor $executor): void
     {
         /** @var PaymentSubmissionOutbox|null $entry */
         $entry = PaymentSubmissionOutbox::query()->find($this->outboxId);
 
-        if ($entry === null) {
+        if ($entry === null || ! $entry->isOpen()) {
             return;
         }
 
@@ -52,65 +48,110 @@ class ProcessPaymentSubmission implements ShouldQueue
         $entry->stage = 'revalidating_authority';
         $entry->save();
 
-        try {
-            // Authority is re-read here, never trusted from the enqueue moment.
-            if (! $entry->hasValidSnapshot() || ! $entry->bindsCurrentAuthorization()) {
-                $this->conclude($entry, 'blocked', 'authorization_stale',
-                    'Authorization evidence is no longer intact or current. Fresh review is required; nothing is submitted.');
+        $blocked = $this->blockingReason($entry);
 
-                return;
-            }
+        if ($blocked !== null) {
+            [$stage, $reason] = $blocked;
+            $this->conclude($entry, 'blocked', $stage, $reason);
 
-            $authorization = $entry->authorization?->evidence() ?? [];
-
-            if (($authorization['payment_approved'] ?? false) !== true) {
-                $this->conclude($entry, 'blocked', 'approval_expired',
-                    'Approval is no longer current. An expired authorization is never submitted on its original authority.');
-
-                return;
-            }
-
-            if (($authorization['is_fake'] ?? false) === true) {
-                $this->conclude($entry, 'blocked', 'simulation_evidence',
-                    'Bound evidence is from the fake driver. Simulation is never submitted to a network rail.');
-
-                return;
-            }
-
-            if (($entry->snapshot['chain'] ?? null) !== 'ARC-TESTNET' || ($entry->snapshot['chain_id'] ?? null) !== 5042002) {
-                $this->conclude($entry, 'blocked', 'non_testnet_rail',
-                    'Only explicitly configured Arc testnet execution is permitted; mainnet remains blocked.');
-
-                return;
-            }
-
-            // Stop switch: blocks new submissions at executor time, and does
-            // not erase the evidence or release the hold.
-            if (config('eduflow.submission.stop_switch', false) === true) {
-                $this->conclude($entry, 'blocked', 'stop_switch',
-                    'Submission stop switch is engaged. Queued work is held; in-flight reconciliation and evidence are preserved.');
-
-                return;
-            }
-
-            $this->conclude($entry, 'blocked', 'no_executor_shipped',
-                'No isolated submission executor exists in this build. The payment remains authorized, durably owed and unsent.');
-        } catch (Throwable $exception) {
-            $this->conclude($entry, 'unknown', 'worker_exception',
-                'Worker failed before a provider outcome was known: '.$exception->getMessage(), null, $exception);
+            return;
         }
+
+        if (! config('eduflow.submission.enabled', false)) {
+            $this->conclude($entry, 'blocked', 'runtime_disabled',
+                'Payment submission is not enabled for this installation. The payment remains authorized, durably owed and unsent.');
+
+            return;
+        }
+
+        try {
+            // Fee preflight before anything is broadcast.
+            $estimate = $executor->estimate($entry);
+            $entry->stage = 'fee_preflight_passed';
+            $entry->save();
+
+            $submission = $executor->submit($entry);
+        } catch (ValidationException $exception) {
+            $this->conclude($entry, 'blocked', 'preflight_refused', $exception->getMessage());
+
+            return;
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->conclude($entry, 'unknown', 'executor_failure',
+                'Executor failed before a provider outcome was known: '.$exception->getMessage());
+
+            return;
+        }
+
+        if ($submission['outcome'] === 'unknown') {
+            $this->conclude($entry, 'unknown', 'provider_unknown',
+                'Provider outcome is unknown. Reconcile the existing attempt before any retry; a blind resend risks paying twice.');
+
+            return;
+        }
+
+        if ($submission['outcome'] === 'blocked') {
+            $this->conclude($entry, 'blocked', 'simulation', (string) ($submission['detail']['reason'] ?? 'Simulation only.'));
+
+            return;
+        }
+
+        // Submitted, not settled. The reference is recorded and verified
+        // separately; nothing here concludes that money moved.
+        $this->record($entry, 'submitted', (string) $submission['provider_reference'], $submission['detail'], $estimate);
+
+        $entry->state = 'submitted';
+        $entry->stage = 'awaiting_settlement_verification';
+        $entry->next_attempt_at = null;
+        $entry->result = ['provider_reference' => $submission['provider_reference'],
+            'settled' => false, 'can_execute' => false, 'payments_submitted' => 1];
+        $entry->result_digest = PaymentIntent::digest($entry->result);
+        $entry->save();
     }
 
-    private function conclude(PaymentSubmissionOutbox $entry, string $state, string $stage, string $error,
-        ?array $response = null, ?Throwable $exception = null): void
+    /**
+     * Everything that must hold at execution time, re-read rather than
+     * trusted.
+     *
+     * Returns a distinct stage per refusal so an operator can see *which*
+     * gate held the work, rather than a single opaque "blocked".
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function blockingReason(PaymentSubmissionOutbox $entry): ?array
+    {
+        if (! $entry->hasValidSnapshot() || ! $entry->bindsCurrentAuthorization()) {
+            return ['authorization_stale', 'Authorization evidence is no longer intact or current. Fresh review is required; nothing is submitted.'];
+        }
+
+        $authorization = $entry->authorization?->evidence() ?? [];
+
+        if (($authorization['payment_approved'] ?? false) !== true) {
+            return ['approval_expired', 'Approval is no longer current. An expired authorization is never submitted on its original authority.'];
+        }
+
+        if (($authorization['is_fake'] ?? false) === true) {
+            return ['simulation_evidence', 'Bound evidence is from the fake driver. Simulation is never submitted to a network rail.'];
+        }
+
+        if (config('eduflow.submission.stop_switch', false) === true) {
+            return ['stop_switch', 'Submission stop switch is engaged. Queued work is held; in-flight reconciliation and evidence are preserved.'];
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $detail */
+    private function record(PaymentSubmissionOutbox $entry, string $outcome, ?string $reference,
+        array $detail = [], ?array $estimate = null): void
     {
         $attempt = new PaymentSubmissionAttempt([
             'organization_id' => $entry->organization_id,
             'payment_submission_outbox_id' => $entry->id,
             'attempt_number' => $entry->attempts,
             'provider_idempotency_key' => $entry->provider_idempotency_key,
-            'outcome' => $state === 'unknown' ? 'unknown' : 'blocked',
-            'provider_reference' => null,
+            'outcome' => $outcome,
+            'provider_reference' => $reference,
             'request_snapshot' => [
                 'request_key' => $entry->request_key,
                 'payment_intent_id' => $entry->payment_intent_id,
@@ -118,34 +159,32 @@ class ProcessPaymentSubmission implements ShouldQueue
                 'chain' => $entry->snapshot['chain'] ?? null,
                 'recipient_address' => $entry->snapshot['recipient_address'] ?? null,
             ],
-            'response_snapshot' => $response,
+            'response_snapshot' => ['detail' => $detail, 'estimate' => $estimate],
             'observed_at' => Carbon::now(),
         ]);
         $attempt->save();
+    }
+
+    private function conclude(PaymentSubmissionOutbox $entry, string $state, string $stage, string $error): void
+    {
+        $this->record($entry, $state === 'unknown' ? 'unknown' : 'blocked', null);
 
         $entry->state = $state;
         $entry->stage = $stage;
         $entry->last_error = mb_substr($error, 0, 1000);
         $entry->next_attempt_at = null;
-        $entry->result = ['stage' => $stage, 'attempt_number' => $attempt->attempt_number,
-            'outcome' => $attempt->outcome, 'provider_reference' => null,
-            'settled' => false, 'payments_submitted' => 0, 'can_execute' => false];
+        $entry->result = ['stage' => $stage, 'settled' => false, 'can_execute' => false, 'payments_submitted' => 0];
         $entry->result_digest = PaymentIntent::digest($entry->result);
         $entry->save();
 
-        activity('finance')->performedOn($entry)->event('payment_submission_'.$attempt->outcome)
+        activity('finance')->performedOn($entry)->event('payment_submission_'.$state)
             ->withProperties([
                 'payment_intent_id' => $entry->payment_intent_id,
-                'attempt_number' => $attempt->attempt_number,
                 'stage' => $stage,
                 'can_execute' => false,
                 'payments_submitted' => 0,
             ])
             ->log($error);
-
-        if ($exception !== null) {
-            report($exception);
-        }
     }
 
     public function failed(Throwable $exception): void
@@ -153,10 +192,8 @@ class ProcessPaymentSubmission implements ShouldQueue
         report($exception);
     }
 
-    /**
-     * Nothing in this build may ever produce a transaction row.
-     */
-    public static function submittedCount(): int
+    /** Nothing in this build may ever produce a transaction row from this job. */
+    public static function transactionCount(): int
     {
         return Transaction::query()->count();
     }

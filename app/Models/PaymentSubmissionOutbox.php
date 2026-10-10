@@ -50,7 +50,19 @@ use Throwable;
 class PaymentSubmissionOutbox extends Model
 {
     /** @var array<string, string> States that mean work is still owed. */
-    public const array OPEN_STATES = ['queued', 'running', 'unknown'];
+    public const array OPEN_STATES = ['queued', 'running', 'unknown', 'submitted'];
+
+    /**
+     * States a submission worker may pick up.
+     *
+     * Narrower than OPEN_STATES on purpose. A `submitted` entry is still owed
+     * work — its settlement is unproven and its capacity stays held — but it
+     * has already been sent to the rail. Handing it to a worker again would be
+     * a second submission, so only reconciliation may touch it.
+     *
+     * @var array<string, string>
+     */
+    public const array DISPATCHABLE_STATES = ['queued', 'running', 'unknown'];
 
     /** @var array<string, string> States that are terminal for this entry. */
     public const array TERMINAL_STATES = ['blocked', 'failed', 'completed', 'paused'];

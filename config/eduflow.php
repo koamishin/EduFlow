@@ -20,8 +20,11 @@ return [
     | Enabling it is a separate, reviewed decision because it is the first step
     | toward an executor that talks to a rail, and the release it points at.
     |
-    | No executor ships in this build. A dispatched entry is inspected and
-    | concluded as blocked with an explicit reason; it is never submitted.
+    | The isolated executor ships in this build but is gated behind this flag,
+    | and behind an explicit Arc *testnet* rail check with no fallback. A
+    | dispatched entry with the runtime off is inspected and concluded as
+    | blocked with a specific reason; it is never submitted.
+    |
     | `stop_switch` holds new submissions without erasing evidence or
     | releasing a hold.
     |

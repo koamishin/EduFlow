@@ -6,8 +6,10 @@
 
 ## Where Things Stand — Start Here in a New Session
 
-**Delivered and tested (2026-10-10):** Section 16 — both Filament panels rebuilt against this
-plan. 1282 Pest tests pass (3 skipped). No payment path was enabled by that work.
+**Delivered and tested (2026-10-11):** Section 16 (both panels rebuilt against this plan), the
+durable submission outbox, reviewed reservation release, the isolated executor and the Arc
+settlement predicate. **1332 Pest tests pass (3 skipped).** The submission runtime still
+defaults off and has never contacted a network.
 
 **Not built, in dependency order — this is the critical path:**
 
@@ -15,10 +17,10 @@ plan. 1282 Pest tests pass (3 skipped). No payment path was enabled by that work
    reopened; `PrepareFundingWindow` refuses while any approval exists. **This blocks the
    autonomous lane, not the human lane**: a supervised approval can use its window in place.
 2. Durable **outbox + attempt identity** — **delivered**, see below.
-3. **Isolated executor + Arc settlement verification** (§17 step 12). Every `evidence()`
-   still hardcodes `can_execute: false`. This is now the only blocker to the §14.4 Step 4
-   target.
-4. **Bounded autonomous lane** (§18) — depends on 1 and 3.
+3. **Isolated executor + Arc settlement verification** (§17 step 12) — **delivered in code
+   and tests**; see the entry below. Still needs a real testnet run and an operator decision
+   on testnet submission authority to close §14.4 Step 4 end to end.
+4. **Bounded autonomous lane** (§18) — depends on 1 and a live-tested 3.
 5. **Inbound collection** (§12.5, §15.6) — entirely unmodelled; no payer identity exists.
 
 **Ordering correction (2026-10-10):** an earlier revision listed rollover first. That was
@@ -40,10 +42,43 @@ queued: rehearsal must never become work a rail could act on. The runtime
 (`EDUFLOW_SUBMISSION_ENABLED`) defaults off and refuses a `sync` connection; the worker
 re-reads authority rather than trusting the enqueue moment, treats an expired approval or
 expired worker lease as `unknown` to be reconciled rather than retried blindly, honours the
-stop switch without erasing evidence or releasing a hold, and **submits nothing** — no
-executor ships, so each pass records one append-only attempt and concludes `blocked` with an
+stop switch without erasing evidence or releasing a hold, and **submits nothing** while the
+runtime is off — each pass records one append-only attempt and concludes `blocked` with an
 explicit reason. `can_execute`, `payments_submitted` and `external_funds_locked` stay false
 throughout.
+
+**Delivered (2026-10-11): isolated executor and Arc settlement verification.** Submission and
+settlement are now separate acts, which is the point. `ProcessPaymentSubmission` can only reach
+`submitted` — it re-reads authority, runs a non-broadcasting fee estimate, and submits once
+under the outbox's stable `provider_idempotency_key`. `IsolatedPaymentExecutor` is the only
+component with signing authority; it refuses unless the runtime is on, the recipient is a usable
+address, and the bound rail is Arc *testnet* with no fallback (mainnet is refused even when the
+runtime is forced on). A timeout or malformed response is reported `unknown`, never `failed`:
+the honest response is to reconcile the existing attempt, because a blind resend risks paying
+twice. `ArcSettlementVerifier` is the strict predicate and the only thing that may say `settled`:
+it requires successful execution **in a committed block** plus matching sender, recipient and
+amount, accepting either the 18-decimal native value or a canonical 6-decimal ERC-20 `Transfer`
+log, and refusing an amount present on both rather than double-counting. Its non-`verified`
+verdicts are deliberately non-committal about fault — `pending`, `dropped`, `not_found` and
+`unreadable` all mean "unresolved, investigate", never "fabricated". That null-lookup-is-
+fabrication rule is the specific defect `LeptonReconciliationService` still carries; it is used
+by `lepton:reconcile` for historical audit and was deliberately left alone rather than
+rewritten under a different verdict vocabulary, but it should not be trusted as settlement proof.
+
+**Four things found while building the above, which must not be regressed:**
+
+- **Fee ceilings were vacuous.** `actualFeeBaseUnits` cast a `BigInteger` quotient with `(int)`,
+  which silently yields `1`. Every fee check therefore passed. It is now `->toInt()`, with an
+  end-to-end test that drives an over-ceiling fee through the reconciler.
+- **A submitted entry must never be re-dispatched.** `submitted` is an *open* state (settlement
+  is unproven, capacity stays held) but it is deliberately excluded from `DISPATCHABLE_STATES`,
+  because handing an already-sent entry back to a worker is a second submission. Open means owed;
+  it does not mean unsent.
+- **`transactions.amount` was `decimal(15,2)`,** which cannot hold 6-decimal USDC — a 25.000001
+  bill rendered as 25.00. Widened to `decimal(24,6)`. Note SQLite still stores `decimal` as a
+  double, so the authoritative amount is the integer `metadata.amount_base_units`; the column is
+  a convenience view. The exact settlement evidence also now carries `provider_reference`
+  forward, since `reconcile()` was overwriting it on the very step that completes an entry.
 
 **Delivered since the dashboards (2026-10-10): reviewed reservation release.**
 `PaymentReservationRelease` + `PaymentReservationReleaseReview`, append-only, maker/checker
@@ -2793,11 +2828,15 @@ be able to see which arrow is live without reading the source.
 | 9 | Draft payment intent | Maker → `PaymentIntent` (`draft`, `can_execute=false`) | ✅ Built |
 | 10 | Funding window and capacity hold | `FundingWindow` (15-min, block-bound) → `PaymentReservation` | ✅ Built |
 | 11 | Payment authorization | Enrolled reviewer + fresh MFA/TOTP, 5-minute expiry | ✅ Built |
-| 12 | **Submit to Arc** | Isolated executor + durable outbox | ❌ **Does not exist** |
-| 13 | **Vendor receives USDC** | — | ❌ **Blocked** — vendors hold no USDC address (§15.5) |
+| 12 | **Submit to Arc** | `IsolatedPaymentExecutor` behind the runtime opt-in, then `ArcSettlementVerifier` | ✅ Built and tested — **not yet run against live testnet** |
+| 13 | **Vendor receives USDC** | Verified Arc settlement, optionally mirrored to `transactions` | ⚠️ **Proves movement, not receipt** — vendor aliases map to operator-controlled testnet recipients (§15.5) |
 
-Steps 2–11 are real and tested. Step 12 does not exist. Step 13 is architecturally blocked.
-`can_execute` is hardcoded `false` in every `evidence()` array in the codebase, by design.
+Steps 2–12 are real and tested. Step 12 has never submitted to a live network: it is gated
+behind `EDUFLOW_SUBMISSION_ENABLED`, defaults off, and refuses anything but Arc testnet. Closing
+§14.4 Step 4 needs an operator decision on real testnet submission authority plus one live run.
+Step 13 is only as good as the recipient — a verified settlement proves the treasury paid the
+bound address, not that a vendor received anything. `can_execute` remains hardcoded `false` in
+every `evidence()` array by design; nothing in this build may authorise itself.
 
 ### 17.2 Three corrections this trace makes explicit
 

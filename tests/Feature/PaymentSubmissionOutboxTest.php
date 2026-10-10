@@ -8,6 +8,7 @@ use App\Models\PaymentAuthorization;
 use App\Models\PaymentSubmissionAttempt;
 use App\Models\PaymentSubmissionOutbox;
 use App\Models\Transaction;
+use App\Services\IsolatedPaymentExecutor;
 use App\Services\PaymentSubmissionDispatch;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Bus;
@@ -123,19 +124,19 @@ test('an enabled runtime dispatches owed work and records no transfer', function
     expect(Transaction::query()->count())->toBe(0);
 });
 
-test('the worker records one attempt and blocks honestly without an executor', function (): void {
+test('the worker records one attempt and holds the payment when the runtime is off', function (): void {
     $c = paymentAuthorizationContext();
     $entry = PaymentSubmissionOutbox::query()
         ->where('payment_authorization_id', authorizeSubmittedPayment($c)->id)
         ->firstOrFail();
 
-    (new ProcessPaymentSubmission($entry->id))->handle();
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
     $entry->refresh();
 
     expect($entry->state)->toBe('blocked')
-        ->and($entry->stage)->toBe('no_executor_shipped')
+        ->and($entry->stage)->toBe('runtime_disabled')
         ->and($entry->attempts)->toBe(1)
-        ->and($entry->last_error)->toContain('No isolated submission executor exists')
+        ->and($entry->last_error)->toContain('not enabled for this installation')
         ->and($entry->result['settled'])->toBeFalse()
         ->and($entry->result['can_execute'])->toBeFalse();
 
@@ -159,7 +160,7 @@ test('an expired approval is never submitted on its original authority', functio
     // The entry stays durably owed, but its authority is gone.
     travel(6)->minutes();
 
-    (new ProcessPaymentSubmission($entry->id))->handle();
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
     $entry->refresh();
 
     expect($entry->state)->toBe('blocked')
@@ -179,7 +180,7 @@ test('the stop switch holds new submissions without erasing evidence or the hold
 
     config(['eduflow.submission.stop_switch' => true]);
 
-    (new ProcessPaymentSubmission($entry->id))->handle();
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
     $entry->refresh();
 
     expect($entry->stage)->toBe('stop_switch')
@@ -218,7 +219,7 @@ test('outbox identity is immutable and a concluded entry cannot be re-decided', 
         ->where('payment_authorization_id', authorizeSubmittedPayment($c)->id)
         ->firstOrFail();
 
-    (new ProcessPaymentSubmission($entry->id))->handle();
+    (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
     $entry->refresh();
 
     $entry->request_key = (string) Str::uuid();

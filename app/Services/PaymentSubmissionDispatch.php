@@ -22,6 +22,9 @@ use Illuminate\Validation\ValidationException;
  */
 final readonly class PaymentSubmissionDispatch
 {
+    /** States this dispatcher may hand to a submission worker. */
+    public const array DISPATCHABLE = PaymentSubmissionOutbox::DISPATCHABLE_STATES;
+
     public function __construct(private Dispatcher $bus, private InstallationInstitution $institutions) {}
 
     /**
@@ -37,7 +40,7 @@ final readonly class PaymentSubmissionDispatch
         /** @var PaymentSubmissionOutbox $entry */
         $entries = PaymentSubmissionOutbox::query()
             ->where('organization_id', $institution->id)
-            ->whereIn('state', PaymentSubmissionOutbox::OPEN_STATES)
+            ->whereIn('state', PaymentSubmissionDispatch::DISPATCHABLE)
             ->where(fn ($query) => $query->whereNull('next_attempt_at')->orWhere('next_attempt_at', '<=', $now))
             ->orderBy('id')
             ->limit($limit)
