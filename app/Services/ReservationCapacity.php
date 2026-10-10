@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\FundingWindow;
+use App\Models\FundingWindowApproval;
 use App\Models\PaymentIntent;
 use App\Models\PaymentReservation;
 use App\Models\PaymentReservationReleaseReview;
@@ -34,9 +36,17 @@ final readonly class ReservationCapacity
     /**
      * Walk the institution's hold chain and verify it end to end.
      *
+     * Each hold is checked against **the window it was taken under**, not
+     * against whichever window happens to be current. That distinction is what
+     * makes reviewed rollover safe: a later window has a fresh balance
+     * observation and may therefore show less cash, and judging an old hold by
+     * that newer figure would report validly-taken capacity as corrupt the
+     * moment a treasury balance moved. Admission for a *new* hold is judged
+     * against the current window separately, by `ReserveVendorPayment`.
+     *
      * @return array{total: BigInteger, consuming: BigInteger, released: BigInteger, holds: Collection<int, PaymentReservation>}
      */
-    public function verify(int $institutionId, array $windowCapacity): array
+    public function verify(int $institutionId): array
     {
         /** @var Collection<int, PaymentReservation> $holds */
         $holds = PaymentReservation::query()->where('organization_id', $institutionId)->orderBy('id')->limit(self::HISTORY_BOUND + 1)->get();
@@ -46,18 +56,20 @@ final readonly class ReservationCapacity
         }
 
         $released = $this->releasedByReservation($holds);
+        $capacityByApproval = $this->capacityByApproval($holds);
         $total = BigInteger::zero();
         $consuming = BigInteger::zero();
 
         foreach ($holds as $hold) {
             /** @var PaymentIntent|null $heldIntent */
             $heldIntent = PaymentIntent::query()->find($hold->payment_intent_id);
+            $capacity = $capacityByApproval[$hold->funding_window_approval_id] ?? null;
 
             // A released hold drops out of what is consumed, but it stays in
             // the chain and stays verifiable.
             $consumed = $released[$hold->id] ?? false;
 
-            if ($heldIntent === null
+            if ($heldIntent === null || $capacity === null
                 || ($hold->snapshot['prior_reserved_base_units'] ?? null) !== (string) $total
                 || ($hold->snapshot['total_base_units'] ?? null) !== (string) ($hold->amount_base_units + $hold->max_fee_base_units)) {
                 throw ValidationException::withMessages(['reservation' => 'Held capacity evidence is incomplete or corrupt; it cannot become spending room.']);
@@ -70,17 +82,64 @@ final readonly class ReservationCapacity
             }
 
             // Bounds still bind on the historical chain: a hold that never
-            // fitted the window can never have been legitimately taken.
-            if ($total->isGreaterThan($windowCapacity['budget_base_units'])
-                || $total->isGreaterThan($windowCapacity['cash_base_units'])
+            // fitted the window it was taken under can never have been
+            // legitimately taken.
+            if ($total->isGreaterThan($capacity['budget_base_units'])
+                || $total->isGreaterThan($capacity['cash_base_units'])
                 || ($hold->snapshot['remaining_budget_base_units'] ?? null)
-                    !== (string) BigInteger::of($windowCapacity['budget_base_units'])->minus($total)) {
+                    !== (string) BigInteger::of($capacity['budget_base_units'])->minus($total)) {
                 throw ValidationException::withMessages(['reservation' => 'Reservation sequence or capacity bounds changed; independent investigation required.']);
             }
         }
 
         return ['total' => $total, 'consuming' => $consuming,
             'released' => $total->minus($consuming), 'holds' => $holds];
+    }
+
+    /**
+     * The capacity each hold was actually admitted against.
+     *
+     * Resolved from the hold's own approval and window, both of which are
+     * immutable and undeletable, so this stays stable for the life of the
+     * record. A window whose evidence no longer validates frees nothing and
+     * admits nothing; it is simply absent, and the hold then fails closed.
+     *
+     * @param  Collection<int, PaymentReservation>  $holds
+     * @return array<int, array{budget_base_units: int, cash_base_units: int}>
+     */
+    private function capacityByApproval(Collection $holds): array
+    {
+        if ($holds->isEmpty()) {
+            return [];
+        }
+
+        $approvals = FundingWindowApproval::query()
+            ->whereIn('id', $holds->pluck('funding_window_approval_id')->unique()->filter()->values())
+            ->get()
+            ->keyBy('id');
+
+        $windows = FundingWindow::query()
+            ->whereIn('id', $approvals->pluck('funding_window_id')->filter()->values())
+            ->get()
+            ->keyBy('id');
+
+        $capacities = [];
+
+        foreach ($approvals as $approval) {
+            $window = $windows->get($approval->funding_window_id);
+
+            if (! $window instanceof FundingWindow || ! $window->hasValidSnapshot()
+                || ! $approval->hasValidEvidence($window)) {
+                continue;
+            }
+
+            $capacities[$approval->id] = [
+                'budget_base_units' => (int) $window->snapshot['capacity']['budget_base_units'],
+                'cash_base_units' => (int) $window->snapshot['capacity']['cash_base_units'],
+            ];
+        }
+
+        return $capacities;
     }
 
     /**

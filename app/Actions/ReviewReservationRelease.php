@@ -120,7 +120,7 @@ final readonly class ReviewReservationRelease
                     ->where('organization_id', $institution->id)
                     ->findOrFail(FundingWindowApproval::query()->findOrFail($reservation->funding_window_approval_id)->funding_window_id);
 
-                $this->capacity->verify($institution->id, $window->snapshot['capacity']);
+                $this->capacity->verify($institution->id);
             }
 
             activity('finance')->causedBy($reviewer)->performedOn($review)->event('reservation_release_reviewed')

@@ -55,6 +55,7 @@ final readonly class ReserveVendorPayment
                 || ! hash_equals($review->approval_digest, $approvalDigest) || $stored->wallet_id !== $window->wallet_id || $stored->budget_id !== $window->budget_id) {
                 throw ValidationException::withMessages(['reservation' => 'Exact current draft, funding review and matching treasury/budget are required.']);
             }
+
             /** @var Collection<int, PaymentReservation> $holds */
             $holds = PaymentReservation::query()->where('organization_id', $institution->id)->orderBy('id')->limit(10_001)->get();
             if ($holds->count() > 10_000) {
@@ -65,7 +66,7 @@ final readonly class ReserveVendorPayment
              * release does not erase a hold, it stops it consuming capacity.
              * Admission is therefore judged on the consuming total.
              */
-            $chain = $this->capacity->verify($institution->id, $window->snapshot['capacity']);
+            $chain = $this->capacity->verify($institution->id);
             $total = $chain['total'];
             $consuming = $chain['consuming'];
             $released = $chain['released'];
@@ -85,6 +86,18 @@ final readonly class ReserveVendorPayment
             if (PaymentReservation::query()->where('reservation_key', $key)->exists()) {
                 throw ValidationException::withMessages(['reservation_key' => 'Reservation identity belongs to another document.']);
             }
+
+            // Only from here is a *new* hold being admitted, so only from here
+            // does it matter that the approval is live. Replaying a recorded
+            // reservation returns the existing hold above, because a hold that
+            // was validly taken stays validly taken even after its window has
+            // expired or been rolled over. A retired approval is still valid
+            // evidence of what a reviewer approved; it simply grants no new
+            // room.
+            if ($review->isSuperseded() || $window->isExpired()) {
+                throw ValidationException::withMessages(['reservation' => 'This funding approval belongs to an expired or superseded window; review a reviewed rollover before holding further capacity.']);
+            }
+
             if ($balance === null) {
                 throw ValidationException::withMessages(['reservation' => 'Reservation state changed; fresh observation required.']);
             }

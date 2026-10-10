@@ -7,20 +7,19 @@
 ## Where Things Stand — Start Here in a New Session
 
 **Delivered and tested (2026-10-11):** Section 16 (both panels rebuilt against this plan), the
-durable submission outbox, reviewed reservation release, the isolated executor and the Arc
-settlement predicate. **1332 Pest tests pass (3 skipped).** The submission runtime still
-defaults off and has never contacted a network.
+durable submission outbox, reviewed reservation release, the isolated executor with the Arc
+settlement predicate, and reviewed funding-window rollover. **1346 Pest tests pass (3 skipped).**
+The submission runtime still defaults off and has never contacted a network.
 
 **Not built, in dependency order — this is the critical path:**
 
-1. **Funding-window rollover** — still open. A window expires in 15 minutes and cannot be
-   reopened; `PrepareFundingWindow` refuses while any approval exists. **This blocks the
-   autonomous lane, not the human lane**: a supervised approval can use its window in place.
+1. **Funding-window rollover** — **delivered in code and tests**; see the entry below.
 2. Durable **outbox + attempt identity** — **delivered**, see below.
 3. **Isolated executor + Arc settlement verification** (§17 step 12) — **delivered in code
    and tests**; see the entry below. Still needs a real testnet run and an operator decision
    on testnet submission authority to close §14.4 Step 4 end to end.
-4. **Bounded autonomous lane** (§18) — depends on 1 and a live-tested 3.
+4. **Bounded autonomous lane** (§18) — rollover is now unblocked; the remaining dependency is a
+   live-tested step 3.
 5. **Inbound collection** (§12.5, §15.6) — entirely unmodelled; no payer identity exists.
 
 **Ordering correction (2026-10-10):** an earlier revision listed rollover first. That was
@@ -47,7 +46,35 @@ runtime is off — each pass records one append-only attempt and concludes `bloc
 explicit reason. `can_execute`, `payments_submitted` and `external_funds_locked` stay false
 throughout.
 
-**Delivered (2026-10-11): isolated executor and Arc settlement verification.** Submission and
+**Delivered (2026-10-11): reviewed funding-window rollover.** A window lives 15 minutes and is
+immutable, so an unattended lane had no way to renew. `RollOverFundingWindow` replaces an
+**expired** window with a freshly observed, reviewable one, on the same budget allocation, and
+only an expired one — superseding a live window would strand the holds and approvals a supervisor
+is mid-way through it. The successor still needs `ApproveFundingWindow` like any other window.
+Rollover renews the *clock*, never the money: the hold chain is institution-wide and cumulative,
+and `ReservationCapacity::verify()` now resolves each historical hold against **the window it was
+taken under** rather than the current one, so re-observed cash can never look like corruption.
+Approving a successor *retires* the predecessor's approval via `retire()` — a state transition on
+otherwise append-only evidence — so exactly one approval is live per institution while payments
+already authorized under the old one stay authorized. Lineage (`supersedes_funding_window_id` +
+a digest-bound `supersedes` block) is unique per predecessor, so renewal is a chain of distinct
+windows rather than a branch, and a successor cannot claim to have superseded a window that had
+not actually ended.
+
+**Three things this needed that were not obvious:**
+
+- **`funding_window_approvals.organization_id` was unique**, and its own comment said it held
+  "until reviewed rollover/allocation semantics exist". Those semantics now exist, so the
+  constraint is dropped and the invariant it used to enforce is held in code: at most one live
+  approval per institution, checked under the institution row lock the action already takes.
+- **Approval retirement must not touch `content()`.** That method is digest-verified, so retiring
+  an approval by editing it would invalidate every payment authorized while it was live. The
+  retirement columns are the *only* attributes `updating()` permits.
+- **The idempotent-replay path must run before any expired-window guard.** Otherwise a worker
+  retrying a hold it already recorded is refused once its window expires, which breaks exactly
+  the identity-stability-across-replays property the outbox pattern depends on.
+
+
 settlement are now separate acts, which is the point. `ProcessPaymentSubmission` can only reach
 `submitted` — it re-reads authority, runs a non-broadcasting fee estimate, and submits once
 under the outbox's stable `provider_idempotency_key`. `IsolatedPaymentExecutor` is the only
@@ -79,6 +106,12 @@ rewritten under a different verdict vocabulary, but it should not be trusted as 
   double, so the authoritative amount is the integer `metadata.amount_base_units`; the column is
   a convenience view. The exact settlement evidence also now carries `provider_reference`
   forward, since `reconcile()` was overwriting it on the very step that completes an entry.
+
+**Ordering correction (2026-10-11):** the previous revision of this block said the executor was
+the sole blocker and that rollover was still open. Both halves were wrong — the executor now
+ships and rollover is delivered. What remains before §14.4 Step 4 can be closed end to end is a
+**live testnet run** of the executor path plus an operator decision on testnet submission
+authority. After that: the standing mandate (§18), then inbound collection.
 
 **Delivered since the dashboards (2026-10-10): reviewed reservation release.**
 `PaymentReservationRelease` + `PaymentReservationReleaseReview`, append-only, maker/checker
@@ -1384,7 +1417,8 @@ return recorded evidence, and released capacity unblocks draft recovery. Release
 capacity, never money: `payment_approved`, `external_funds_locked`, `can_execute` and
 `local_accounts_changed` are all false, and the reservation chain is re-verified after an
 approval so a release that would leave history unreproducible is refused. **Funding-window
-rollover remains undelivered**, so an unattended lane still cannot renew its evidence.
+rollover is delivered too** (see "Where Things Stand"), so an unattended lane can now renew
+its evidence — provided the executor path below it is live.
 
 **C1 bounded funding/reservation foundation delivered:** `FundingWindow` binds an existing
 exact **USDC** `BudgetSnapshot`, its closed set of reviewed invoice versions, current finance
@@ -1422,7 +1456,8 @@ Local collection review is not treasury observation or FX. New funding windows r
 review-bound schema-v2 budget contract; legacy unbound receipts cannot be promoted. Review
 UI/import and local-to-testnet authority remain immediate product gaps alongside safe release.
 
-**Still proposed:** reviewed reservation release and funding rollover, multi-department shared
+**Delivered:** reviewed reservation release and funding rollover. **Still proposed:**
+multi-department shared
 capacity, exact legacy treasury migration, selected account roles, MFA-backed payment approval,
 outbox/attempt identity, settlement verification and posting. Draft/recovery/funding digest is
 not payment approval, proof of ownership or a digital signature. Raw DB writes/admin access
@@ -1720,8 +1755,8 @@ review without students, aid funds or aid policies. Reviews cover holds, escalat
 failure, invalid destinations, institution/network mismatch and replay without payment.
 This verifies a read-only foundation, not institution-wide live execution. C1 now adds bounded,
 reviewed USDC funding and cumulative capacity holds for one closed department bill set.
-Receipt verification, exact legacy treasury migration, reviewed release/rollover and durable
-submission/recovery are still required.
+Receipt verification, exact legacy treasury migration, durable submission/recovery are still
+required.
 
 **Benefit verification is separate:** The owner reports a local college agreed to explore
 EduFlow, with concern about AI handling money. This is an interested pilot partner, not a
@@ -1919,7 +1954,7 @@ which useful, feasible problem to validate; organizer preference does not replac
 | State | What exists or is required | What it does not prove |
 | --- | --- | --- |
 | C0 foundation | Read-only institution observation, indicative vendor review and audited no-op; no student/aid/AI requirement | `can_execute=false`; not an approved-payment pilot |
-| C1 foundation, partial | Independently reviewed aggregate collections bound to local departmental plans; exact non-executable vendor drafts, reviewed cancellation/replacement, immutable policy activation, invoice evidence, reviewed USDC funding window and cumulative bill/fee holds | No payment approval, external wallet lock, reservation release/rollover, outbox, safe execution or settlement certification |
+| C1 foundation, partial | Independently reviewed aggregate collections bound to local departmental plans; exact non-executable vendor drafts, reviewed cancellation/replacement, immutable policy activation, invoice evidence, reviewed USDC funding window and cumulative bill/fee holds | No payment approval, external wallet lock, safe execution or settlement certification |
 | Current delivery target | Departmental source records, policy-linked proposals, authenticated staff review, each eligible approval's actual testnet payment, verified evidence and capped automation | Target is not shipped by this documentation update |
 | Later institution release | Exact legacy migration, production concurrency/recovery and full operational/provider/jurisdiction gates | Testnet success does not authorize mainnet, college treasury custody or local-bank payments |
 
@@ -2100,7 +2135,10 @@ bindings and blocks the whole plan on missing/tampered evidence. Schema-v1 snaps
 readable as `legacy_staff_attestation`; they are not backfilled with inferred reviews and
 cannot create new funding windows. Reusing receipts across alternative read-only snapshots
 is not duplicate income or a funded allocation; institution-wide posting/department allocation
-and rollover remain future controls. JSON endpoints are `finance.collection-batches.*`.
+remains future. Funding rollover **is now delivered** (`RollOverFundingWindow`), and it renews
+the clock rather than re-granting cash — the hold chain is cumulative and institution-wide, and a
+rollover can only replace a window that has already expired. JSON endpoints are
+`finance.collection-batches.*`.
 No gateway call, currency conversion, new cash, wallet mutation or transfer occurs. PHP/local
 fee evidence does not become USDC; approved testnet mirroring still needs separate mapping
 and funding authority. Staff review UI/import and collection correction/revocation remain open.
@@ -2142,9 +2180,8 @@ same action as authenticated JSON endpoints, not a dedicated demo workflow.
 Same-key retry returns historical evidence without renewal; changed decisions/new keys are
 refused. Reject/hold never frees reservations. Fake evidence remains simulation-only;
 mainnet is blocked and every output retains `can_execute=false`. This first slice permits
-one review per reserved bill: append-only renewal/withdrawal, reviewed factor recovery and
-cross-endpoint MFA race certification remain gates before any execution. No outbox, transfer,
-local accounting mutation or settlement proof is introduced.
+one review per reserved bill: cross-endpoint MFA race certification remains a gate before any
+execution. No transfer, local accounting mutation or settlement proof is introduced.
 
 Step 1 still requires college confirmation and separate permissions. Destination suspension/
 cooling-off and control certification, source-version successors, reviewed reservation release/
@@ -2387,18 +2424,19 @@ decisions. Runtime defaults off and refuses `sync`. None of these tasks submits 
 
 **Current blockers:** existing `EduFlowAgent::runAutonomousCycle` and dashboard button use
 legacy execution and must not be scheduled as this workflow. New model/sessionless work needs explicit institution-scoped
-service authority, not a fabricated human actor passed to current staff actions. Current
-one-window/15-minute funding holds cannot roll over unattended: build reviewed release,
-rollover and fresh funding authorization first. Do not silently refresh expiry, re-review
-collection evidence or reset cumulative caps on each scheduler tick. Background read-only
-planning can ship before these payment gates; signing remains disabled meanwhile.
+service authority, not a fabricated human actor passed to current staff actions. **Reviewed
+release and rollover are now delivered**, so the funding-hold blocker is gone; what is left is a
+live testnet run of the executor path and then the standing mandate itself. Never silently
+refresh expiry, re-review collection evidence or reset cumulative caps on each scheduler tick —
+`RollOverFundingWindow` refuses precisely those things. Background read-only planning can ship
+before these payment gates; signing remains disabled meanwhile.
 
 **Resolved into a delivery order:** §17.3 traces the end-to-end flow step by step and shows
-that steps 2–11 of the authorization chain are already built and tested, leaving the executor
-and settlement verification as the only blocker to the §14.4 Step 4 target. §18.7 orders the
-remaining work: reviewed release and rollover → durable outbox and attempt identity →
-isolated executor and Arc verification → standing mandate. **Do not build the mandate before
-the executor chain** (§18.8).
+that steps 2–12 of the authorization chain are built and tested, leaving a live testnet run as
+the only step before the §14.4 Step 4 target. §18.7 ordered the remaining work: reviewed release
+and rollover → durable outbox and attempt identity → isolated executor and Arc verification →
+standing mandate. **The first three are delivered; the mandate has deliberately not been started
+yet.** Do not build the mandate before the executor chain has run live (§18.8).
 
 ### 14.9 Finance Supervisor Dashboard and Approval Notifications
 
@@ -2466,7 +2504,7 @@ shortcut to make a dashboard look active. Proposed delivery batches:
 | B1 — cashier handoff | Role-scoped collection capture/review screens or approved import; source/category/reference and restrictions visible; approved bill/budget inputs | Tuition aggregate reaches reviewed local plan with zero student rows; duplicate/unverified/restricted money cannot increase spendable cash |
 | B2 — background coordination | Durable finance event/run records, after-commit dispatch with recovery sweep, bounded planning jobs and explicit service permissions | Reviewed receipt or scheduled due scan creates one non-executable proposal without chat/browser; crash/replay produces no duplicate work |
 | B3 — supervision | Finance dashboard, evidence timeline, assigned approval work and queued in-app notifications; safe pause/retry controls | Authorized supervisor sees active/waiting/failed work, gets one actionable notification and can review exact version; unauthorized actor cannot see/approve |
-| B4 — human execution | MFA-backed exact reserved-payment review/enrollment delivered; reviewed release/rollover, approval renewal/withdrawal, factor recovery, explicit local/mirror authority, durable outbox/attempts and certified Arc evidence remain | One permitted staff authorization produces one matching verified testnet payment; rejection, drift, crash and unknowns cannot pay twice |
+| B4 — human execution | MFA-backed exact reserved-payment review/enrollment, reviewed release and funding rollover, durable outbox/attempts, isolated executor and Arc settlement verification all delivered; certified Arc evidence from a live testnet run and explicit local/mirror authority remain | One permitted staff authorization produces one matching verified testnet payment; rejection, drift, crash and unknowns cannot pay twice |
 | B5 — standing automation | Independently approved recurring mandate, due occurrence identity, cumulative caps and isolated scheduled execution. Design in **§18**; dependency chain in §18.7 | Scheduler pays one eligible approved occurrence automatically on testnet without chat/per-item click; over-limit valid bill routes to staff and hard failure stays blocked |
 | B6 — college evaluation | Permissioned staff demo, background/approval/autonomy evidence and agreed value metrics | Staff confirms usefulness; record baseline, corrections, delays and unresolved cases without claiming bank settlement or production readiness |
 
@@ -2852,28 +2890,31 @@ every `evidence()` array by design; nothing in this build may authorise itself.
    mirror consumes its pilot reservation and nothing else (§14.3.6). It is not college
    income, not an accounting posting and not a vendor receipt.
 
-### 17.3 Why step 12 is the only meaningful blocker to the pilot
+### 17.3 What remains before step 12 can be closed end to end
 
 §14.4 Step 4 requires each eligible approved item to reach verified mirror settlement once.
-Steps 1–11 already produce that intent with full evidence. What is missing is one isolated
-worker that loads an authorized intent, rechecks stop switch/fees/policy/balance, submits
-with a stable provider identity, and verifies matching chain/asset/sender/recipient/amount
-plus finality before recording anything as settled.
+Steps 1–12 are now built and tested: one isolated worker loads an authorized intent, rechecks
+stop switch/fees/policy/balance, submits with a stable provider identity, and verifies matching
+chain/asset/sender/recipient/amount plus finality before recording anything as settled.
 
 Its prerequisites, in order:
 
 1. **Reviewed reservation release and funding rollover.** A `PaymentReservation` was
    terminal and a `FundingWindow` expired in 15 minutes with no rollover, so an unattended
-   lane starved immediately. **Reviewed release is now delivered** (see "Where Things
-   Stand"); **funding-window rollover is not.** `PrepareFundingWindow` still refuses while
-   any approval exists, and cross-window capacity reuse remains unproven.
+   lane starved immediately. **Both are now delivered** — see "Where Things Stand".
 2. **Durable outbox and attempt identity**, committed with the domain change and dispatched
    only after commit, with a recovery sweep for committed-but-undispatched work (§14.8).
-   **Delivered** — see "Where Things Stand".
-3. **The executor itself**, plus the settlement predicate.
+   **Delivered.**
+3. **The executor itself, plus the settlement predicate.** **Delivered.**
 
-Until those exist, any "the agent pays the vendor" claim is false regardless of how complete
-the authorization chain looks.
+What is genuinely left is not code: the executor has never touched a live network. It is gated
+behind `EDUFLOW_SUBMISSION_ENABLED`, defaults off, and refuses anything but Arc testnet. Closing
+step 12 requires an operator decision on real testnet submission authority and one live run, and
+then step 13 — which proves movement to a bound address, not that a vendor received anything
+(§15.5).
+
+Until that run happens, any "the agent pays the vendor" claim is false regardless of how
+complete the authorization chain looks.
 
 ---
 
@@ -2996,8 +3037,8 @@ metrics:
 
 ```mermaid
 flowchart LR
-    A[Reviewed reservation release<br/>+ funding rollover] --> B[Durable outbox<br/>+ attempt identity]
-    B --> C[Isolated executor<br/>+ Arc settlement verification]
+    A[Reviewed reservation release<br/>+ funding rollover ✅] --> B[Durable outbox<br/>+ attempt identity ✅]
+    B --> C[Isolated executor<br/>+ Arc settlement verification ✅]
     C --> D[Recurring mandate<br/>+ occurrence + evaluator]
     D --> E[B5 capped autonomous lane<br/>reachable without a browser]
 ```
@@ -3005,6 +3046,13 @@ flowchart LR
 Building D first produces a lane that authorises payments it cannot execute, which is
 worse than not having it: the dashboard would show "auto-authorized" against money that
 never moves. **The correct next implementation batch is A, then B, then C, then D.**
+
+**Status (2026-10-11): A, B and C are delivered and tested.** The chain has still never run
+against a live network, so D now has one more prerequisite besides the code: a live testnet run
+of C with an operator decision on testnet submission authority. Until that run exists, D would
+be an auto-authorising lane sitting on top of a submission path that has only ever been exercised
+under mocks — the exact "authorises payments it cannot execute" failure the ordering exists to
+prevent.
 
 ### 18.8 Decisions this section requires
 

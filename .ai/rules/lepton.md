@@ -8,6 +8,7 @@ paths:
   - 'database/seeders/**/*Financial*.php'
   - app/Services/ArcSettlementVerifier.php
   - app/Services/IsolatedPaymentExecutor.php
+  - app/Services/ReservationCapacity.php
 ---
 
 # Lepton / Arc testnet settlement
@@ -82,3 +83,6 @@ Only the `verified` verdict means money moved, and only after successful executi
 
 ## The executor is the only signer and reports uncertainty honestly
 Gated on EDUFLOW_SUBMISSION_ENABLED plus an Arc-testnet-only rail check with no mainnet fallback. A provider timeout or malformed response is `unknown`, never `failed` — a blind resend risks paying twice, so reconcile the existing attempt instead. It decides nothing about which bill, what amount or which recipient; those arrive bound in the outbox snapshot.
+
+## Each hold is verified against its own window
+`verify()` resolves every historical hold's funding window from its own approval, never the current window. Judging an old hold by a newer window's re-observed cash would report validly-taken capacity as corrupt whenever a treasury balance moved. Admission for a NEW hold is judged separately, against the current window, in ReserveVendorPayment.

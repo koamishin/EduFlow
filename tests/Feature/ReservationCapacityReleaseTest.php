@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Actions\ProposePaymentIntentChange;
 use App\Actions\ReleaseReservedCapacity;
 use App\Actions\ReviewReservationRelease;
-use App\Models\FundingWindow;
 use App\Models\PaymentAuthorization;
 use App\Models\PaymentIntent;
 use App\Models\PaymentReservation;
@@ -49,15 +48,6 @@ function approveRelease(array $c, PaymentReservation $hold, string $reason = 'Ca
     return app(ReviewReservationRelease::class)->handle($c['reviewer'], $proposal, $proposal->content_digest, 'approve_release', $reason);
 }
 
-/** @param array<string, mixed> $c */
-function windowCapacity(FundingWindow $window): array
-{
-    return [
-        'budget_base_units' => $window->snapshot['capacity']['budget_base_units'],
-        'cash_base_units' => $window->snapshot['capacity']['cash_base_units'],
-    ];
-}
-
 test('releasing a hold requires an independent reviewer and leaves the chain intact', function (): void {
     $c = reservationContext();
     $window = prepareReservationWindow($c);
@@ -92,7 +82,7 @@ test('releasing a hold requires an independent reviewer and leaves the chain int
     expect($hold->snapshot['prior_reserved_base_units'])->toBe('0')
         ->and($hold->snapshot_digest)->toBe($hold->fresh()->snapshot_digest);
 
-    $chain = app(ReservationCapacity::class)->verify($c['institution']->id, windowCapacity($window));
+    $chain = app(ReservationCapacity::class)->verify($c['institution']->id);
     $held = (string) ($hold->amount_base_units + $hold->max_fee_base_units);
 
     expect((string) $chain['total'])->toBe($held)
@@ -115,7 +105,7 @@ test('released capacity becomes spendable again while cumulative history still r
     proposeRelease($first);
     approveRelease($c, $first, 'First bill withdrawn.');
 
-    $chain = app(ReservationCapacity::class)->verify($c['institution']->id, windowCapacity($window));
+    $chain = app(ReservationCapacity::class)->verify($c['institution']->id);
 
     // The second hold still consumes; only the first stopped.
     expect((string) $chain['consuming'])->toBe((string) ($second->amount_base_units + $second->max_fee_base_units))
@@ -196,7 +186,7 @@ test('a reject returns no capacity at all', function (): void {
 
     expect($hold->fresh()->isReleased())->toBeFalse()
         ->and($hold->fresh()->evidence()['funds_reserved'])->toBeTrue()
-        ->and((string) app(ReservationCapacity::class)->verify($c['institution']->id, windowCapacity($window))['consuming'])
+        ->and((string) app(ReservationCapacity::class)->verify($c['institution']->id)['consuming'])
         ->toBe((string) ($hold->amount_base_units + $hold->max_fee_base_units));
 });
 
