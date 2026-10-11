@@ -372,3 +372,42 @@ test('unreadable live evidence is recorded as blocked rather than skipped', func
         ->and($occurrence->checks['facts_readable']['passed'])->toBeFalse()
         ->and($occurrence->reason)->toContain('could not be read');
 });
+
+test('the scanner is gated in the service, not only at the command', function (): void {
+    // A future job or endpoint could call the scanner directly. The lane being
+    // off has to mean off for the installation, not just for one entry point.
+    $c = mandateContext();
+    $billIds = [scannerBills($c)];
+    approveAndFund($c, '5000000', $billIds);
+
+    config(['eduflow.mandate.runtime_enabled' => false]);
+
+    $summary = app(MandateOccurrenceScanner::class)->scan($c['institution']);
+
+    expect($summary)->toBe(['scanned' => 0, 'release' => 0, 'escalate' => 0, 'blocked' => 0, 'skipped' => 0])
+        ->and(MandateOccurrence::query()->count())->toBe(0);
+});
+
+test('the artisan command runs and reports the scan without a live scheduler', function (): void {
+    // The command is the scheduled entry point, so its happy path needs its own
+    // test: a summary key renamed in the scanner once left it throwing here,
+    // and nothing caught it because the service tests do not call the command.
+    $c = mandateContext();
+    $billIds = [scannerBills($c)];
+    approveAndFund($c, '5000000', $billIds);
+
+    config(['eduflow.mandate.runtime_enabled' => true]);
+
+    $this->artisan('eduflow:dispatch-mandate-occurrences')
+        ->expectsOutputToContain('Mandates in scope 1; occurrences released 1, escalated 0, blocked 0; already recorded 0.')
+        ->assertSuccessful();
+});
+
+test('the artisan command refuses to read anything while the lane is off', function (): void {
+    $c = mandateContext();
+    config(['eduflow.mandate.runtime_enabled' => false]);
+
+    $this->artisan('eduflow:dispatch-mandate-occurrences')
+        ->expectsOutputToContain('Mandate lane is disabled. Nothing was read or recorded.')
+        ->assertSuccessful();
+});

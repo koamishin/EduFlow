@@ -56,6 +56,13 @@ final readonly class MandateOccurrenceScanner
      */
     public function scan(Organization $institution, ?CarbonImmutable $at = null): array
     {
+        // Gated here as well as at the command, so any future caller -- a job,
+        // an endpoint, a test -- cannot bypass it by simply not being the CLI.
+        // The lane is off for the installation, not merely for one entry point.
+        if (! config('eduflow.mandate.runtime_enabled', false)) {
+            return ['scanned' => 0, 'release' => 0, 'escalate' => 0, 'blocked' => 0, 'skipped' => 0];
+        }
+
         $at = $at ?? CarbonImmutable::now();
         $summary = ['scanned' => 0, 'release' => 0, 'escalate' => 0, 'blocked' => 0, 'skipped' => 0];
 

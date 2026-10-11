@@ -51,7 +51,7 @@ class DispatchMandateOccurrences extends Command
 
         $this->info(sprintf(
             'Mandates in scope %d; occurrences released %d, escalated %d, blocked %d; already recorded %d.',
-            $summary['scanned'], $summary['released'], $summary['escalate'], $summary['blocked'], $summary['skipped'],
+            $summary['scanned'], $summary['release'], $summary['escalate'], $summary['blocked'], $summary['skipped'],
         ));
 
         // Automatic work stays visible even when no notification is needed

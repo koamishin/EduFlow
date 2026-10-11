@@ -548,3 +548,27 @@ test('the evaluator needs no model, provider or session to run', function (): vo
     expect(app(MandateReleaseEvaluator::class)->evaluate($fresh, releasingFacts($c, $fresh)))->toBe($before)
         ->and($before['disposition'])->toBe('release');
 });
+
+test('a nonzero ceiling is refused while the allowance is disabled, and a zero one is not', function (): void {
+    $c = mandateContext();
+
+    config(['eduflow.mandate.allow_nonzero_allowance' => false]);
+
+    // §18.4's zero initial allowance needs a second, independent gate, not
+    // merely a default of zero: a reviewer decision alone cannot raise it.
+    expect(fn (): RecurringMandate => prepareMandate($c, '5000000'))
+        ->toThrow(ValidationException::class, 'Nonzero standing allowance is disabled')
+        ->and(RecurringMandate::query()->count())->toBe(0);
+
+    // A zero ceiling is always recordable: it authorizes nothing, and that is
+    // the safe state to be able to write without the extra flag.
+    expect(prepareMandate($c, '0')->per_occurrence_ceiling_base_units)->toBe(0);
+});
+
+test('a nonzero ceiling is accepted once the allowance is separately enabled', function (): void {
+    $c = mandateContext();
+
+    config(['eduflow.mandate.allow_nonzero_allowance' => true]);
+
+    expect(prepareMandate($c, '5000000')->per_occurrence_ceiling_base_units)->toBe(5000000);
+});

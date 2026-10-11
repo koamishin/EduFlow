@@ -10,6 +10,7 @@ use App\Models\PaymentSubmissionAttempt;
 use App\Models\PaymentSubmissionOutbox;
 use App\Models\Transaction;
 use App\Services\ArcSettlementVerifier;
+use App\Services\InstallationInstitution;
 use App\Services\IsolatedPaymentExecutor;
 use App\Services\PaymentSettlementReconciler;
 use Brick\Math\BigInteger;
@@ -618,4 +619,36 @@ test('a mirrored settlement records the exact amount and never settles the local
         ->and($mirror->provider_tx_hash)->toBe('0x'.str_repeat('f', 64))
         ->and($mirror->network)->toBe('ARC-TESTNET')
         ->and(PaymentIntent::query()->findOrFail($entry->payment_intent_id)->exists())->toBeTrue();
+});
+
+test('an unreachable rail leaves the payment unknown and never settled or completed', function (): void {
+    // The live testnet run is blocked on this machine because the Circle CLI is
+    // not installed. That is exactly the condition this covers: the provider
+    // cannot answer, and the honest result is "unknown, reconcile me" -- not
+    // submitted, not failed, and above all not completed.
+    $c = mandateContext();
+    $wallets = Mockery::mock(WalletGateway::class);
+    $wallets->shouldReceive('transfer')->andThrow(new RuntimeException('circle: command not found'));
+    $executor = new IsolatedPaymentExecutor($wallets, app(InstallationInstitution::class));
+
+    $entry = new PaymentSubmissionOutbox(['request_key' => (string) Str::uuid()]);
+    $entry->snapshot = [
+        'chain' => 'ARC-TESTNET', 'chain_id' => 5042002,
+        'source_address' => '0x'.str_repeat('1', 40),
+        'recipient_address' => '0x'.str_repeat('2', 40),
+        'amount_base_units' => '2000000',
+    ];
+    $entry->provider_idempotency_key = 'eduflow:test';
+
+    config(['eduflow.submission.enabled' => true, 'eduflow.submission.stop_switch' => false, 'lepton.default' => 'circle']);
+
+    $outcome = $executor->submit($entry);
+
+    expect($outcome['outcome'])->toBe('unknown')
+        ->and($outcome['provider_reference'])->toBeNull()
+        ->and($outcome['detail']['provider_exception'])->toBeTrue()
+        // No money moved, so nothing downstream may claim otherwise.
+        ->and(Transaction::query()->count())->toBe(0)
+        ->and(PaymentSubmissionOutbox::query()->where('state', 'completed')->count())->toBe(0)
+        ->and(PaymentSubmissionOutbox::query()->where('state', 'submitted')->count())->toBe(0);
 });

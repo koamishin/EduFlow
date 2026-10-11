@@ -236,6 +236,16 @@ final readonly class PrepareRecurringMandate
         if ($per->isGreaterThan($daily) || $daily->isGreaterThan($period)) {
             throw ValidationException::withMessages(['per_occurrence_ceiling_base_units' => 'Per-occurrence ceiling must fit within the daily limit, and the daily limit within the period limit.']);
         }
+
+        // §18.4's "initial allowance is zero" needs a second, independent gate
+        // rather than only a default of zero. Writing a zero ceiling is always
+        // allowed; raising one is a separate act that this installation flag
+        // authorizes on its own and no reviewer decision does.
+        if ($per->isGreaterThan(BigInteger::zero()) && ! config('eduflow.mandate.allow_nonzero_allowance', false)) {
+            throw ValidationException::withMessages([
+                'per_occurrence_ceiling_base_units' => 'Nonzero standing allowance is disabled for this installation. Record a zero ceiling, or have the allowance separately enabled.',
+            ]);
+        }
     }
 
     private function parse(string $value): ?CarbonImmutable
