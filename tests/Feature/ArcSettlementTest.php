@@ -154,7 +154,7 @@ test('a hash that is merely present is not settlement', function (): void {
 
     expect($verdict['verdict'])->toBe('mismatched')
         ->and($verdict['settled'])->toBeFalse()
-        ->and($verdict['reason'])->toContain('No native value or canonical Transfer log');
+        ->and($verdict['reason'])->toContain('No native value and no USDC Transfer log');
 });
 
 test('a payment to the wrong recipient is a mismatch even at the right amount', function (): void {
@@ -165,7 +165,7 @@ test('a payment to the wrong recipient is a mismatch even at the right amount', 
     $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
 
     expect($verdict['verdict'])->toBe('mismatched')
-        ->and($verdict['reason'])->toContain('No native value or canonical Transfer log')
+        ->and($verdict['reason'])->toContain('No native value and no USDC Transfer log')
         ->and($verdict['settled'])->toBeFalse();
 });
 
@@ -181,7 +181,7 @@ test('a payment from the wrong treasury is a mismatch before economics are even 
         ->and($verdict['settled'])->toBeFalse();
 });
 
-test('inclusion is not finality: a reverted execution is not a settlement', function (): void {
+test('a reverted execution is a final failure, not a settlement', function (): void {
     $responses = settledReceipt();
     $responses['eth_getTransactionReceipt']['status'] = '0x0';
     stubArc($responses);
@@ -190,19 +190,29 @@ test('inclusion is not finality: a reverted execution is not a settlement', func
 
     expect($verdict['verdict'])->toBe('reverted')
         ->and($verdict['settled'])->toBeFalse()
-        ->and($verdict['reason'])->toContain('can still revert');
+        // Arc includes a revert irreversibly and spends the nonce, so this is
+        // final rather than something to wait on.
+        ->and($verdict['reason'])->toContain('nonce is spent');
 });
 
-test('an uncommitted block leaves the outcome unresolved', function (): void {
+test('an unreadable block read cannot unsettle a payment Arc has already made final', function (): void {
+    // Arc documents deterministic finality: receipts are immediately
+    // authoritative, there are no reorgs, and confirmation count 1 is correct.
+    // So the block read supplies evidence, not the verdict. If it could gate
+    // settlement, an RPC hiccup would strand genuinely paid vendors as
+    // "unresolved" forever -- the opposite failure from the one this service
+    // exists to prevent.
     $responses = settledReceipt();
-    $responses['eth_getBlockByNumber'] = null;
+    $responses['eth_getBlockByNumber'] = new RuntimeException('gateway timeout');
     stubArc($responses);
 
     $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
 
-    expect($verdict['verdict'])->toBe('unreadable')
-        ->and($verdict['settled'])->toBeFalse()
-        ->and($verdict['requires_investigation'])->toBeTrue();
+    expect($verdict['verdict'])->toBe('verified')
+        ->and($verdict['settled'])->toBeTrue()
+        // The evidence we could not read is recorded as missing, not invented.
+        ->and($verdict['block_hash'])->toBeNull()
+        ->and($verdict['block_timestamp'])->toBeNull();
 });
 
 test('a transaction known to the chain but not yet in a block is pending, not failed', function (): void {
@@ -271,25 +281,70 @@ test('an ERC-20 Transfer log settles a payment carried on the token interface', 
     $responses = settledReceipt();
     $responses['eth_getTransactionByHash']['to'] = '0x'.str_repeat('7', 40);
     $responses['eth_getTransactionByHash']['value'] = '0x0';
+    // An ERC-20 transfer really does emit two logs -- the 18-decimal system
+    // event and the 6-decimal ERC-20 event -- so the fixture does too.
+    $responses['eth_getTransactionReceipt']['logs'] = [
+        [
+            'address' => '0xfffffffffffffffffffffffffffffffffffffffe',
+            'topics' => [
+                '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+                '0x000000000000000000000000'.str_repeat('1', 40),
+                '0x000000000000000000000000'.str_repeat('2', 40),
+            ],
+            'data' => hexQty(BigInteger::of(25_000000)->multipliedBy(BigInteger::of('1000000000000'))),
+        ],
+        [
+            'address' => '0x3600000000000000000000000000000000000000',
+            'topics' => [
+                '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+                '0x000000000000000000000000'.str_repeat('1', 40),
+                '0x000000000000000000000000'.str_repeat('2', 40),
+            ],
+            'data' => hexQty(BigInteger::of(25_000000)),
+        ],
+    ];
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('verified')
+        ->and($verdict['settled'])->toBeTrue()
+        ->and($verdict['matched_interfaces'])->toContain('erc20_log')
+        ->and($verdict['matched_interfaces'])->toContain('native_system_log');
+});
+
+test('a native send carrying both a value and a system log is one movement, not a double count', function (): void {
+    // A plain native send on Arc carries a non-zero `value` *and* emits an
+    // 18-decimal system Transfer log. Refusing to settle that would record a
+    // correctly paid vendor as mismatched -- an accusation, on real money.
+    $responses = settledReceipt();
     $responses['eth_getTransactionReceipt']['logs'] = [[
+        'address' => '0xfffffffffffffffffffffffffffffffffffffffe',
         'topics' => [
             '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
             '0x000000000000000000000000'.str_repeat('1', 40),
             '0x000000000000000000000000'.str_repeat('2', 40),
         ],
-        'data' => hexQty(BigInteger::of(25_000000)),
+        'data' => hexQty(BigInteger::of(25_000000)->multipliedBy(BigInteger::of('1000000000000'))),
     ]];
     stubArc($responses);
 
     $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
 
     expect($verdict['verdict'])->toBe('verified')
-        ->and($verdict['settled'])->toBeTrue();
+        ->and($verdict['settled'])->toBeTrue()
+        ->and($verdict['matched_interfaces'])->toContain('native_value')
+        ->and($verdict['matched_interfaces'])->toContain('native_system_log');
 });
 
-test('the amount present on both interfaces is refused rather than double-counted', function (): void {
+test('a Transfer log from an emitter of unknown scale is skipped rather than guessed at', function (): void {
+    // Reading an unknown-scale payload with the wrong decimals is how a real
+    // settlement becomes a mismatch. Unknown means unknown.
     $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['to'] = '0x'.str_repeat('7', 40);
+    $responses['eth_getTransactionByHash']['value'] = '0x0';
     $responses['eth_getTransactionReceipt']['logs'] = [[
+        'address' => '0x00000000000000000000000000000000deadbeef',
         'topics' => [
             '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
             '0x000000000000000000000000'.str_repeat('1', 40),
@@ -302,7 +357,6 @@ test('the amount present on both interfaces is refused rather than double-counte
     $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
 
     expect($verdict['verdict'])->toBe('mismatched')
-        ->and($verdict['reason'])->toContain('Refusing to double-count')
         ->and($verdict['settled'])->toBeFalse();
 });
 

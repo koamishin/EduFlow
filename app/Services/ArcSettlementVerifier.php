@@ -25,15 +25,37 @@ use Yukazakiri\Lepton\Support\Amounts;
  * the specific defect this replaces — a provider or RPC that cannot answer is
  * not evidence of wrongdoing.
  *
- * Arc exposes the same USDC through a native 18-decimal balance and a 6-decimal
- * ERC-20 interface, so a transfer may carry its amount either in `value` or in a
- * canonical Transfer log. Both are accepted; if neither matches, the verdict is
- * `mismatched` rather than a guess.
+ * Arc surfaces USDC through two event streams that share one balance:
+ *
+ *  - the EIP-7708 native system emitter at 18 decimals, which logs every
+ *    explicit USDC movement, and
+ *  - the NativeFiatToken ERC-20 contract at 6 decimals, which logs only
+ *    activity on the ERC-20 interface.
+ *
+ * A single ERC-20 `transfer()` therefore emits **two** logs, and a plain native
+ * send emits the system log alongside a non-zero `value`. The decimals are
+ * chosen by emitter address, never assumed from the log's shape, because mixing
+ * them is off by a factor of a million. Corroboration across streams is
+ * agreement about one movement, not a double-count, so it is reported as
+ * agreement; only a genuine absence of the authorized movement is
+ * `mismatched`.
  */
 final readonly class ArcSettlementVerifier
 {
     /** Canonical ERC-20 Transfer event topic. */
     private const string TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+    /**
+     * Emitter address => decimals of that emitter's Transfer `data`.
+     *
+     * Anything absent from this map has an unknown scale and is skipped rather
+     * than guessed at: a misread log is how a real payment gets called
+     * mismatched.
+     */
+    private const array USDC_EMITTERS = [
+        '0xfffffffffffffffffffffffffffffffffffffffe' => 18,
+        '0x3600000000000000000000000000000000000000' => 6,
+    ];
 
     public function __construct(private ArcNetworkGateway $arc) {}
 
@@ -98,16 +120,22 @@ final readonly class ArcSettlementVerifier
             return $this->verdict('pending', 'Receipt carries no committed block number yet.', $receipt);
         }
 
-        // Inclusion in a block is not finality on its own: the block must be
-        // committed, and execution must not have reverted.
+        // Arc has deterministic finality: a receipt is immediately
+        // authoritative, there are no reorgs, and confirmation count 1 is
+        // documented as correct. This lookup is therefore corroboration, not
+        // the basis of the verdict -- it cannot make a settled payment look
+        // unsettled. It is kept because it yields the block hash and timestamp
+        // that make the recorded evidence independently checkable, and because
+        // losing that evidence is worse than one extra read.
         $block = $this->call('eth_getBlockByNumber', [$blockNumber, false]);
-        if ($block === 'unreadable' || $block === null || ! is_array($block)) {
-            return $this->verdict('unreadable', 'Included block could not be confirmed as committed. Outcome unresolved.', $receipt);
-        }
+        $block = is_array($block) ? $block : null;
 
         $status = is_string($receipt['status'] ?? null) ? strtolower($receipt['status']) : null;
         if ($status !== '0x1') {
-            return $this->verdict('reverted', 'Execution did not succeed in the committed block. An included transaction can still revert.', $receipt);
+            // Arc includes a reverted transaction irreversibly: gas is consumed
+            // and the nonce is spent, so a retry needs a new nonce. This is a
+            // final failure, never a pending state to wait on.
+            return $this->verdict('reverted', 'Execution did not succeed. The transaction is final but its state changes were rolled back, and the nonce is spent.', $receipt);
         }
 
         $transaction = $this->call('eth_getTransactionByHash', [$txHash]);
@@ -115,9 +143,9 @@ final readonly class ArcSettlementVerifier
             return $this->verdict('unreadable', 'Receipt exists but its transaction could not be read for economic matching.', $receipt);
         }
 
-        $mismatch = $this->economicMismatch($transaction, $receipt, $expected);
-        if ($mismatch !== null) {
-            return $this->verdict('mismatched', $mismatch, $receipt);
+        $economic = $this->economicMatch($transaction, $receipt, $expected);
+        if ($economic['mismatch'] !== null) {
+            return $this->verdict('mismatched', $economic['mismatch'], $receipt);
         }
 
         $feeBaseUnits = $this->actualFeeBaseUnits($receipt);
@@ -132,13 +160,17 @@ final readonly class ArcSettlementVerifier
         $explorer = $this->explorerUrl($txHash);
 
         return $this->verdict('verified', sprintf(
-            'Execution succeeded in committed block %s with matching sender, recipient and amount. Fee %s USDC.',
+            'Execution succeeded in block %s with matching sender, recipient and amount, confirmed by %s. Fee %s USDC.',
             Amounts::fromHexQuantity($blockNumber, 0),
+            implode(' and ', $economic['interfaces']),
             $feeBaseUnits === null ? 'unreadable' : Amounts::toDecimalString($feeBaseUnits, 6),
         ), $receipt, [
             'block_hash' => $block['hash'] ?? null,
             'block_timestamp' => $block['timestamp'] ?? null,
             'actual_fee_base_units' => $feeBaseUnits,
+            // Recorded so a later reviewer can see *which* evidence settled it,
+            // and re-derive the same verdict from the same receipt.
+            'matched_interfaces' => $economic['interfaces'],
             'explorer_url' => $explorer,
         ]);
     }
@@ -146,31 +178,36 @@ final readonly class ArcSettlementVerifier
     /**
      * Compare the movement actually recorded against what was authorized.
      *
+     * Several streams can describe one movement: a native send carries both a
+     * non-zero `value` and a system-emitter log, and an ERC-20 transfer emits
+     * two logs. Every agreeing stream is collected, because on Arc they are
+     * independent descriptions of the same money rather than a double-count.
+     * Only a complete absence of the authorized movement is a mismatch.
+     *
      * @param  array<string, mixed>  $transaction
      * @param  array<string, mixed>  $receipt
      * @param  array<string, mixed>  $expected
+     * @return array{mismatch: string|null, interfaces: list<string>}
      */
-    private function economicMismatch(array $transaction, array $receipt, array $expected): ?string
+    private function economicMatch(array $transaction, array $receipt, array $expected): array
     {
         $from = is_string($transaction['from'] ?? null) ? strtolower($transaction['from']) : null;
-        $to = is_string($transaction['to'] ?? null) ? strtolower($transaction['to']) : null;
 
         if ($from !== strtolower($expected['sender'])) {
-            return 'Sender on chain does not match the authorized treasury.';
+            return ['mismatch' => 'Sender on chain does not match the authorized treasury.', 'interfaces' => []];
         }
 
-        $native = $this->nativeValueMatches($transaction, $expected);
-        $logged = $this->transferLogMatches($receipt, $expected);
+        $interfaces = $this->transferLogMatches($receipt, $expected);
 
-        if ($native && $logged) {
-            return 'Amount is present twice, as native value and as a Transfer log. Refusing to double-count.';
+        if ($this->nativeValueMatches($transaction, $expected)) {
+            $interfaces[] = 'native_value';
         }
 
-        if (! $native && ! $logged) {
-            return 'No native value or canonical Transfer log matches the authorized amount, recipient and asset.';
+        if ($interfaces === []) {
+            return ['mismatch' => 'No native value and no USDC Transfer log matches the authorized amount, recipient and asset.', 'interfaces' => []];
         }
 
-        return null;
+        return ['mismatch' => null, 'interfaces' => $interfaces];
     }
 
     /**
@@ -229,16 +266,21 @@ final readonly class ArcSettlementVerifier
     }
 
     /**
+     * Find every USDC Transfer stream that reports the authorized movement.
+     *
      * @param  array<string, mixed>  $receipt
      * @param  array<string, mixed>  $expected
+     * @return list<string>
      */
-    private function transferLogMatches(array $receipt, array $expected): bool
+    private function transferLogMatches(array $receipt, array $expected): array
     {
         $logs = $receipt['logs'] ?? null;
 
         if (! is_array($logs)) {
-            return false;
+            return [];
         }
+
+        $matched = [];
 
         foreach ($logs as $log) {
             // `topics` is a list; `data` is a single 32-byte hex payload, not
@@ -251,6 +293,16 @@ final readonly class ArcSettlementVerifier
                 continue;
             }
 
+            // Decimals are a property of the emitter, never inferred from the
+            // payload. Reading an 18-decimal system log as 6-decimal is how a
+            // genuinely settled payment gets recorded as `mismatched`, and an
+            // emitter with an unknown scale is skipped rather than guessed at.
+            $decimals = self::USDC_EMITTERS[strtolower((string) ($log['address'] ?? ''))] ?? null;
+
+            if ($decimals === null) {
+                continue;
+            }
+
             $logFrom = '0x'.substr(strtolower((string) $log['topics'][1]), 26);
             $logTo = '0x'.substr(strtolower((string) $log['topics'][2]), 26);
 
@@ -258,14 +310,14 @@ final readonly class ArcSettlementVerifier
                 continue;
             }
 
-            $moved = $this->hexQuantity((string) $log['data'], 6);
+            $moved = $this->hexQuantity((string) $log['data'], $decimals);
 
             if ($moved !== null && $moved->isEqualTo($this->authorizedAmount($expected['amount_base_units']))) {
-                return true;
+                $matched[] = $decimals === 18 ? 'native_system_log' : 'erc20_log';
             }
         }
 
-        return false;
+        return array_values(array_unique($matched));
     }
 
     /**
@@ -342,8 +394,9 @@ final readonly class ArcSettlementVerifier
             'settled' => $verdict === 'verified',
             'reason' => $reason,
             'fabricated' => false,
-            'requires_investigation' => ! in_array($verdict, ['verified', 'not_found'], true)
-                || $verdict === 'not_found',
+            // Every outcome short of `verified` needs a human, including
+            // `not_found`: absence is unresolved, never a conclusion.
+            'requires_investigation' => $verdict !== 'verified',
             'receipt' => $evidence,
             ...$extra,
         ];
