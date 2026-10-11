@@ -111,6 +111,37 @@ advisory, and the boundary is structural rather than a matter of good intentions
 Needs a `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY` and `AiSettings::advisory_enabled` — all unset, so
 it degrades to null today, which is the correct default.
 
+**The live run now reaches the rail, and stops at one Circle CLI invocation (2026-10-11).** The full
+§14.4 human lane ran end to end on the real chain: reviewed destination, reviewed invoice, closed
+budget snapshot, funding window, reservation, independent enrolment, MFA-backed authorization by a
+named reviewer, durable outbox entry, and dispatch into the worker.
+
+The transport then submitted and **Circle refused it**:
+
+```
+circle wallet transfer 0x48a1… --amount 5 --address 0x19be… --chain ARC-TESTNET
+    --idempotency-key eduflow:… --quiet
+  → Error: Service returned error 400: Invalid request body.
+```
+
+The balance is unchanged at 64.9 USDC and `circle transaction list` shows no new transaction, so
+**no money moved**. Two invocations are now ruled out for this wallet:
+
+  - **without** `--quiet`: the CLI answers with a fee preview (`gasLimit`, `networkFee`, `baseFee`,
+    `priorityFee`, `maxFee`) and broadcasts nothing — identical in shape to `--estimate`. Verified
+    by checking the transaction list afterwards.
+  - **with** `--quiet`: the CLI returns HTTP 400 "Invalid request body".
+
+So the working invocation for an agent-wallet transfer is still unknown. `circle wallet transfer
+--help` offers only `--amount --token --address --chain --rpc-url --idempotency-key --estimate
+--output --quiet`, and the one flag that would force a real submit is the one the service rejects.
+Next step is to read the CLI's own reference (`use-circle-cli` skill, `references/cli-operations.md`)
+or file a `circle feedback submit` for the missing capability, rather than guess at more flags.
+
+**Also fixed in this pass:** the `unknown` outcome was discarding the provider's actual message, which
+made "the rail refused this submission" indistinguishable from "we could not reach the rail" — two
+different investigations. The detail is now recorded on the append-only attempt.
+
 **Delivered and tested (2026-10-11):** Section 16 (both panels rebuilt against this plan), the
 durable submission outbox, reviewed reservation release, the isolated executor with the Arc
 settlement predicate, reviewed funding-window rollover, the standing-mandate lane (§18.4 records plus

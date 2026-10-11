@@ -84,8 +84,15 @@ class ProcessPaymentSubmission implements ShouldQueue
         }
 
         if ($submission['outcome'] === 'unknown') {
+            // The provider's own words are the whole value of an `unknown`
+            // outcome. Discarding them and recording a generic message would
+            // make "the rail refused this submission" indistinguishable from
+            // "we could not reach the rail", which are different
+            // investigations with different remedies.
+            $this->record($entry, 'unknown', null, $submission['detail']);
             $this->conclude($entry, 'unknown', 'provider_unknown',
-                'Provider outcome is unknown. Reconcile the existing attempt before any retry; a blind resend risks paying twice.');
+                (string) ($submission['detail']['error']
+                    ?? 'Provider outcome is unknown. Reconcile the existing attempt before any retry; a blind resend risks paying twice.'));
 
             return;
         }
