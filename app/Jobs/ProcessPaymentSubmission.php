@@ -96,6 +96,32 @@ class ProcessPaymentSubmission implements ShouldQueue
             return;
         }
 
+        // Accepted by the rail, not yet on chain. The rail holds the transfer and has
+        // issued its own identifier; no on-chain hash exists, so none is
+        // recorded. Reconciliation observes the rail and promotes the entry to
+        // `submitted` only once a real hash appears. It is in flight, not
+        // settled, and never dispatchable again.
+        if ($submission['outcome'] === 'accepted') {
+            $handle = (string) ($submission['provider_handle'] ?? '');
+
+            // The handle is written before the attempt, because the attempt
+            // binds to it. An append-only record of an acceptance that could
+            // not later be traced back to the rail's own identifier would be
+            // an acceptance nobody could act on.
+            $entry->state = 'accepted';
+            $entry->stage = 'awaiting_rail_completion';
+            $entry->provider_handle = $handle;
+            $entry->next_attempt_at = null;
+            $entry->result = ['provider_handle' => $handle, 'provider_reference' => null,
+                'settled' => false, 'can_execute' => false, 'payments_submitted' => 1];
+            $entry->result_digest = PaymentIntent::digest($entry->result);
+            $entry->save();
+
+            $this->record($entry, 'accepted', null, $submission['detail'], $estimate);
+
+            return;
+        }
+
         // Submitted, not settled. The reference is recorded and verified
         // separately; nothing here concludes that money moved.
         $this->record($entry, 'submitted', (string) $submission['provider_reference'], $submission['detail'], $estimate);

@@ -10,6 +10,7 @@ use App\Models\PaymentIntent;
 use App\Models\PaymentSubmissionAttempt;
 use App\Models\PaymentSubmissionOutbox;
 use App\Models\Transaction;
+use App\Services\Payments\AsyncPaymentTransport;
 use Illuminate\Support\Carbon;
 use Throwable;
 use Yukazakiri\Lepton\Support\Amounts;
@@ -34,6 +35,14 @@ final readonly class PaymentSettlementReconciler
      */
     public function reconcile(PaymentSubmissionOutbox $entry): array
     {
+        // An accepted transfer has no on-chain reference yet, so it cannot be
+        // verified. It can, however, be *observed*: asking the rail whether the
+        // transaction it already owns has finished is the only legitimate next
+        // step, and it never re-sends.
+        if ($entry->state === 'accepted') {
+            return $this->resolveAcceptance($entry);
+        }
+
         if ($entry->state !== 'submitted' || ($entry->result['provider_reference'] ?? null) === null) {
             return ['verdict' => 'not_applicable', 'settled' => false,
                 'reason' => 'Only a submitted entry with a provider reference can be verified.'];
@@ -79,8 +88,12 @@ final readonly class PaymentSettlementReconciler
             $entry->stage = 'unverified_'.($verdict['verdict'] ?? 'unknown');
         }
 
-        $entry->result = ['provider_reference' => $reference, ...$verdict,
-            'payments_submitted' => 1, 'can_execute' => false];
+        $entry->result = array_filter([
+            'provider_handle' => $entry->provider_handle,
+            'provider_reference' => $reference,
+        ], fn (mixed $value): bool => $value !== null)
+            + $verdict
+            + ['payments_submitted' => 1, 'can_execute' => false];
         $entry->result_digest = PaymentIntent::digest($entry->result);
         $entry->save();
 
@@ -95,6 +108,77 @@ final readonly class PaymentSettlementReconciler
             ->log((string) $verdict['reason']);
 
         return $verdict;
+    }
+
+    /**
+     * Observe a transfer the rail has accepted but not yet published on chain.
+     *
+     * The rail's transaction id is resolved into a hash here and nowhere else.
+     * Until one exists the entry stays `accepted` with capacity held: the money
+     * may well have moved, and claiming otherwise would be exactly as false as
+     * claiming it did.
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveAcceptance(PaymentSubmissionOutbox $entry): array
+    {
+        $handle = $entry->provider_handle;
+
+        if (! is_string($handle) || $handle === '') {
+            return ['verdict' => 'unreadable', 'settled' => false,
+                'reason' => 'An accepted entry carries no rail handle, so it cannot be observed. Investigate before any retry.'];
+        }
+
+        if ((string) config('eduflow.submission.transport', 'auto') === 'synchronous') {
+            return ['verdict' => 'unreadable', 'settled' => false,
+                'reason' => 'This entry was accepted by an asynchronous rail that is no longer configured. It cannot be observed or safely retried.'];
+        }
+
+        try {
+            $resolution = app(AsyncPaymentTransport::class)->resolve($handle, [
+                'from' => $entry->snapshot['source_address'],
+                'chain' => $entry->snapshot['chain'],
+            ]);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return ['verdict' => 'unreadable', 'settled' => false,
+                'reason' => 'The rail could not be asked about this transfer. Outcome unknown; capacity stays held.'];
+        }
+
+        $entry->heartbeat_at = Carbon::now();
+
+        if (! $resolution->hasHash()) {
+            // Pending, failed and unknown all keep the entry out of submission
+            // and keep capacity held. They differ only in what a human is told.
+            $entry->state = $resolution->state === 'failed' ? 'failed' : $entry->state;
+            $entry->stage = 'accepted_'.$resolution->state;
+            $entry->last_error = mb_substr((string) $resolution->reason, 0, 1000);
+            $entry->result = ['provider_handle' => $handle, 'provider_reference' => null,
+                'verdict' => $resolution->state, 'settled' => false,
+                'payments_submitted' => 1, 'can_execute' => false];
+            $entry->result_digest = PaymentIntent::digest($entry->result);
+            $entry->save();
+
+            activity('finance')->performedOn($entry)->event('payment_submission_observed')
+                ->withProperties(['payment_intent_id' => $entry->payment_intent_id,
+                    'provider_handle' => $handle, 'rail_state' => $resolution->state, 'settled' => false])
+                ->log((string) $resolution->reason);
+
+            return ['verdict' => $resolution->state, 'settled' => false, 'reason' => $resolution->reason];
+        }
+
+        // A hash now exists, so this becomes an ordinary verification. The
+        // handle is kept: it is how this transfer can be traced back to what the
+        // rail was asked to do.
+        $entry->state = 'submitted';
+        $entry->stage = 'hash_resolved';
+        $entry->result = ['provider_handle' => $handle, 'provider_reference' => $resolution->txHash,
+            'verdict' => 'submitted', 'settled' => false, 'payments_submitted' => 1, 'can_execute' => false];
+        $entry->result_digest = PaymentIntent::digest($entry->result);
+        $entry->save();
+
+        return $this->reconcile($entry->fresh());
     }
 
     /**

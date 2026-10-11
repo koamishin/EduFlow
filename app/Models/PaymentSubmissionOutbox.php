@@ -50,7 +50,7 @@ use Throwable;
 class PaymentSubmissionOutbox extends Model
 {
     /** @var array<string, string> States that mean work is still owed. */
-    public const array OPEN_STATES = ['queued', 'running', 'unknown', 'submitted'];
+    public const array OPEN_STATES = ['queued', 'running', 'unknown', 'accepted', 'submitted'];
 
     /**
      * States a submission worker may pick up.
@@ -60,15 +60,28 @@ class PaymentSubmissionOutbox extends Model
      * has already been sent to the rail. Handing it to a worker again would be
      * a second submission, so only reconciliation may touch it.
      *
+     * `accepted` is excluded for the same reason and one more: on an
+     * asynchronous wallet the rail has already taken the transfer and issued a
+     * transaction id, but no on-chain hash exists yet. That is an in-flight
+     * payment, not work still to do.
+     *
      * @var array<string, string>
      */
     public const array DISPATCHABLE_STATES = ['queued', 'running', 'unknown'];
+
+    /**
+     * States in which the rail already owns a transfer and only observation is
+     * left. Neither may ever be handed to a submitter.
+     *
+     * @var array<string, string>
+     */
+    public const array IN_FLIGHT_STATES = ['accepted', 'submitted'];
 
     /** @var array<string, string> States that are terminal for this entry. */
     public const array TERMINAL_STATES = ['blocked', 'failed', 'completed', 'paused'];
 
     protected $fillable = ['request_key', 'organization_id', 'payment_authorization_id', 'payment_reservation_id',
-        'payment_intent_id', 'invoice_id', 'provider_idempotency_key', 'state', 'stage', 'attempts', 'max_attempts',
+        'payment_intent_id', 'invoice_id', 'provider_idempotency_key', 'provider_handle', 'state', 'stage', 'attempts', 'max_attempts',
         'last_error', 'heartbeat_at', 'next_attempt_at', 'dispatched_at', 'result', 'result_digest',
         'snapshot', 'snapshot_digest'];
 

@@ -75,7 +75,14 @@ class PaymentSubmissionAttempt extends Model
                 // Dense numbering: the attempt is the (n+1)th of a known entry.
                 && $this->attempt_number === $outbox->attempts
                 && $this->provider_idempotency_key === $outbox->provider_idempotency_key
-                && in_array($this->outcome, ['submitted', 'unknown', 'failed', 'blocked'], true)
+                && in_array($this->outcome, ['accepted', 'submitted', 'unknown', 'failed', 'blocked'], true)
+                // An accepted attempt has no on-chain reference, and inventing
+                // one would be the exact lie this table exists to prevent. What
+                // it must carry instead is the rail's own handle, bound to the
+                // entry's, so the transfer can be traced and observed later.
+                && ($this->outcome !== 'accepted'
+                    || (($this->getAttribute('response_snapshot')['detail']['provider_handle'] ?? null) === $outbox->provider_handle
+                        && is_string($outbox->provider_handle) && $outbox->provider_handle !== ''))
                 && ($request['request_key'] ?? null) === $outbox->request_key
                 && ($request['payment_intent_id'] ?? null) === $outbox->payment_intent_id
                 && ($request['amount_base_units'] ?? null) === ($outbox->snapshot['amount_base_units'] ?? null)

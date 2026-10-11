@@ -28,6 +28,13 @@ return [
     | `stop_switch` holds new submissions without erasing evidence or
     | releasing a hold.
     |
+    | `transport` selects how the rail answers. `auto` treats a Circle driver as
+    | an asynchronous agent wallet, which is what it is: `circle wallet
+    | transfer` returns a Circle transaction id rather than an on-chain hash, so
+    | a synchronous submission would fail on every single payment. Setting
+    | `synchronous` forces the older contract, which is correct only for a rail
+    | that genuinely returns a hash from `transfer()`.
+    |
     */
 
     'submission' => [
@@ -35,6 +42,7 @@ return [
         'queue_connection' => env('EDUFLOW_SUBMISSION_QUEUE_CONNECTION', 'database'),
         'queue' => 'finance-submission',
         'stop_switch' => env('EDUFLOW_SUBMISSION_STOP', false),
+        'transport' => env('EDUFLOW_SUBMISSION_TRANSPORT', 'auto'),
     ],
 
     /*

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\PaymentSubmissionOutbox;
+use App\Services\Payments\AsyncPaymentTransport;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 use Yukazakiri\Lepton\Contracts\WalletGateway;
@@ -40,6 +41,22 @@ final readonly class IsolatedPaymentExecutor
     {
         $this->assertRail($entry);
 
+        $request = [
+            'from' => $entry->snapshot['source_address'],
+            'to' => $entry->snapshot['recipient_address'],
+            'amount_base_units' => (int) $entry->snapshot['amount_base_units'],
+            'chain' => $entry->snapshot['chain'],
+            'idempotency_key' => $entry->provider_idempotency_key,
+        ];
+
+        // Preflight must go to the same rail as the submission, or the ceiling
+        // would be checked against a network the money does not move on.
+        $transport = $this->transportFor($entry);
+
+        if ($transport instanceof AsyncPaymentTransport) {
+            return $transport->estimate($request) ?? [];
+        }
+
         return $this->wallets->transfer(
             $entry->snapshot['source_address'],
             $entry->snapshot['recipient_address'],
@@ -68,6 +85,51 @@ final readonly class IsolatedPaymentExecutor
 
         if (config('eduflow.submission.stop_switch', false) === true) {
             throw ValidationException::withMessages(['payment' => 'Submission stop switch is engaged; no transfer was attempted.']);
+        }
+
+        $request = [
+            'from' => $entry->snapshot['source_address'],
+            'to' => $entry->snapshot['recipient_address'],
+            'amount_base_units' => (int) $entry->snapshot['amount_base_units'],
+            'chain' => $entry->snapshot['chain'],
+            'idempotency_key' => $entry->provider_idempotency_key,
+        ];
+
+        // An asynchronous rail is not a slower synchronous rail. Circle agent
+        // wallets never hand back a hash from `transfer()` — they hand back a
+        // transaction id — so submitting through the synchronous contract would
+        // guarantee a thrown "no tx hash" and an `unknown` entry on every
+        // single payment. Such rails are driven through their own transport,
+        // which submits exactly once and reports *acceptance*, which is a fact
+        // the system can hold honestly.
+        $transport = $this->transportFor($entry);
+
+        if ($transport instanceof AsyncPaymentTransport) {
+            try {
+                $acceptance = $transport->submit($request);
+            } catch (Throwable $exception) {
+                report($exception);
+
+                // The rail refused or could not be reached. Neither is proof
+                // that no transfer happened, so this stays unresolved.
+                return ['outcome' => 'unknown', 'provider_reference' => null, 'provider_handle' => null,
+                    'detail' => ['error' => $exception->getMessage(), 'provider_exception' => true]];
+            }
+
+            return ['outcome' => 'accepted', 'provider_reference' => null,
+                'provider_handle' => $acceptance->handle,
+                'detail' => [
+                    'rail' => 'circle_agent_wallet',
+                    // Recorded on the append-only attempt as well as the entry,
+                    // so the handle survives even if the entry is later
+                    // rewritten by reconciliation.
+                    'provider_handle' => $acceptance->handle,
+                    // No hash exists yet. Saying so here keeps the distinction
+                    // between "the rail took it" and "money moved" impossible
+                    // to lose downstream.
+                    'provider_reference' => null,
+                    'settlement_proven' => false,
+                ]];
         }
 
         try {
@@ -104,6 +166,31 @@ final readonly class IsolatedPaymentExecutor
                 'explorer_url' => $result->explorerUrl,
             ],
         ];
+    }
+
+    /**
+     * The asynchronous transport for this rail, or null for a synchronous one.
+     *
+     * `auto` follows the configured driver, because a Circle agent wallet is
+     * asynchronous in fact and not merely by convention. It can be forced either
+     * way, and the transport itself is resolved from the container so a test can
+     * supply its own rather than reaching for a real binary.
+     */
+    private function transportFor(PaymentSubmissionOutbox $entry): ?AsyncPaymentTransport
+    {
+        $mode = (string) config('eduflow.submission.transport', 'auto');
+
+        $wantsAsync = match ($mode) {
+            'circle_agent_wallet' => true,
+            'synchronous' => false,
+            default => config('lepton.default') === 'circle',
+        };
+
+        if (! $wantsAsync) {
+            return null;
+        }
+
+        return app(AsyncPaymentTransport::class);
     }
 
     /**

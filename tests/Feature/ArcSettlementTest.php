@@ -455,7 +455,8 @@ test('the executor refuses to run while the submission runtime is off', function
 test('the executor refuses anything but the explicitly configured Arc testnet rail', function (): void {
     [$entry] = executorEntry();
     executorGateway();
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
     $entry->snapshot = ['chain' => 'ARC-MAINNET', 'chain_id' => 12345] + $entry->snapshot;
 
     expect(fn () => app(IsolatedPaymentExecutor::class)->submit($entry))
@@ -465,7 +466,8 @@ test('the executor refuses anything but the explicitly configured Arc testnet ra
 test('the executor refuses a destination address that is not a usable address', function (): void {
     [$entry] = executorEntry();
     executorGateway();
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
     $entry->snapshot = ['recipient_address' => '0xnothex'] + $entry->snapshot;
 
     expect(fn () => app(IsolatedPaymentExecutor::class)->submit($entry))
@@ -497,7 +499,8 @@ test('the fee preflight validates without broadcasting a write', function (): vo
     );
     app()->instance(WalletGateway::class, $wallets);
 
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     app(IsolatedPaymentExecutor::class)->estimate($entry);
 
@@ -509,7 +512,8 @@ test('the fee preflight validates without broadcasting a write', function (): vo
 test('an uncertain provider response is unknown, never a failure', function (): void {
     [$entry] = executorEntry();
     executorGateway(new RuntimeException('read: timeout'));
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     $outcome = app(IsolatedPaymentExecutor::class)->submit($entry);
 
@@ -534,7 +538,8 @@ test('a simulated transfer is never submitted as a network movement', function (
 test('a submitted reference is recorded as submitted, never as settled', function (): void {
     [$entry] = executorEntry();
     executorGateway();
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     (new ProcessPaymentSubmission($entry->id))
         ->handle(app(IsolatedPaymentExecutor::class));
@@ -564,7 +569,8 @@ test('only a verified verdict completes an entry, and the hold is what releases 
     [$entry] = executorEntry();
     executorGateway();
     stubArc(settledReceiptFor($entry));
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
 
@@ -580,7 +586,8 @@ test('an unresolved verdict keeps the entry owed and holds its capacity', functi
     [$entry, $c] = executorEntry();
     executorGateway();
     stubArc(['eth_getTransactionReceipt' => null, 'eth_getTransactionByHash' => ['blockNumber' => null]]);
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
 
@@ -616,7 +623,8 @@ test('a fee above the approved ceiling leaves the entry owed end to end', functi
     $responses['eth_getTransactionReceipt']['effectiveGasPrice'] = hexQty(1_000000000);
     stubArc($responses);
 
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
 
@@ -638,7 +646,8 @@ test('a mirrored settlement records the full six-decimal amount without rounding
     executorGateway();
     stubArc(settledReceiptFor($entry));
 
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
 
@@ -661,7 +670,8 @@ test('a mirrored settlement records the exact amount and never settles the local
     [$entry] = executorEntry();
     executorGateway();
     stubArc(settledReceiptFor($entry));
-    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle']);
+    config(['eduflow.submission.enabled' => true, 'lepton.default' => 'circle',
+        'eduflow.submission.transport' => 'synchronous']);
 
     (new ProcessPaymentSubmission($entry->id))->handle(app(IsolatedPaymentExecutor::class));
 

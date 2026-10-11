@@ -108,3 +108,12 @@ Two chain facts, both verified against the Arc docs and real ARC-TESTNET receipt
 Also: Arc has deterministic finality. Receipts are immediately authoritative, no reorgs, confirmations=1. The block read is corroborating evidence (block hash, timestamp) and must never gate settlement.
 
 Corroborating streams describe one movement, not a double count. An ERC-20 transfer emits two logs; a plain native send emits a system log plus a non-zero value. Record them all as agreement in matched_interfaces.
+
+## Circle agent-wallet transfers are asynchronous; no sync tx hash exists
+`circle wallet transfer` without `--quiet` does NOT broadcast. It returns a fee preview only -- gasLimit, networkFee, networkFeeRaw, baseFee, priorityFee, maxFee -- byte-for-byte the same shape as `--estimate`. Observed on ARC-TESTNET 2026-10-11: the executor recorded `unknown`, and `circle transaction list` afterwards showed no new transaction at all.
+
+With `--quiet`, the CLI returns a transaction ID for agent wallets ("transaction hash for local wallets, transaction ID for agent wallets"). Our wallet is `"type": "agent"`, so that is a UUID like 116c7ce7-8f2f-53ac-8b06-f18aac151ce3, not 0x...
+
+`CircleCliGateway::transfer()` requires txHash and throws without it. That is correct -- it must never record a fake reference -- but it means every real agent-wallet payment ends `unknown`. The working path is: quiet submit -> Circle transaction id -> poll `circle transaction list` until COMPLETE/FAILED -> take txHash -> ArcSettlementVerifier.
+
+Do not 'fix' this by recording the Circle id as if it were a hash, and do not retry a `unknown` by resending: the payment may already have been accepted.
