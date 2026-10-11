@@ -8,24 +8,32 @@
 
 **Delivered and tested (2026-10-11):** Section 16 (both panels rebuilt against this plan), the
 durable submission outbox, reviewed reservation release, the isolated executor with the Arc
-settlement predicate, and reviewed funding-window rollover. **1346 Pest tests pass (3 skipped).**
-The submission runtime still defaults off and has never contacted a network.
+settlement predicate, reviewed funding-window rollover, and the standing-mandate lane
+(§18.4 records plus the sessionless occurrence scanner). **1384 Pest tests pass (3 skipped).**
+The submission runtime and the mandate runtime both still default off, and neither has ever
+contacted a network.
 
 **Not built, in dependency order — this is the critical path:**
 
-1. **Funding-window rollover** — **delivered in code and tests**; see the entry below.
-2. Durable **outbox + attempt identity** — **delivered**, see below.
-3. **Isolated executor + Arc settlement verification** (§17 step 12) — **delivered in code
-   and tests**; see the entry below. Still needs a real testnet run and an operator decision
-   on testnet submission authority to close §14.4 Step 4 end to end.
-4. **Bounded autonomous lane** (§18) — rollover is now unblocked; the remaining dependency is a
-   live-tested step 3.
-5. **Inbound collection** (§12.5, §15.6) — entirely unmodelled; no payer identity exists.
+1. **Live testnet run** — the single real blocker to §14.4 Step 4. Every link of the chain now
+   exists and is tested, and none has touched Arc. Needs an operator decision on testnet
+   submission authority, then one run.
+2. **Institution-scoped service authority** — the autonomous scanner deliberately stops at a
+   recorded disposition and creates no payment intent. Turning a `release` into a payment needs
+   explicit service authority, **not** a fabricated human actor passed to a staff action.
+3. **The standing mandate itself** (§18.4) — **delivered**; its initial allowance is zero, so
+   the lane releases nothing until a reviewer raises a ceiling.
+4. **Inbound collection** (§12.5, §15.6) — entirely unmodelled; no payer identity exists.
+5. **Legacy auto-pay path still reachable** — `EduFlowAgent::runAutonomousCycle` calls
+   `CircleWalletService::executePayment()` directly on `AUTO_APPROVE`, behind the AI Activity
+   button at `/admin/ai-activity`. It bypasses every reviewed authorizer above and processes
+   unversioned invoices. §18 treats it as a blocker; it is not yet disabled.
 
-**Ordering correction (2026-10-10):** an earlier revision listed rollover first. That was
-wrong. Rollover is an unattended-operation blocker; the §14.4 Step 4/5 human lane already
-has its 15-minute window in hand. The outbox was therefore built first, and the executor is
-the single remaining blocker to the current delivery target.
+**Ordering corrections (2026-10-10, reaffirmed 2026-10-11):** an earlier revision listed
+rollover first. That was wrong. Rollover is an unattended-operation blocker; the §14.4 Step 4/5
+human lane already has its 15-minute window in hand. The outbox was therefore built first, then
+the executor, then rollover, then the mandate — in that order, and the chain has still never
+run live.
 
 **Delivered (2026-10-10): durable submission outbox and attempt identity.**
 `PaymentSubmissionOutbox` is written inside the authorization's own transaction, so an
