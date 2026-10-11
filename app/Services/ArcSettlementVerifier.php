@@ -178,11 +178,24 @@ final readonly class ArcSettlementVerifier
     /**
      * Compare the movement actually recorded against what was authorized.
      *
-     * Several streams can describe one movement: a native send carries both a
-     * non-zero `value` and a system-emitter log, and an ERC-20 transfer emits
-     * two logs. Every agreeing stream is collected, because on Arc they are
-     * independent descriptions of the same money rather than a double-count.
-     * Only a complete absence of the authorized movement is a mismatch.
+     * The sender is established from the USDC Transfer log, not from the
+     * transaction envelope. Circle agent wallets execute through a relayer and
+     * a delegated account, so on that rail `tx.from` is the relayer, `tx.to` is
+     * the delegate and `value` is zero. Confirmed against real ARC-TESTNET
+     * receipts: the treasury is nonetheless the `from` topic of the system
+     * Transfer log. Reading the sender off the envelope would refuse every
+     * genuine agent-wallet payment while proving nothing about the money.
+     *
+     * The log is the stronger evidence anyway -- it ties the sender to this
+     * specific movement rather than to the transaction that carried it, and it
+     * cannot be forged, because the chain emits it.
+     *
+     * Several streams can describe one movement: a plain native send carries
+     * both a non-zero `value` and a system-emitter log, and an ERC-20 transfer
+     * emits two logs. Every agreeing stream is collected, because on Arc they
+     * are independent descriptions of the same money rather than a
+     * double-count. Only a complete absence of the authorized movement is a
+     * mismatch.
      *
      * @param  array<string, mixed>  $transaction
      * @param  array<string, mixed>  $receipt
@@ -191,12 +204,6 @@ final readonly class ArcSettlementVerifier
      */
     private function economicMatch(array $transaction, array $receipt, array $expected): array
     {
-        $from = is_string($transaction['from'] ?? null) ? strtolower($transaction['from']) : null;
-
-        if ($from !== strtolower($expected['sender'])) {
-            return ['mismatch' => 'Sender on chain does not match the authorized treasury.', 'interfaces' => []];
-        }
-
         $interfaces = $this->transferLogMatches($receipt, $expected);
 
         if ($this->nativeValueMatches($transaction, $expected)) {
@@ -204,7 +211,7 @@ final readonly class ArcSettlementVerifier
         }
 
         if ($interfaces === []) {
-            return ['mismatch' => 'No native value and no USDC Transfer log matches the authorized amount, recipient and asset.', 'interfaces' => []];
+            return ['mismatch' => 'No USDC Transfer log and no native value records the authorized sender, recipient and amount.', 'interfaces' => []];
         }
 
         return ['mismatch' => null, 'interfaces' => $interfaces];
@@ -248,14 +255,22 @@ final readonly class ArcSettlementVerifier
      * exact decimals rather than strings so `25.000001` can never be rounded
      * down onto `25.000000`.
      *
+     * A plain native send carries the movement in `value`, but only an ordinary
+     * account-to-account send does. A relayed agent-wallet transfer has
+     * `value` zero and moves the USDC through a log instead, so this correctly
+     * declines it and the log stream carries the proof.
+     *
+     * @param  array<string, mixed>  $transaction
      * @param  array<string, mixed>  $expected
      */
     private function nativeValueMatches(array $transaction, array $expected): bool
     {
         $value = $transaction['value'] ?? null;
+        $from = $transaction['from'] ?? null;
         $to = $transaction['to'] ?? null;
 
-        if (! is_string($value) || ! is_string($to)
+        if (! is_string($value) || ! is_string($from) || ! is_string($to)
+            || strtolower($from) !== strtolower($expected['sender'])
             || strtolower($to) !== strtolower($expected['recipient'])) {
             return false;
         }

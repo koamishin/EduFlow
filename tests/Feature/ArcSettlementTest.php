@@ -154,7 +154,7 @@ test('a hash that is merely present is not settlement', function (): void {
 
     expect($verdict['verdict'])->toBe('mismatched')
         ->and($verdict['settled'])->toBeFalse()
-        ->and($verdict['reason'])->toContain('No native value and no USDC Transfer log');
+        ->and($verdict['reason'])->toContain('No USDC Transfer log and no native value');
 });
 
 test('a payment to the wrong recipient is a mismatch even at the right amount', function (): void {
@@ -165,11 +165,14 @@ test('a payment to the wrong recipient is a mismatch even at the right amount', 
     $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
 
     expect($verdict['verdict'])->toBe('mismatched')
-        ->and($verdict['reason'])->toContain('No native value and no USDC Transfer log')
+        ->and($verdict['reason'])->toContain('No USDC Transfer log and no native value')
         ->and($verdict['settled'])->toBeFalse();
 });
 
-test('a payment from the wrong treasury is a mismatch before economics are even read', function (): void {
+test('a payment from the wrong treasury is a mismatch', function (): void {
+    // The sender is established from whichever stream carries the movement.
+    // Here the native `value` names the wrong origin, and with no Transfer log
+    // there is nothing left that could authorise it.
     $responses = settledReceipt();
     $responses['eth_getTransactionByHash']['from'] = '0x'.str_repeat('9', 40);
     stubArc($responses);
@@ -177,7 +180,7 @@ test('a payment from the wrong treasury is a mismatch before economics are even 
     $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
 
     expect($verdict['verdict'])->toBe('mismatched')
-        ->and($verdict['reason'])->toContain('Sender on chain does not match')
+        ->and($verdict['reason'])->toContain('No USDC Transfer log and no native value')
         ->and($verdict['settled'])->toBeFalse();
 });
 
@@ -705,4 +708,86 @@ test('an unreachable rail leaves the payment unknown and never settled or comple
         ->and(Transaction::query()->count())->toBe(0)
         ->and(PaymentSubmissionOutbox::query()->where('state', 'completed')->count())->toBe(0)
         ->and(PaymentSubmissionOutbox::query()->where('state', 'submitted')->count())->toBe(0);
+});
+
+test('a relayed agent-wallet transfer settles from its Transfer log, not the envelope', function (): void {
+    // Observed on real ARC-TESTNET receipts from Circle agent wallets: the
+    // transaction is submitted by a relayer against a delegated account, so
+    // `from` is the relayer, `to` is the delegate and `value` is zero. The
+    // treasury only appears as the `from` topic of the system Transfer log.
+    // Requiring the envelope's sender to equal the treasury would refuse every
+    // genuine agent-wallet payment while proving nothing about the money.
+    $relayer = '0x9ae75fa838fcce70bb2def05f9d6595643bf0d91';
+    $delegate = '0x0000000071727de22e5e9d8baf0edac6f37da032';
+
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['from'] = $relayer;
+    $responses['eth_getTransactionByHash']['to'] = $delegate;
+    $responses['eth_getTransactionByHash']['value'] = '0x0';
+    $responses['eth_getTransactionReceipt']['logs'] = [[
+        'address' => '0xfffffffffffffffffffffffffffffffffffffffe',
+        'topics' => [
+            '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+            '0x000000000000000000000000'.str_repeat('1', 40),
+            '0x000000000000000000000000'.str_repeat('2', 40),
+        ],
+        'data' => hexQty(BigInteger::of(25_000000)->multipliedBy(BigInteger::of('1000000000000'))),
+    ]];
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('verified')
+        ->and($verdict['settled'])->toBeTrue()
+        ->and($verdict['matched_interfaces'])->toBe(['native_system_log']);
+});
+
+test('a relayer cannot launder someone else\'s transfer into an authorized settlement', function (): void {
+    // The log's `from` topic is what authorizes the sender. If it names
+    // somebody other than the treasury, the movement is not ours no matter who
+    // submitted the transaction.
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['from'] = '0x9ae75fa838fcce70bb2def05f9d6595643bf0d91';
+    $responses['eth_getTransactionByHash']['to'] = '0x0000000071727de22e5e9d8baf0edac6f37da032';
+    $responses['eth_getTransactionByHash']['value'] = '0x0';
+    $responses['eth_getTransactionReceipt']['logs'] = [[
+        'address' => '0xfffffffffffffffffffffffffffffffffffffffe',
+        'topics' => [
+            '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+            '0x000000000000000000000000'.str_repeat('9', 40),
+            '0x000000000000000000000000'.str_repeat('2', 40),
+        ],
+        'data' => hexQty(BigInteger::of(25_000000)->multipliedBy(BigInteger::of('1000000000000'))),
+    ]];
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('mismatched')
+        ->and($verdict['settled'])->toBeFalse();
+});
+
+test('a six-decimal payload at the system emitter cannot inflate a bill a millionfold', function (): void {
+    // 25 USDC is 25e18 native units; read as 6-decimal base units that is
+    // 25,000,000 USDC. The emitter's scale is the only thing standing between a
+    // real settlement and a fabricated one, so this pins that the system
+    // emitter is interpreted at 18.
+    $responses = settledReceipt();
+    $responses['eth_getTransactionByHash']['from'] = '0x9ae75fa838fcce70bb2def05f9d6595643bf0d91';
+    $responses['eth_getTransactionByHash']['value'] = '0x0';
+    $responses['eth_getTransactionReceipt']['logs'] = [[
+        'address' => '0xfffffffffffffffffffffffffffffffffffffffe',
+        'topics' => [
+            '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+            '0x000000000000000000000000'.str_repeat('1', 40),
+            '0x000000000000000000000000'.str_repeat('2', 40),
+        ],
+        'data' => hexQty(BigInteger::of(25_000000)),
+    ]];
+    stubArc($responses);
+
+    $verdict = app(ArcSettlementVerifier::class)->verify(verifierExpected(), '0x'.str_repeat('f', 64));
+
+    expect($verdict['verdict'])->toBe('mismatched')
+        ->and($verdict['settled'])->toBeFalse();
 });
