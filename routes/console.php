@@ -28,3 +28,11 @@ Schedule::command('eduflow:dispatch-payment-submissions --recover-stale')->every
 // record the institution is choosing to keep.
 Schedule::command('eduflow:reconcile-payment-submissions')->everyMinute()->withoutOverlapping(2)->onOneServer()
     ->when(fn (): bool => (bool) config('eduflow.submission.enabled', false));
+
+// The autonomous lane is sessionless and never touches a rail: this tick reads
+// live evidence, classifies due obligations and records a disposition. It is
+// gated on the mandate runtime so a schedule left in place cannot enable the
+// lane by itself. Overlap control matters because two ticks classifying the
+// same bill would race on the occurrence identity, not on the money.
+Schedule::command('eduflow:dispatch-mandate-occurrences')->everyMinute()->withoutOverlapping(2)->onOneServer()
+    ->when(fn (): bool => (bool) config('eduflow.mandate.runtime_enabled', false));

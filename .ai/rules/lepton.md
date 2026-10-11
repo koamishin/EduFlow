@@ -9,6 +9,7 @@ paths:
   - app/Services/ArcSettlementVerifier.php
   - app/Services/IsolatedPaymentExecutor.php
   - app/Services/ReservationCapacity.php
+  - app/Services/MandateOccurrenceScanner.php
 ---
 
 # Lepton / Arc testnet settlement
@@ -86,3 +87,9 @@ Gated on EDUFLOW_SUBMISSION_ENABLED plus an Arc-testnet-only rail check with no 
 
 ## Each hold is verified against its own window
 `verify()` resolves every historical hold's funding window from its own approval, never the current window. Judging an old hold by a newer window's re-observed cash would report validly-taken capacity as corrupt whenever a treasury balance moved. Admission for a NEW hold is judged separately, against the current window, in ReserveVendorPayment.
+
+## The autonomous lane stops at a recorded disposition
+The scanner is sessionless and holds no payment authority: it creates no PaymentIntent, reserves nothing, never calls a rail, and never passes a fabricated human actor to a staff action. Turning a `release` occurrence into a payment needs explicit institution-scoped service authority, which does not exist yet — do not reach for an Admin user to satisfy a policy check.
+
+## A mandate may only pay bills inside a reviewed closed set
+A bill is only a candidate if it appears in a current, valid BudgetSnapshot's bill_ids for the mandate's budget, with a matching snapshot digest. Without this a standing mandate would widen its own reach to every invoice the vendor ever sends — the planner's closed-set rule has to extend to the mandate.
