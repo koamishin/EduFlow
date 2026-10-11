@@ -41,6 +41,48 @@ verify, fees read from receipts (0.006351 / 0.003811 / 0.003185 USDC). Negative 
 refuse — amount one base unit high, substituted recipient, and a never-broadcast hash all return
 `mismatched` / `not_found`, never settled.
 
+**Known gap in the fee ceiling (2026-10-11).** `ArcSettlementVerifier` bounds
+`max_fee_base_units` against `gasUsed × effectiveGasPrice` from the receipt, which is the only fee the
+receipt can prove. Real ARC-TESTNET transfers show that is *not* the whole cost. For the 30 USDC
+transfer, receipt gas was 0.006351 USDC, Circle reported `networkFee` 0.006834, and a further system
+transfer of 0.014456 USDC moved from the delegate account to the relayer. For the 45 USDC transfer,
+receipt gas was 0.003812 while Circle's `networkFee` and the delegate→relayer amount were both
+0.009717. So an authorised fee ceiling of, say, 0.01 USDC would pass while the wallet actually paid
+0.0208. The ceiling is sound for *on-chain gas* and silent about Circle's own charge and the relayer
+reimbursement. Either bound those explicitly or stop describing it as a total-cost ceiling.
+
+**The live run reached a durable, authorized submission, and stopped at the rail's asynchrony (2026-10-11).**
+The whole §14.4 Step 4 human lane ran end to end on the real chain: reviewed destination, reviewed
+invoice, closed budget snapshot, funding window, reservation, independent enrolment, MFA-backed
+authorization by a named reviewer, and a durable outbox entry. Then `eduflow:dispatch-payment-submissions`
+and the worker ran, and the transfer did **not** broadcast.
+
+`circle wallet transfer` without `--quiet` returns a fee preview — `gasLimit`, `networkFee`,
+`baseFee`, `priorityFee`, `maxFee` — and submits nothing. The response the executor received was
+byte-for-byte the same shape as an explicit `--estimate`, and `circle transaction list` afterwards
+showed no new transaction: the newest is still 2026-10-02. **No money moved.**
+
+**This is the remaining gap, and it is architectural.** Circle agent wallets are asynchronous.
+`circle wallet transfer --help` states that `--quiet` returns "transaction hash for local wallets,
+**transaction ID for agent wallets**". Our wallet is `"type": "agent"`, so even a successful quiet
+submit returns a UUID like `116c7ce7-8f2f-53ac-8b06-f18aac151ce3`, not a `0x…` hash.
+`CircleCliGateway::transfer()` requires `txHash` in the response and throws without it — correctly,
+because it must never record a fake reference — so **every** real agent-wallet payment currently ends
+`unknown` with no reference.
+
+The submission path needs three stages, not one: quiet submit → Circle transaction id → poll
+`circle transaction list` until the id reaches `COMPLETE` or `FAILED` → take `txHash` → verify on
+chain. That also forces a wording decision: after a successful submit but before inclusion the honest
+state is *accepted by Circle, not yet on chain*, which is not the same claim as `submitted`, and
+`submitted` is deliberately excluded from `DISPATCHABLE_STATES` for exactly this reason. The stop
+switch, the lease recovery and the `unknown` reconciliation path all already cope.
+
+**What went right when it stopped, and is worth keeping:** the executor recorded `unknown` with **no**
+`provider_reference`, wrote **zero** `transactions`, reported `payments_submitted: 0`, retained the
+capacity hold rather than releasing it on a false negative, and `eduflow:reconcile-payment-submissions`
+correctly reported "No submitted references await verification" — it did not go looking for a
+settlement that never existed.
+
 **Delivered and tested (2026-10-11):** Section 16 (both panels rebuilt against this plan), the
 durable submission outbox, reviewed reservation release, the isolated executor with the Arc
 settlement predicate, reviewed funding-window rollover, the standing-mandate lane (§18.4 records plus

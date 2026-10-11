@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\ProposePaymentIntentChange;
 use App\Actions\ReleaseReservedCapacity;
+use App\Actions\ReserveVendorPayment;
 use App\Actions\ReviewPaymentIntentChange;
 use App\Actions\ReviewReservationRelease;
 use App\Models\PaymentAuthorization;
@@ -214,6 +215,63 @@ test('release records are immutable and decisions are constrained at the databas
         'reason' => 'Not a real decision.', 'proposal_digest' => str_repeat('c', 64), 'review_digest' => str_repeat('d', 64),
         'created_at' => now(), 'updated_at' => now(),
     ]))->toThrow(QueryException::class);
+});
+
+test('the schema allows a second reservation row once the first is released, and the action still refuses a second live hold', function (): void {
+    // UNIQUE(invoice_id) made a released bill permanently un-reservable: the
+    // row has to stay, because capacity history must reproduce, and it also
+    // blocked the new hold. History is append-only, so the second row must be
+    // storable. What must remain impossible is two holds consuming capacity at
+    // once, and that lives in the action, not the schema.
+    $c = reservationContext();
+    $approval = approveReservationWindow($c, prepareReservationWindow($c));
+    $hold = reserveContextBill($c, $approval);
+
+    // While the hold is live, admitting another one on the same bill is refused.
+    $draft = PaymentIntent::query()->findOrFail($hold->payment_intent_id);
+
+    expect(fn () => app(ReserveVendorPayment::class)->handle($c['actor'], $draft, $approval,
+        (string) Str::uuid(), $hold->snapshot['intent_digest'], $approval->approval_digest,
+    ))->toThrow(ValidationException::class);
+
+    proposeRelease($hold);
+    approveRelease($c, $hold);
+
+    // After a reviewed release the row is inert, and the schema no longer
+    // forbids the history that a re-reservation would add. A second row on the
+    // same bill, under a different draft, is now storable.
+    expect($hold->fresh()->isReleased())->toBeTrue();
+
+    DB::table('payment_reservations')->insert([
+        'reservation_key' => (string) Str::uuid(),
+        'organization_id' => $hold->organization_id,
+        'payment_intent_id' => $c['drafts'][1]->id,
+        'invoice_id' => $hold->invoice_id,
+        'funding_window_approval_id' => $hold->funding_window_approval_id,
+        'reserved_by' => $hold->reserved_by,
+        'amount_base_units' => $hold->amount_base_units,
+        'max_fee_base_units' => $hold->max_fee_base_units,
+        'snapshot' => '{}',
+        'snapshot_digest' => str_repeat('e', 64),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    expect(PaymentReservation::query()->where('invoice_id', $hold->invoice_id)->count())->toBe(2)
+        // One hold per draft is still a database guarantee, which is what
+        // actually protects against double-holding the same authorization.
+        ->and(fn () => DB::table('payment_reservations')->insert([
+            'reservation_key' => (string) Str::uuid(),
+            'organization_id' => $hold->organization_id,
+            'payment_intent_id' => $c['drafts'][1]->id,
+            'invoice_id' => $hold->invoice_id,
+            'funding_window_approval_id' => $hold->funding_window_approval_id,
+            'reserved_by' => $hold->reserved_by,
+            'amount_base_units' => $hold->amount_base_units,
+            'max_fee_base_units' => $hold->max_fee_base_units,
+            'snapshot' => '{}',
+            'snapshot_digest' => str_repeat('f', 64),
+            'created_at' => now(), 'updated_at' => now(),
+        ]))->toThrow(QueryException::class);
 });
 
 test('a released hold no longer blocks draft recovery', function (): void {

@@ -39,8 +39,25 @@ final readonly class ReserveVendorPayment
         $initial = PaymentIntent::query()->where('organization_id', $institution->id)->whereKey($intent->id)->firstOrFail();
         /** @var Wallet $wallet */
         $wallet = Wallet::query()->where('organization_id', $institution->id)->whereKey($initial->wallet_id)->firstOrFail();
-        $balance = PaymentReservation::query()->where('invoice_id', $initial->invoice_id)->orWhere('reservation_key', $key)->exists()
-            ? null : $this->balances->capture($wallet);
+        // A fresh balance observation is only pointless when the caller is replaying an
+        // existing hold, because a hold validly taken stays validly taken. Testing
+        // row existence here conflated that with "this bill has ever been reserved",
+        // so a bill whose hold was reviewed and released could never be reserved again:
+        // the observation was skipped, and the missing observation was then refused as
+        // stale state. Released holds hold nothing and grant no reason to skip.
+        $replayed = PaymentReservation::query()
+            ->where('organization_id', $initial->organization_id)
+            ->where('reservation_key', $key)
+            ->exists();
+
+        $liveHold = PaymentReservation::query()
+            ->where('organization_id', $initial->organization_id)
+            ->where('invoice_id', $initial->invoice_id)
+            ->get()
+            ->reject(fn (PaymentReservation $hold): bool => $hold->isReleased())
+            ->isNotEmpty();
+
+        $balance = ($replayed || $liveHold) ? null : $this->balances->capture($wallet);
 
         return DB::transaction(function () use ($actor, $initial, $approval, $key, $intentDigest, $approvalDigest, $institution, $balance): PaymentReservation {
             Organization::query()->whereKey($institution->id)->lockForUpdate()->firstOrFail();

@@ -81,11 +81,18 @@ final readonly class ReservationCapacity
                 $consuming = $consuming->plus($hold->amount_base_units)->plus($hold->max_fee_base_units);
             }
 
-            // Bounds still bind on the historical chain: a hold that never
-            // fitted the window it was taken under can never have been
-            // legitimately taken.
-            if ($total->isGreaterThan($capacity['budget_base_units'])
-                || $total->isGreaterThan($capacity['cash_base_units'])
+            // Bounds bind on what is *actually unavailable*, not on the historical
+            // cumulative total. `consuming` is that figure. A released hold
+            // still happened and must keep reproducing in
+            // `prior_reserved_base_units` above -- that check is the real
+            // anti-tamper anchor -- but its money came back, so counting it
+            // against the ceiling would charge for capacity twice and, because
+            // the chain total never decreases, would eventually freeze the
+            // institution permanently no matter how much cash was released.
+            // History integrity and admission are deliberately separate
+            // questions here.
+            if ($consuming->isGreaterThan($capacity['budget_base_units'])
+                || $consuming->isGreaterThan($capacity['cash_base_units'])
                 || ($hold->snapshot['remaining_budget_base_units'] ?? null)
                     !== (string) BigInteger::of($capacity['budget_base_units'])->minus($total)) {
                 throw ValidationException::withMessages(['reservation' => 'Reservation sequence or capacity bounds changed; independent investigation required.']);
