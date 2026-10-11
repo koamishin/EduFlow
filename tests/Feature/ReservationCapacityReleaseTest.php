@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\ProposePaymentIntentChange;
 use App\Actions\ReleaseReservedCapacity;
+use App\Actions\ReviewPaymentIntentChange;
 use App\Actions\ReviewReservationRelease;
 use App\Models\PaymentAuthorization;
 use App\Models\PaymentIntent;
@@ -231,6 +232,30 @@ test('a released hold no longer blocks draft recovery', function (): void {
         $draft->snapshot_digest, 'cancel', 'Bill withdrawn by the department.');
 
     expect($change->hasValidEvidence($draft))->toBeTrue();
+
+    // The proposal is only half the recovery. This half was untested, and it
+    // tested existence rather than liveness, so the released row kept blocking
+    // the very approval the release exists to unblock -- leaving the bill
+    // permanently un-recoverable after a correct release.
+    $review = app(ReviewPaymentIntentChange::class)->handle($c['reviewer'], $change, $change->content_digest,
+        'approve_change', 'Recovery independently reviewed.');
+
+    expect($review->decision)->toBe('approve_change')
+        ->and($review->retired_payment_intent_id)->toBe($draft->id);
+});
+
+test('a live hold still blocks draft recovery even if a release was merely proposed', function (): void {
+    // The fix must not weaken the guard: an unreleased hold still holds
+    // capacity, so recovery stays closed until the release is actually decided.
+    $c = reservationContext();
+    $approval = approveReservationWindow($c, prepareReservationWindow($c));
+    $hold = reserveContextBill($c, $approval);
+    $draft = PaymentIntent::query()->findOrFail($hold->payment_intent_id);
+
+    proposeRelease($hold);
+
+    expect(fn () => app(ProposePaymentIntentChange::class)->handle($c['actor'], $draft, (string) Str::uuid(),
+        $draft->snapshot_digest, 'cancel', 'Withdrawn.'))->toThrow(ValidationException::class);
 });
 
 test('release never moves funds, authorizes a payment or creates an executor', function (): void {

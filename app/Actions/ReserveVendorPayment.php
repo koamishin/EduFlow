@@ -72,6 +72,16 @@ final readonly class ReserveVendorPayment
             $released = $chain['released'];
             $same = null;
             foreach ($holds as $hold) {
+                // Only a hold that still consumes capacity can conflict with a
+                // new one. A released hold holds nothing -- returning capacity
+                // is precisely what release means -- so matching on it would
+                // make a bill permanently un-reservable after a correct
+                // release, and would disagree with the capacity arithmetic
+                // below, which already discounts released holds.
+                if ($hold->isReleased()) {
+                    continue;
+                }
+
                 if ($hold->invoice_id === $stored->invoice_id || $hold->reservation_key === $key) {
                     $same = $hold;
                 }
