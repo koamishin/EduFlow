@@ -10,6 +10,7 @@ paths:
   - app/Services/IsolatedPaymentExecutor.php
   - app/Services/ReservationCapacity.php
   - app/Services/MandateOccurrenceScanner.php
+  - app/Services/RecordRetrospectiveAgreement.php
 ---
 
 # Lepton / Arc testnet settlement
@@ -93,3 +94,6 @@ The scanner is sessionless and holds no payment authority: it creates no Payment
 
 ## A mandate may only pay bills inside a reviewed closed set
 A bill is only a candidate if it appears in a current, valid BudgetSnapshot's bill_ids for the mandate's budget, with a matching snapshot digest. Without this a standing mandate would widen its own reach to every invoice the vendor ever sends — the planner's closed-set rule has to extend to the mandate.
+
+## Retrospective feedback is never an approval
+The only 'did the admin agree' measure for the autonomous lane is retrospective: a supervisor is shown a sample of RELEASED occurrences afterwards and records whether they would have decided the same. It is one value per occurrence and append-only, so a rate cannot be inflated or rewritten. MandateRetrospectiveReview::isApproval() returns false by design, and evidence() carries is_retrospective_feedback=true / is_approval=false. Never compute an approval-as-is rate for this lane: that metric needs a human-reviewed original proposal, and an automatic release has none.

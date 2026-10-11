@@ -7,6 +7,8 @@ namespace App\Filament\Finance\Widgets;
 use App\DTOs\Money;
 use App\Models\FinancePolicyActivation;
 use App\Services\InstallationInstitution;
+use App\Services\MandateOutcomeMetrics;
+use App\Services\RecordRetrospectiveAgreement;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -87,11 +89,54 @@ class AutonomyLaneWidget extends BaseWidget
             ->descriptionIcon(Heroicon::Banknotes)
             ->color($policy !== null ? 'info' : 'warning');
 
-        $outcomes = Stat::make('Automatic outcomes', 'Nothing automatic')
-            ->description('0 auto-authorized · 0 submitted · 0 verified · 0 held. Automatic work stays visible here even when it needs no approval notification — today there is none to show.')
-            ->descriptionIcon(Heroicon::SignalSlash)
+        // Real outcome counts, not a reassuring zero. A lane that escalates
+        // everything must be visible as such: an autonomy rate of 100% and one
+        // of 0% look identical if you only count what was "handled".
+        $metrics = app(MandateOutcomeMetrics::class);
+        $decisions = $metrics->decisions($institution);
+        $observed = $decisions['release'] + $decisions['escalate'] + $decisions['blocked'];
+        $reasons = $metrics->escalationReasons($institution);
+        $top = $reasons === [] ? 'nothing escalated' : $this->topEscalation($reasons);
+
+        $outcomes = Stat::make('Decisions vs escalated', $observed === 0 ? 'Nothing yet' : sprintf(
+            '%d released · %d escalated · %d blocked',
+            $decisions['release'], $decisions['escalate'], $decisions['blocked'],
+        ))
+            ->description($observed === 0
+                ? 'No occurrence has been evaluated yet. Automatic work stays visible here even when it needs no approval notification.'
+                : sprintf('Released %s USDC, escalated %s USDC. Most common escalation: %s. Rate released %s of observed occurrences.',
+                    Money::formatExact($decisions['release_base_units'], 'USDC'),
+                    Money::formatExact($decisions['escalate_base_units'], 'USDC'),
+                    $top,
+                    number_format($metrics->autonomyRate($decisions) * 100, 1).'%',
+                ))
+            ->descriptionIcon(Heroicon::ChartBar)
+            ->color($decisions['release'] > 0 ? 'info' : 'gray');
+
+        // Labelled "feedback", never "agreement rate", and the caveat travels
+        // with the number. §18.6 is explicit that this is not approval.
+        $rate = app(RecordRetrospectiveAgreement::class)->rate($institution);
+
+        $agreement = Stat::make('Supervisor feedback (retrospective)', $rate['reviewed'] === 0
+            ? 'Not reviewed yet'
+            : sprintf('%d of %d would agree', $rate['agreed'], $rate['reviewed']))
+            ->description($rate['reviewed'] === 0
+                ? 'Released occurrences are sampled and shown to the responsible supervisor afterwards. No sample has been reviewed yet.'
+                : sprintf('%d released, %d not yet reviewed. Retrospective feedback only — it is not per-item approval and not proof of correctness.',
+                    $rate['released_total'], $rate['unreviewed']))
+            ->descriptionIcon(Heroicon::ChatBubbleLeftRight)
             ->color('gray');
 
-        return [$mandateStat, $perPayment, $dailyStat, $feeStat, $outcomes];
+        return [$mandateStat, $perPayment, $dailyStat, $feeStat, $outcomes, $agreement];
+    }
+
+    /**
+     * @param  array<string, int>  $reasons
+     */
+    private function topEscalation(array $reasons): string
+    {
+        $name = (string) array_key_first($reasons);
+
+        return str_replace('_', ' ', $name);
     }
 }

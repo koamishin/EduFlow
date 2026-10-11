@@ -578,8 +578,14 @@ test('automatic lane reports zero allowance instead of an empty or implied manda
         ->assertSee('Automatic payment lane')
         ->assertSee('None approved')
         ->assertSee('Zero allowance')
-        ->assertSee('0 auto-authorized')
-        ->assertSee('Nothing automatic');
+        // Real counts, and an empty lane says so rather than implying success.
+        ->assertSee('Decisions vs escalated')
+        ->assertSee('Nothing yet')
+        // The agreement figure is labelled retrospective and is not a rate yet.
+        ->assertSee('Supervisor feedback (retrospective)')
+        ->assertSee('Not reviewed yet')
+        // And it must never claim to be an approval measure.
+        ->assertDontSee('approval rate');
 
     expect(Transaction::query()->count())->toBe(0);
 });
