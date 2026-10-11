@@ -83,6 +83,34 @@ capacity hold rather than releasing it on a false negative, and `eduflow:reconci
 correctly reported "No submitted references await verification" — it did not go looking for a
 settlement that never existed.
 
+**Advisory AI lane (2026-10-11) — Jev classification, no authority.** `laravel/ai` v1.0.1 is installed
+and `config/ai.php` already defaults `default_for_classification` to `typesafe`. Jev (TypeSafe's
+"System One" model) answers classification questions in milliseconds for a small fraction of a text
+model's cost, and is reached through `Str::decide($value, $question, $criteria, threshold:, timeout:)`
+— a boolean with a confidence threshold — or `Collection::decide()` for routing.
+
+`MandateCandidateRanker` uses it for exactly one purpose: telling a supervisor **which bills might
+deserve a standing mandate**, judged on whether the bill recurs and whether its amount is stable. It is
+advisory, and the boundary is structural rather than a matter of good intentions:
+
+- `AdvisoryMandateRanking` has no amount, no recipient, no ceiling and no verdict in the type. There
+  is nothing in it a caller could promote into a payment even by accident. It records
+  `advisory_only: true` and `decides_payment: false` on every row.
+- Its output is never fed to `MandateReleaseEvaluator`, which remains a pure function of evidence.
+- A model ranking makes a mandate review *faster*; it cannot replace the reviewer who signs it, or the
+  deterministic evaluate-each-occurrence step that follows.
+- The threshold for "is this recurring" is 0.75 — deliberately high, because a false positive is an
+  unattended payment while a false negative only costs a reviewer a moment. A bill with an unstable
+  amount is demoted rather than hidden, since a variable bill is exactly where unattended payment is
+  most dangerous.
+- Fail-closed: no key, an unreachable provider, or a provider error returns null. A missing model
+  costs reading time; a model that failed *open* could widen what pays without a human. A provider
+  failure discards the whole ranking rather than returning a partial one, which would read as a
+  considered judgement about whichever bills survived.
+
+Needs a `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY` and `AiSettings::advisory_enabled` — all unset, so
+it degrades to null today, which is the correct default.
+
 **Delivered and tested (2026-10-11):** Section 16 (both panels rebuilt against this plan), the
 durable submission outbox, reviewed reservation release, the isolated executor with the Arc
 settlement predicate, reviewed funding-window rollover, the standing-mandate lane (§18.4 records plus
