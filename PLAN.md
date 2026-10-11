@@ -6,28 +6,59 @@
 
 ## Where Things Stand — Start Here in a New Session
 
+**The rail is live as of 2026-10-11.** Circle CLI v1.2.1 is installed via npm global
+(`@circle-fin/cli`); PATH resolves a stale `mise` shim named `circle` first, so `LEPTON_CIRCLE_BIN`
+points at the real binary. The agent session is **authenticated for ARC-TESTNET and ARC** (valid,
+~15 days). `arc-canteen` serves `eth_blockNumber`, `eth_getBalance`, `eth_getTransactionReceipt`,
+`eth_getTransactionByHash` and `eth_getBlockByNumber` against chain `5042002`. The treasury holds
+**64.9 USDC**. `circle terms show` reports Terms **Accepted** — already done, nothing to accept.
+
+**Two real defects were found in the settlement predicate by reading the Arc docs and real receipts,
+and both are fixed (`bb99a69`, `23782fd`).** Neither was visible from tests alone, and either one
+would have made *every* real payment unreadable:
+
+1. **Transfer logs were read at 6 decimals regardless of emitter.** Arc emits two USDC streams — the
+   EIP-7708 native system emitter `0xffff…fffe` at **18** decimals, and NativeFiatToken
+   `0x3600…0000` at **6**. A real 30 USDC transfer logged `30000000000000000000`; read as 6 decimals
+   that is **30,000,000,000,000 USDC**. Matching is now keyed on emitter address, and an emitter of
+   unknown scale is skipped rather than guessed at.
+2. **The sender was read from the transaction envelope.** Circle agent wallets do not transact from
+   their own address: a real receipt has `from` = relayer `0x9ae75f…`, `to` = delegated account
+   `0x0000000071…`, and `value` = 0. The treasury appears **only** as the `from` topic of the system
+   Transfer log. Since every payment this system makes goes through an agent wallet, requiring
+   `tx.from == treasury` refused all of them as `mismatched`. The sender is now established from
+   whichever stream carries the movement; the log is stronger evidence anyway, since it binds the
+   sender to *this* movement and cannot be forged.
+
+Also corrected against the docs: **Arc has deterministic finality** — receipts are immediately
+authoritative, no reorgs, confirmation count 1. The block read had been *gating* settlement on a reorg
+risk that does not exist, so an RPC hiccup could strand a genuinely paid vendor as unresolved
+forever. It now supplies corroborating evidence (block hash, timestamp) and recorded
+`matched_interfaces`, and can no longer unsettle a payment the chain already made final.
+
+**Validated against three completed Circle transfers on ARC-TESTNET** (30, 45 and 0.01 USDC): all
+verify, fees read from receipts (0.006351 / 0.003811 / 0.003185 USDC). Negative controls still
+refuse — amount one base unit high, substituted recipient, and a never-broadcast hash all return
+`mismatched` / `not_found`, never settled.
+
 **Delivered and tested (2026-10-11):** Section 16 (both panels rebuilt against this plan), the
 durable submission outbox, reviewed reservation release, the isolated executor with the Arc
-settlement predicate, reviewed funding-window rollover, and the standing-mandate lane
-(§18.4 records plus the sessionless occurrence scanner). **1384 Pest tests pass (3 skipped).**
-The submission runtime and the mandate runtime both still default off, and neither has ever
-contacted a network.
+settlement predicate, reviewed funding-window rollover, the standing-mandate lane (§18.4 records plus
+the sessionless occurrence scanner), and the enforced nonzero-allowance gate that previously existed
+in config but was read nowhere. The legacy `EduFlowAgent` auto-pay route is **disabled** — both the
+vendor and assistance branches now require the authorized workflow. **1400 Pest tests pass
+(3 skipped).**
 
 **Not built, in dependency order — this is the critical path:**
 
-1. **Live testnet run** — the single real blocker to §14.4 Step 4. Every link of the chain now
-   exists and is tested, and none has touched Arc. Needs an operator decision on testnet
-   submission authority, then one run.
+1. **Live testnet run** — the environment is ready and the rail is reachable; what remains is the one
+   authorisation-to-execution run itself, end to end, with its settlement verified on-chain.
 2. **Institution-scoped service authority** — the autonomous scanner deliberately stops at a
    recorded disposition and creates no payment intent. Turning a `release` into a payment needs
    explicit service authority, **not** a fabricated human actor passed to a staff action.
-3. **The standing mandate itself** (§18.4) — **delivered**; its initial allowance is zero, so
-   the lane releases nothing until a reviewer raises a ceiling.
+3. **The standing mandate** (§18.4) — delivered; its initial allowance is zero by construction, so
+   the lane releases nothing until a reviewer raises a ceiling and the installation flag allows it.
 4. **Inbound collection** (§12.5, §15.6) — entirely unmodelled; no payer identity exists.
-5. **Legacy auto-pay path still reachable** — `EduFlowAgent::runAutonomousCycle` calls
-   `CircleWalletService::executePayment()` directly on `AUTO_APPROVE`, behind the AI Activity
-   button at `/admin/ai-activity`. It bypasses every reviewed authorizer above and processes
-   unversioned invoices. §18 treats it as a blocker; it is not yet disabled.
 
 **Ordering corrections (2026-10-10, reaffirmed 2026-10-11):** an earlier revision listed
 rollover first. That was wrong. Rollover is an unattended-operation blocker; the §14.4 Step 4/5

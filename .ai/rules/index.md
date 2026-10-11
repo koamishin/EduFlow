@@ -6,6 +6,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | app/Actions/RollOverFundingWindow.php, app/Actions/ReserveVendorPayment.php | .ai/rules/actions.md |
 | app/Ai/**/*.php, tests/Feature/Ai/**/*.php, config/ai.php | .ai/rules/ai-agents.md |
+| app/**/*.php | .ai/rules/app.md |
 | app/Http/Controllers/** | .ai/rules/controllers.md |
 | resources/css/**/*.css, resources/css/bulletin.css | .ai/rules/css.md |
 | postcss.config.js, composer.json | .ai/rules/general.md |

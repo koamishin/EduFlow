@@ -97,3 +97,14 @@ A bill is only a candidate if it appears in a current, valid BudgetSnapshot's bi
 
 ## Retrospective feedback is never an approval
 The only 'did the admin agree' measure for the autonomous lane is retrospective: a supervisor is shown a sample of RELEASED occurrences afterwards and records whether they would have decided the same. It is one value per occurrence and append-only, so a rate cannot be inflated or rewritten. MandateRetrospectiveReview::isApproval() returns false by design, and evidence() carries is_retrospective_feedback=true / is_approval=false. Never compute an approval-as-is rate for this lane: that metric needs a human-reviewed original proposal, and an automatic release has none.
+
+## Prove Arc USDC movement by emitter and log, not by transaction envelope
+Two chain facts, both verified against the Arc docs and real ARC-TESTNET receipts.
+
+1. Decimals come from the log's emitter, never from the payload shape. The EIP-7708 native system emitter 0xfffffffffffffffffffffffffffffffffffffffe logs USDC at 18 decimals; NativeFiatToken 0x3600000000000000000000000000000000000000 logs at 6. A real 30 USDC transfer logged 30000000000000000000; read as 6 decimals that is 30,000,000,000,000 USDC. Skip emitters of unknown scale rather than guessing.
+
+2. Circle agent wallets do not transact from their own address. Real receipts show from=relayer 0x9ae75f..., to=delegated account 0x0000000071..., value=0. The treasury appears ONLY as the `from` topic of the Transfer log. Never require tx.from == sender; take the sender from whichever stream carries the movement. Requiring it refuses every genuine agent-wallet payment as mismatched.
+
+Also: Arc has deterministic finality. Receipts are immediately authoritative, no reorgs, confirmations=1. The block read is corroborating evidence (block hash, timestamp) and must never gate settlement.
+
+Corroborating streams describe one movement, not a double count. An ERC-20 transfer emits two logs; a plain native send emits a system log plus a non-zero value. Record them all as agreement in matched_interfaces.
