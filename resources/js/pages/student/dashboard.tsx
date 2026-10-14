@@ -26,7 +26,7 @@ import {
     TriangleAlert,
     Wallet,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { StudentPaymentTracker } from '@/components/student-payment-tracker';
@@ -182,21 +182,6 @@ export default function StudentDashboard({
     const remainingBase = Number(tuitionAccount?.remaining_amount ?? 0);
     const remainingUsdc = remainingBase / 1_000_000;
     const canPay = hasWallet && remainingBase > 0;
-    const inFlightAttempt = tuitionAttempts?.find(
-        (a) =>
-            ([
-                'prepared',
-                'submitting',
-                'accepted',
-                'awaiting_verification',
-                'unknown',
-            ].includes(a.state) &&
-                a.stage !== 'needs_operator_review' &&
-                a.stage !== 'preflight_blocked' &&
-                a.stage !== 'quote_expired_unsubmitted') ||
-            (a.state === 'verified' && !a.posted),
-    );
-    const hasInFlight = Boolean(inFlightAttempt);
     const [payOpen, setPayOpen] = useState(false);
     const [payAmount, setPayAmount] = useState('');
     const [payQuote, setPayQuote] = useState<TuitionQuote | null>(null);
@@ -221,6 +206,7 @@ export default function StudentDashboard({
     const inFlightQuotePromiseRef = useRef<Promise<TuitionQuote | null> | null>(
         null,
     );
+
     const activeReceipt = receipt
         ? (tuitionAttempts.find(
               (a) =>
@@ -230,6 +216,52 @@ export default function StudentDashboard({
                   ),
           ) ?? receipt)
         : null;
+
+    const inFlightAttempt =
+        tuitionAttempts?.find(
+            (a) =>
+                ([
+                    'prepared',
+                    'submitting',
+                    'accepted',
+                    'awaiting_verification',
+                    'unknown',
+                ].includes(a.state) &&
+                    a.stage !== 'needs_operator_review' &&
+                    a.stage !== 'preflight_blocked' &&
+                    a.stage !== 'quote_expired_unsubmitted') ||
+                (a.state === 'verified' && !a.posted),
+        ) ??
+        (activeReceipt &&
+        (([
+            'prepared',
+            'submitting',
+            'accepted',
+            'awaiting_verification',
+            'unknown',
+        ].includes(activeReceipt.state) &&
+            activeReceipt.stage !== 'needs_operator_review' &&
+            activeReceipt.stage !== 'preflight_blocked' &&
+            activeReceipt.stage !== 'quote_expired_unsubmitted') ||
+            (activeReceipt.state === 'verified' && !activeReceipt.posted))
+            ? activeReceipt
+            : null);
+    const hasInFlight = Boolean(inFlightAttempt);
+
+    const trackerAttempts = useMemo(() => {
+        if (!receipt) {
+            return tuitionAttempts;
+        }
+        const alreadyPresent = tuitionAttempts.some(
+            (a) =>
+                a.id === receipt.id ||
+                Boolean(a.request_key && a.request_key === receipt.request_key),
+        );
+        if (alreadyPresent) {
+            return tuitionAttempts;
+        }
+        return [receipt, ...tuitionAttempts];
+    }, [receipt, tuitionAttempts]);
     const [txFilter, setTxFilter] = useState<'all' | 'inbound' | 'outbound'>(
         'all',
     );
@@ -470,7 +502,7 @@ export default function StudentDashboard({
 
         const isInitial = isInitialOpenRef.current;
         isInitialOpenRef.current = false;
-        const delay = isInitial ? 0 : 450;
+        const delay = isInitial ? 0 : 200;
 
         const timer = setTimeout(() => {
             void requestQuote(baseUnits);
@@ -609,7 +641,12 @@ export default function StudentDashboard({
         let currentQuote = payQuote;
         let currentKey = requestKey;
 
-        if (!currentQuote || !currentKey) {
+        const isCurrentQuoteMatching =
+            currentQuote &&
+            currentQuote.amount_base_units === baseUnits &&
+            currentKey;
+
+        if (!isCurrentQuoteMatching) {
             setPaying(true);
             setPayError(null);
 
@@ -1162,8 +1199,6 @@ export default function StudentDashboard({
                                                     setPayAmount(
                                                         event.target.value,
                                                     );
-                                                    setPayQuote(null);
-                                                    setRequestKey(null);
                                                     setConsent(false);
                                                     setPayError(null);
                                                 }}
@@ -1174,9 +1209,9 @@ export default function StudentDashboard({
                                                 message={payError ?? undefined}
                                             />
                                             <p className="clay-meta">
-                                                Your wallet pays the amount plus
-                                                the network fee, which comes out
-                                                of the same balance.
+                                                Arc Testnet tuition payments are
+                                                relayer-sponsored: 0.00 USDC gas
+                                                fee charged to your wallet.
                                             </p>
                                         </div>
 
@@ -2372,7 +2407,7 @@ export default function StudentDashboard({
                             <div className="p-5 sm:p-6 pt-10 sm:pt-10">
                                 <StudentPaymentTracker
                                     className="border-0 bg-transparent shadow-none p-0 sm:p-0"
-                                    attempts={tuitionAttempts}
+                                    attempts={trackerAttempts}
                                     tuitionAccount={tuitionAccount}
                                     walletBalance={snapshot?.balance}
                                     onOpenPay={() => {
