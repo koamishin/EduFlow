@@ -148,6 +148,7 @@ type TuitionQuote = {
     network_fee: string;
     total: string;
     max_amount_base_units: number;
+    amount_base_units?: number;
     balance: string | null;
     chain: string;
     request_digest: string;
@@ -425,11 +426,21 @@ export default function StudentDashboard({
     );
 
     const openPay = () => {
-        isInitialOpenRef.current = true;
-        setPayAmount((defaultPayBaseUnits / 1_000_000).toFixed(2));
-        setPayQuote(null);
+        const defaultAmount = (defaultPayBaseUnits / 1_000_000).toFixed(2);
+        setPayAmount(defaultAmount);
+
+        const currentQuoteValid =
+            payQuote &&
+            payQuote.amount_base_units === defaultPayBaseUnits &&
+            payQuote.expires_at &&
+            new Date(payQuote.expires_at).getTime() > Date.now();
+
+        if (!currentQuoteValid) {
+            isInitialOpenRef.current = true;
+            setPayQuote(null);
+            setRequestKey(null);
+        }
         setConsent(false);
-        setRequestKey(null);
         setPayError(null);
         setReceipt(null);
         setPayOpen(true);
@@ -565,6 +576,22 @@ export default function StudentDashboard({
         return promise;
     };
 
+    // Background prefetch the default quote so opening the modal has zero delay
+    useEffect(() => {
+        if (
+            !tuitionAccount?.id ||
+            defaultPayBaseUnits <= 0 ||
+            !canPay ||
+            hasInFlight
+        ) {
+            return;
+        }
+
+        if (!payQuote && !payOpen) {
+            void requestQuote(defaultPayBaseUnits);
+        }
+    }, [defaultPayBaseUnits, canPay, hasInFlight]);
+
     const submitPay = async () => {
         const baseUnits = parseBaseUnits(payAmount);
         if (baseUnits === null) {
@@ -655,7 +682,12 @@ export default function StudentDashboard({
                 return;
             }
 
+            setPayOpen(false);
             setReceipt(payload);
+            setMonitorDrawerOpen(true);
+            toast.success('Tuition payment submitted', {
+                description: 'Tracking live progress on Arc Testnet rail…',
+            });
 
             // The wallet balance and paid figures both changed on-chain.
             router.reload({
@@ -760,7 +792,6 @@ export default function StudentDashboard({
                                 setPayOpen(open);
                                 if (!open) {
                                     setReceipt(null);
-                                    setMonitorDrawerOpen(false);
                                 }
                             }}
                         >
