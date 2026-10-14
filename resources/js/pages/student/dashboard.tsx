@@ -26,7 +26,7 @@ import {
     TriangleAlert,
     Wallet,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { StudentPaymentTracker } from '@/components/student-payment-tracker';
@@ -457,6 +457,23 @@ export default function StudentDashboard({
         ),
     );
 
+    const buildInstantQuote = useCallback(
+        (baseUnits: number): TuitionQuote => ({
+            network_fee: '0.000000',
+            total: (baseUnits / 1_000_000).toFixed(2),
+            max_amount_base_units: remainingBase,
+            amount_base_units: baseUnits,
+            balance: snapshot?.balance ?? null,
+            chain: 'ARC-TESTNET',
+            request_digest: '',
+            consent_text:
+                'I consent to the transfer of USDC on Arc Testnet for tuition.',
+            expires_at: '',
+            fee_ceiling_base_units: 0,
+        }),
+        [remainingBase, snapshot?.balance],
+    );
+
     const openPay = () => {
         const defaultAmount = (defaultPayBaseUnits / 1_000_000).toFixed(2);
         setPayAmount(defaultAmount);
@@ -464,12 +481,13 @@ export default function StudentDashboard({
         const currentQuoteValid =
             payQuote &&
             payQuote.amount_base_units === defaultPayBaseUnits &&
+            Boolean(payQuote.request_key) &&
             payQuote.expires_at &&
             new Date(payQuote.expires_at).getTime() > Date.now();
 
         if (!currentQuoteValid) {
             isInitialOpenRef.current = true;
-            setPayQuote(null);
+            setPayQuote(buildInstantQuote(defaultPayBaseUnits));
             setRequestKey(null);
         }
         setConsent(false);
@@ -1115,10 +1133,20 @@ export default function StudentDashboard({
                                                         className="clay-focus rounded-full border-[var(--clay-border)] text-xs font-semibold"
                                                         onClick={() => {
                                                             setReceipt(null);
-                                                            setPayQuote(null);
                                                             setConsent(false);
                                                             setRequestKey(null);
                                                             isInitialOpenRef.current = true;
+                                                            setPayAmount(
+                                                                (
+                                                                    defaultPayBaseUnits /
+                                                                    1_000_000
+                                                                ).toFixed(2),
+                                                            );
+                                                            setPayQuote(
+                                                                buildInstantQuote(
+                                                                    defaultPayBaseUnits,
+                                                                ),
+                                                            );
                                                         }}
                                                     >
                                                         Make another payment
@@ -1196,11 +1224,57 @@ export default function StudentDashboard({
                                                 max={remainingUsdc}
                                                 value={payAmount}
                                                 onChange={(event) => {
-                                                    setPayAmount(
-                                                        event.target.value,
-                                                    );
+                                                    const val =
+                                                        event.target.value;
+                                                    setPayAmount(val);
                                                     setConsent(false);
                                                     setPayError(null);
+                                                    const units =
+                                                        parseBaseUnits(val);
+                                                    if (
+                                                        units !== null &&
+                                                        units > 0
+                                                    ) {
+                                                        setPayQuote((prev) => ({
+                                                            network_fee:
+                                                                '0.000000',
+                                                            total: (
+                                                                units /
+                                                                1_000_000
+                                                            ).toFixed(2),
+                                                            max_amount_base_units:
+                                                                remainingBase,
+                                                            amount_base_units:
+                                                                units,
+                                                            balance:
+                                                                snapshot?.balance ??
+                                                                null,
+                                                            chain: 'ARC-TESTNET',
+                                                            request_digest:
+                                                                prev?.amount_base_units ===
+                                                                units
+                                                                    ? prev.request_digest
+                                                                    : '',
+                                                            consent_text:
+                                                                prev?.amount_base_units ===
+                                                                units
+                                                                    ? prev.consent_text
+                                                                    : 'I consent to the transfer of USDC on Arc Testnet for tuition.',
+                                                            expires_at:
+                                                                prev?.amount_base_units ===
+                                                                units
+                                                                    ? prev.expires_at
+                                                                    : '',
+                                                            fee_ceiling_base_units: 0,
+                                                            request_key:
+                                                                prev?.amount_base_units ===
+                                                                units
+                                                                    ? prev.request_key
+                                                                    : undefined,
+                                                        }));
+                                                    } else {
+                                                        setPayQuote(null);
+                                                    }
                                                 }}
                                                 className="clay-field clay-focus tabular-nums shadow-none"
                                                 required
@@ -1238,7 +1312,7 @@ export default function StudentDashboard({
                                                         {quoting && (
                                                             <span className="inline-flex items-center gap-1 text-[11px] font-normal text-[var(--clay-primary)]">
                                                                 <Loader2 className="size-2.5 animate-spin" />
-                                                                updating
+                                                                securing lock…
                                                             </span>
                                                         )}
                                                     </dt>
