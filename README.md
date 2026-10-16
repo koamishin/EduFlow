@@ -443,33 +443,22 @@ Use the idempotent installer instead.
 
 #### Option A — Docker deployment (recommended)
 
-The Compose stack pairs the FrankenPHP/Octane application image with PostgreSQL 16
-and Redis 7. Images are published to GitHub Container Registry through the release
-workflows. Confirm the chosen tag is available before deploying; preview releases
-do not update `latest`. Configure supervised queue workers and the scheduler for
-the background workflows you enable.
+The interactive installer runs OpenSinop as a Docker Swarm stack: the
+FrankenPHP/Octane application image, PostgreSQL 16 and Redis 7 as services on an
+overlay network, with the database password kept in a Docker secret. When Docker
+is missing on Linux, the installer offers to install Docker Engine first via the
+official `get.docker.com` script. Images are published to GitHub Container
+Registry through the release workflows. Confirm the chosen tag is available before
+deploying; preview releases do not update `latest`. Configure supervised queue
+workers and the scheduler for the background workflows you enable.
 
-**Current deployment limitation:** The checked-in Compose file fixes the database
-driver to PostgreSQL and does not forward every value collected by the installer.
-Selecting MySQL, SQLite, or a wallet driver in the wizard alone does not configure
-those services inside the container. Review the resolved Compose configuration
-before relying on non-default settings.
-
-##### 1. One-line quick start (Docker Compose)
-
-To start OpenSinop with sensible production defaults:
-
-```bash
-docker compose -f https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml up -d
-```
-
-> **Customization:** Pass environment variables before the command to customize ports or settings, e.g. `APP_PORT=8080 docker compose ... up -d`.
-
-##### 2. Interactive TUI installer
+##### 1. Interactive installer (recommended)
 
 Run the wizard from a dedicated installation directory. It collects the application
-URL, port, database choice, school identity, wallet driver, and optional AI settings.
-Common environment settings use production defaults instead of extra prompts.
+URL, port, database choice, school identity, wallet driver, and optional AI settings,
+writes `.env`, initializes Docker Swarm, and creates the `opensinop`,
+`opensinop-db` and `opensinop-redis` services. Common environment settings use
+production defaults instead of extra prompts.
 
 The scripts below download and execute repository code. Review them before running
 them on a server with credentials or financial records.
@@ -487,11 +476,37 @@ them on a server with credentials or financial records.
   irm https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1 | iex
   ```
 
+Options: `--yes` accepts every default (also used when no terminal is available),
+`EDUFLOW_VERSION=<tag>` pins the application image, and `ADVERTISE_ADDR` selects
+the address for `docker swarm init` on hosts with several interfaces. PostgreSQL
+is the managed database service; choosing MySQL expects an existing server (you
+are asked for its host), and SQLite keeps its file in the persisted storage volume.
+
+##### 2. Alternative: Docker Compose (manual)
+
+Prefer the checked-in Compose file for a plain single-host setup you manage
+yourself. It fixes the database driver to PostgreSQL and does not forward every
+value collected by the installer wizard.
+
+```bash
+docker compose -f https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml up -d
+```
+
+> **Customization:** Pass environment variables before the command to customize ports or settings, e.g. `APP_PORT=8080 docker compose ... up -d`.
+
 ##### 3. Updating an existing Docker deployment
 
 Run updates from the original installation directory so the scripts find the same
-`.env`, Compose project, and volumes. The update path attempts a PostgreSQL dump to
-`./backups/`, pulls images, and starts services again.
+`.env` and volumes. For installations created by the installer, `--update` dumps
+PostgreSQL to `./backups/` from the database task container, pulls the published
+image (or rebuilds it when a local `Dockerfile` is present), rolls the `opensinop`
+service, and waits for its health check. Changes to `.env` reach the service only
+after a full re-run of the installer. For Compose installations, pull the image
+and recreate the containers:
+
+```bash
+docker compose pull && docker compose up -d
+```
 
 **Create and verify an independent backup first.** The current updater can continue
 after a failed dump; it is not a complete backup or rollback system. Do not assume
@@ -519,13 +534,21 @@ it backs up SQLite, MySQL, uploaded files, or encryption keys.
 On initial boot, the container automatically runs database migrations, enables required modules, and initializes the school identity. Once healthy, create the first super administrator interactively:
 
 ```bash
+docker exec -it "$(docker ps -q -f label=com.docker.swarm.service.name=opensinop | head -n1)" php artisan app:bootstrap-admin --name="School Operator" --email="operator@example.org"
+```
+
+For Compose installations the container is named `opensinop`:
+
+```bash
 docker exec -it opensinop php artisan app:bootstrap-admin --name="School Operator" --email="operator@example.org"
 ```
 
-> **Data persistence:** Compose declares `opensinop_db`, `opensinop_storage`,
-> `opensinop_cache`, and `opensinop_redis` volumes, normally prefixed by the Compose
-> project name. Keep the original project identity when upgrading. Never run
-> `docker compose down -v` on an instance whose records you need to retain.
+> **Data persistence:** The stack declares `opensinop_db`, `opensinop_storage`,
+> `opensinop_cache`, and `opensinop_redis` volumes and keeps them across re-runs
+> (services are recreated, volumes are not). The Compose alternative prefixes the
+> same names with the Compose project name — keep that project identity when
+> upgrading. Never run `docker compose down -v` or `docker volume rm` on an
+> instance whose records you need to retain.
 
 ---
 

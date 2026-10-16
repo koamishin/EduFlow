@@ -24,7 +24,8 @@ The experimental bridge defaults on; do not assume a fresh install cannot submit
 
 - **Host installation:** PHP **8.5**, Composer 2, Node.js 22 or newer, and npm.
   Check the locked dependency requirements with Composer before deployment.
-- **Database:** SQLite is convenient locally; the supplied Compose stack uses PostgreSQL 16.
+- **Database:** SQLite is convenient locally; the supplied Compose stack and the
+  `install.sh` installer run PostgreSQL 16.
 - **Background work:** a durable database or Redis queue, a worker, and a scheduler.
 - **Docker path:** Docker Engine and Compose v2.24 or newer for the current optional
   `env_file` syntax. The image supplies its PHP runtime.
@@ -92,6 +93,14 @@ alone does not prove setup succeeded.
 ```bash
 docker exec -it opensinop php artisan app:bootstrap-admin \
   --name="School Operator" --email="operator@school.example"
+```
+
+For a stack created by `install.sh`, the container name is not fixed — target the
+running task container instead:
+
+```bash
+docker exec -it "$(docker ps -q -f label=com.docker.swarm.service.name=opensinop | head -n1)" \
+  php artisan app:bootstrap-admin --name="School Operator" --email="operator@school.example"
 ```
 
 The command asks for a password in the terminal, has no password argument, and refuses
@@ -186,7 +195,8 @@ then restart long-lived workers. See [Operations](../../guides/operations/).
 
 ## Back up and update
 
-Keep the original installation directory, Compose project identity, volumes, and key.
+Keep the original installation directory, Compose project identity (or the `install.sh`
+service and volume names), volumes, and key.
 Back up independently before changing code, images, or schema. The supplied Linux updater
 attempts a PostgreSQL dump or SQLite backup, depending on configuration, but can continue
 after backup problems. It does not provide a complete recovery guarantee for every
@@ -199,8 +209,10 @@ settings unreadable. Resolve changes forward with reviewed backups and migration
 :::
 
 The optional `install.sh` and `install.ps1` wizards collect settings and have update
-modes. Review the downloaded code before executing it. Selecting a driver in a wizard
-does not validate resulting database connectivity or certify payment readiness.
+modes. `install.sh` deploys the application, PostgreSQL, and Redis as a Docker Swarm
+stack with the database password in a Docker secret. Review the downloaded code before
+executing it. Selecting a driver in a wizard does not validate resulting database
+connectivity or certify payment readiness.
 
 ## Next step
 

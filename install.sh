@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 # install.sh — interactive TUI installer for OpenSinop (macOS/Linux)
+#
+# Runs the application as a Docker Swarm stack, following the structure of
+# established self-hosting installers: preflight checks, Docker Engine
+# auto-install via get.docker.com when Docker is missing, a swarm overlay
+# network, the database password kept in a Docker secret, and services
+# created with `docker service create`.
+#
 # Usage:
 #   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)   # bash / zsh
 #   curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash    # any shell, incl. fish
 #   bash install.sh --update   # update an existing installation
 #   bash install.sh --yes      # non-interactive, accept every default
+#
+# Environment overrides:
+#   EDUFLOW_VERSION      application image tag (default: latest)
+#   DOCKER_VERSION       pin Docker Engine (e.g. 28.5.0) when the installer installs it
+#   ADVERTISE_ADDR       address for `docker swarm init` on multi-interface hosts
+#   ENDPOINT_MODE=dnsrr  force service endpoint mode (Proxmox LXC hosts without IPVS)
 
 if [ -z "${BASH_VERSION:-}" ]; then
     printf 'install.sh requires bash. Run it with: bash install.sh\n' >&2
@@ -20,8 +33,16 @@ SCRIPT_FROM_STDIN=0
 
 ROOT="$(pwd)"
 ENV_FILE="$ROOT/.env"
-COMPOSE_FILE="$ROOT/docker-compose.yml"
-COMPOSE_URL="https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml"
+
+# Swarm object names. Changing these changes the deployed stack identity.
+APP_SERVICE="opensinop"
+DB_SERVICE="opensinop-db"
+REDIS_SERVICE="opensinop-redis"
+NETWORK="opensinop-network"
+DB_SECRET="opensinop_db_password"
+
+IMAGE_VERSION="${EDUFLOW_VERSION:-latest}"
+IMAGE="ghcr.io/koamishin/opensinop:${IMAGE_VERSION}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 
@@ -203,6 +224,28 @@ gen_key() {
     fi
 }
 
+# Secure single-line password, with the same fallback chain the reference
+# installers use (openssl → /dev/urandom → checksums → date+hostname).
+generate_random_password() {
+    local password=""
+    if cmd_exists openssl; then
+        password="$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-32)"
+    elif [ -r /dev/urandom ]; then
+        password="$(tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 32 || true)"
+    elif cmd_exists sha256sum; then
+        password="$(date +%s%N | sha256sum | base64 | head -c 32 || true)"
+    elif cmd_exists shasum; then
+        password="$(date +%s%N | shasum -a 256 | base64 | head -c 32 || true)"
+    else
+        password="$(printf '%s-%s-%s-%s' "$(date +%s%N)" "$(hostname)" "$$" "$RANDOM" | base64 | tr -d '=+/' | head -c 32 || true)"
+    fi
+    if [ -z "$password" ] || [ "${#password}" -lt 20 ]; then
+        err "Failed to generate a random password."
+        exit 1
+    fi
+    printf '%s' "$password"
+}
+
 
 # ---- Argument parsing ----
 UPDATE=0
@@ -215,8 +258,20 @@ for arg in "$@"; do
             cat <<'EOF'
 Usage: install.sh [--update] [--yes|-y]
 
-  --update, -u   Update an existing installation (pull images and restart).
+  Sets the application up as a Docker Swarm stack: the app, PostgreSQL 16 and
+  Redis 7 run as services on an overlay network, and the database password is
+  kept in a Docker secret. When Docker is missing on Linux, the installer
+  offers to install Docker Engine via the official get.docker.com script.
+
+  --update, -u   Update an existing installation (pull or rebuild the image
+                 and roll the application service).
   --yes, -y      Non-interactive: accept every default. Also NON_INTERACTIVE=1.
+
+Environment:
+  EDUFLOW_VERSION      application image tag (default: latest)
+  DOCKER_VERSION       pin Docker Engine (e.g. 28.5.0) when it gets installed
+  ADVERTISE_ADDR       address for `docker swarm init` on multi-interface hosts
+  ENDPOINT_MODE=dnsrr  force service endpoint mode (LXC hosts without IPVS)
 EOF
             exit 0
             ;;
@@ -242,77 +297,240 @@ env_value() {
     printf '%s' "$value"
 }
 
-require_docker() {
-    if ! cmd_exists docker; then
-        err "Docker is required but was not found."
-        info "Install Docker Engine: https://docs.docker.com/engine/install/"
-        return 1
-    fi
-    if ! docker info >/dev/null 2>&1; then
-        err "Docker is installed, but the daemon is not reachable."
-        info "Start Docker and make sure your user can access it (add yourself to the 'docker' group or use sudo)."
-        return 1
-    fi
-    if ! docker compose version >/dev/null 2>&1; then
-        err "Docker Compose v2 is required, but 'docker compose' is not available."
-        info "Install the Compose plugin: https://docs.docker.com/compose/install/linux/"
-        return 1
-    fi
-    return 0
-}
 
-ensure_compose_file() {
-    if [ -f "$COMPOSE_FILE" ]; then
+# ---- Docker Engine ----
+DOCKER_CMD=(docker)   # becomes (sudo docker) when the daemon needs elevation
+SUDO=()
+
+resolve_docker() {
+    if ! cmd_exists docker; then
+        return 1
+    fi
+    if docker info >/dev/null 2>&1; then
+        DOCKER_CMD=(docker)
         return 0
     fi
-    if ! cmd_exists curl; then
-        err "docker-compose.yml is missing and curl is not installed."
-        info "Install curl, or download $COMPOSE_URL into $ROOT manually."
-        return 1
+    if [ "$(id -u)" != "0" ] && cmd_exists sudo && sudo docker info >/dev/null 2>&1; then
+        DOCKER_CMD=(sudo docker)
+        warn "Docker needs elevated permissions; using sudo for this run."
+        info "Add your user to the 'docker' group and re-login to drop sudo: sudo usermod -aG docker $(id -un)"
+        return 0
     fi
-    info "Downloading docker-compose.yml ..."
-    if ! curl -fsSL --retry 3 --retry-delay 2 "$COMPOSE_URL" -o "$COMPOSE_FILE"; then
-        err "Could not download docker-compose.yml from $COMPOSE_URL"
-        info "Check network access (proxy, firewall), or download the file into $ROOT manually."
-        return 1
-    fi
-    ok "Downloaded docker-compose.yml"
+    return 1
 }
 
-validate_compose_file() {
-    if ! docker compose config -q; then
-        err "docker-compose.yml failed to validate with this Docker Compose version."
-        info "Docker Compose v2.24+ is recommended; update Docker/Compose and try again."
+install_docker() {
+    if [ "$(uname)" = "Darwin" ]; then
+        err "Docker is not installed."
+        info "Install Docker Desktop for Mac, then re-run this installer:"
+        info "https://docs.docker.com/desktop/setup/install/mac-install/"
         return 1
     fi
+    if [ "$(id -u)" = "0" ]; then
+        SUDO=()
+    elif cmd_exists sudo; then
+        SUDO=(sudo)
+    else
+        err "Installing Docker requires root."
+        info "Re-run this installer as root (or with sudo), or install Docker Engine manually:"
+        info "https://docs.docker.com/engine/install/"
+        return 1
+    fi
+    if ! cmd_exists curl; then
+        err "curl is required to install Docker."
+        info "Install curl and re-run this installer."
+        return 1
+    fi
+    if [ "$(yes_no "Docker is not installed. Install Docker Engine now?" "yes")" != "yes" ]; then
+        err "Docker is required for this installation."
+        info "Install Docker Engine, then re-run: https://docs.docker.com/engine/install/"
+        return 1
+    fi
+    local version_args=()
+    if [ -n "${DOCKER_VERSION:-}" ]; then
+        version_args=(--version "$DOCKER_VERSION")
+        info "Pinning Docker Engine to $DOCKER_VERSION."
+    fi
+    title "Installing Docker Engine"
+    info "Running the official convenience script (https://get.docker.com) ..."
+    if ! curl -fsSL https://get.docker.com | "${SUDO[@]}" sh -s -- "${version_args[@]}"; then
+        err "Docker installation failed."
+        info "Install Docker Engine manually, then re-run: https://docs.docker.com/engine/install/"
+        return 1
+    fi
+    if [ -n "${DOCKER_VERSION:-}" ] && cmd_exists apt-mark; then
+        "${SUDO[@]}" apt-mark hold docker-ce docker-ce-cli docker-ce-rootless-extras >/dev/null 2>&1 || true
+        info "Held Docker packages at $DOCKER_VERSION (apt-mark hold)."
+    fi
+    if cmd_exists systemctl; then
+        "${SUDO[@]}" systemctl enable --now docker >/dev/null 2>&1 || true
+    fi
+    if [ "${#SUDO[@]}" -gt 0 ]; then
+        "${SUDO[@]}" usermod -aG docker "$(id -un)" >/dev/null 2>&1 || true
+    fi
+    ok "Docker Engine installed."
     return 0
 }
 
+ensure_docker() {
+    if ! cmd_exists docker; then
+        if ! install_docker; then
+            return 1
+        fi
+    fi
+    if resolve_docker; then
+        return 0
+    fi
+    err "Docker is installed, but the daemon is not reachable."
+    info "Start Docker and make sure your user can access it (add yourself to the 'docker' group or use sudo)."
+    return 1
+}
+
+
+# ---- Docker Swarm ----
+is_proxmox_lxc() {
+    if [ "${container:-}" = "lxc" ]; then
+        return 0
+    fi
+    if grep -q "container=lxc" /proc/1/environ 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+detect_private_ip() {
+    if cmd_exists ip; then
+        ip -o -4 addr show scope global 2>/dev/null \
+            | awk '$2 !~ /^(docker|br-|veth)/ {print $4}' \
+            | cut -d/ -f1 \
+            | grep -E '^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)' \
+            | head -n1 \
+            || true
+    fi
+}
+
+ensure_swarm() {
+    local state control advertise init_args=()
+    state="$("${DOCKER_CMD[@]}" info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || true)"
+    control="$("${DOCKER_CMD[@]}" info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || true)"
+    if [ "$state" = "active" ] && [ "$control" = "true" ]; then
+        ok "Docker Swarm is active on this node."
+        return 0
+    fi
+    if [ "$state" = "active" ]; then
+        err "This Docker node is a Swarm worker; services must be created on a manager."
+        info "Run this installer on the Swarm manager, or leave the swarm and re-run: docker swarm leave"
+        return 1
+    fi
+    advertise="${ADVERTISE_ADDR:-$(detect_private_ip)}"
+    if [ -n "$advertise" ]; then
+        init_args=(--advertise-addr "$advertise")
+    fi
+    if ! "${DOCKER_CMD[@]}" swarm init "${init_args[@]}"; then
+        err "docker swarm init failed."
+        info "On hosts with several network interfaces, set the address explicitly:"
+        info "  ADVERTISE_ADDR=<host-ip> bash install.sh"
+        return 1
+    fi
+    ok "Docker Swarm initialized."
+}
+
+ensure_network() {
+    if "${DOCKER_CMD[@]}" network ls -q -f "name=^${NETWORK}$" 2>/dev/null | grep -q .; then
+        ok "Overlay network $NETWORK already present."
+        return 0
+    fi
+    if ! "${DOCKER_CMD[@]}" network create --driver overlay --attachable "$NETWORK" >/dev/null; then
+        err "Could not create the overlay network $NETWORK."
+        return 1
+    fi
+    ok "Created overlay network $NETWORK."
+}
+
+ensure_secret() {  # ensure_secret <name> <value>
+    local name="$1" value="$2"
+    if [ -z "$value" ]; then
+        err "Refusing to create an empty Docker secret $name."
+        return 1
+    fi
+    if "${DOCKER_CMD[@]}" secret ls -q -f "name=^${name}$" 2>/dev/null | grep -q .; then
+        ok "Docker secret $name already exists; keeping it (its value cannot be read back)."
+        return 0
+    fi
+    if ! printf '%s' "$value" | "${DOCKER_CMD[@]}" secret create "$name" - >/dev/null; then
+        err "Could not create Docker secret $name."
+        return 1
+    fi
+    ok "Created Docker secret $name."
+}
+
+service_exists() {  # service_exists <name>
+    "${DOCKER_CMD[@]}" service ls -q -f "name=^$1$" 2>/dev/null | grep -q .
+}
+
+service_container_id() {  # service_container_id <service> -> running container id or empty
+    "${DOCKER_CMD[@]}" ps -q -f status=running -f "label=com.docker.swarm.service.name=$1" 2>/dev/null | head -n1 || true
+}
+
+remove_service() {  # remove_service <name>
+    if service_exists "$1"; then
+        info "Removing existing service $1 (volumes and data are kept)."
+        "${DOCKER_CMD[@]}" service rm "$1" >/dev/null
+    fi
+}
+
+wait_for_app_health() {
+    local healthy=0 cid status attempt
+    for ((attempt = 0; attempt < 24; attempt++)); do
+        cid="$(service_container_id "$APP_SERVICE")"
+        status=""
+        if [ -n "$cid" ]; then
+            status="$("${DOCKER_CMD[@]}" inspect --format '{{.State.Health.Status}}' "$cid" 2>/dev/null || true)"
+        fi
+        if [ "$status" = "healthy" ]; then
+            healthy=1
+            break
+        fi
+        if [ "$status" = "unhealthy" ]; then
+            break
+        fi
+        sleep 5
+    done
+    if [ "$healthy" = 1 ]; then
+        ok "Application is healthy."
+        return 0
+    fi
+    warn "Application did not report healthy yet; see 'docker service logs $APP_SERVICE'."
+    return 1
+}
+
+
+# ---- Update an existing installation ----
 if [ "$UPDATE" = "1" ]; then
-    title "OpenSinop Update"
-    if ! require_docker; then
+    title "OpenSinop Update (Docker Swarm)"
+    if ! ensure_docker; then
         exit 1
     fi
     if [ ! -f "$ENV_FILE" ]; then
         err "No .env found in $ROOT. Run the installer first."
         exit 1
     fi
-    if ! ensure_compose_file; then
+    if ! service_exists "$APP_SERVICE"; then
+        err "No Swarm service named '$APP_SERVICE' found on this Docker host."
+        info "Run install.sh once to create it. (Compose-based installations are not updated by this script.)"
         exit 1
     fi
-    if ! validate_compose_file; then
-        exit 1
-    fi
+
     DB_CONN="$(env_value DB_CONNECTION)"; DB_CONN="${DB_CONN:-pgsql}"
     if [ "$DB_CONN" = "pgsql" ]; then
         DB_USER="$(env_value DB_USERNAME)"; DB_USER="${DB_USER:-opensinop}"
         DB_NAME="$(env_value DB_DATABASE)"; DB_NAME="${DB_NAME:-opensinop}"
-        DB_CID="$(docker compose ps -q db 2>/dev/null || true)"
+        DB_CID="$(service_container_id "$DB_SERVICE")"
         if [ -n "$DB_CID" ]; then
             backup_dir="$ROOT/backups"
             mkdir -p "$backup_dir"
             backup_file="$backup_dir/opensinop-$(date +%Y%m%d-%H%M%S).sql"
-            if docker compose exec -T db sh -c "pg_dump -U '$DB_USER' '$DB_NAME'" > "$backup_file" 2>/dev/null; then
+            if "${DOCKER_CMD[@]}" exec "$DB_CID" sh -c "pg_dump -U '$DB_USER' '$DB_NAME'" > "$backup_file" 2>/dev/null; then
                 ok "Database backup written to $backup_file"
             else
                 warn "Database backup failed; continuing update."
@@ -320,72 +538,70 @@ if [ "$UPDATE" = "1" ]; then
             fi
         fi
     elif [ "$DB_CONN" = "sqlite" ]; then
-        APP_CID="$(docker compose ps -q app 2>/dev/null || true)"
+        APP_CID="$(service_container_id "$APP_SERVICE")"
         if [ -n "$APP_CID" ]; then
             backup_dir="$ROOT/backups"
             mkdir -p "$backup_dir"
             backup_file="$backup_dir/opensinop-$(date +%Y%m%d-%H%M%S).sqlite"
-            DB_FILE="$(env_value DB_DATABASE)"; DB_FILE="${DB_FILE:-/app/database/database.sqlite}"
-            if docker compose exec -T app sh -c "sqlite3 '$DB_FILE' '.backup /tmp/backup.sqlite' && cat /tmp/backup.sqlite" > "$backup_file" 2>/dev/null; then
+            DB_FILE="$(env_value DB_DATABASE)"; DB_FILE="${DB_FILE:-/app/storage/database.sqlite}"
+            if "${DOCKER_CMD[@]}" exec "$APP_CID" sh -c "sqlite3 '$DB_FILE' '.backup /tmp/backup.sqlite' && cat /tmp/backup.sqlite" > "$backup_file" 2>/dev/null; then
                 ok "Database backup written to $backup_file"
             fi
         fi
     fi
-    title "Pulling latest images"
-    if ! docker compose pull; then
-        err "docker compose pull failed."
-        info "If the application image is private, authenticate first: docker login ghcr.io (token with read:packages)."
-        exit 1
-    fi
-    title "Starting updated containers"
-    if ! docker compose up -d; then
-        err "docker compose up failed."
-        exit 1
-    fi
-    healthy=0
-    for _ in $(seq 1 24); do
-        status=$(docker inspect --format '{{.State.Health.Status}}' opensinop 2>/dev/null || true)
-        if [ "$status" = "healthy" ]; then healthy=1; break; fi
-        if [ "$status" = "unhealthy" ]; then break; fi
-        sleep 5
-    done
-    if [ "$healthy" = "1" ]; then
-        ok "Application is healthy."
+
+    UPDATE_RESOLVE_ARGS=()
+    if [ -f "$ROOT/Dockerfile" ]; then
+        title "Building application image"
+        info "Found a local Dockerfile; building $IMAGE ..."
+        if ! "${DOCKER_CMD[@]}" build -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"; then
+            err "docker build failed."
+            exit 1
+        fi
+        UPDATE_RESOLVE_ARGS=(--no-resolve-image)
     else
-        warn "Application did not report healthy yet; see docker logs opensinop."
+        title "Pulling latest application image"
+        if ! "${DOCKER_CMD[@]}" pull "$IMAGE"; then
+            err "Could not pull the application image."
+            info "If the ghcr.io image is private, authenticate first: docker login ghcr.io (token with read:packages)."
+            info "Or clone the repository and run install.sh from it so the image is built locally."
+            exit 1
+        fi
     fi
+
+    title "Updating application service"
+    if ! "${DOCKER_CMD[@]}" service update "${UPDATE_RESOLVE_ARGS[@]}" --image "$IMAGE" "$APP_SERVICE"; then
+        err "docker service update failed."
+        exit 1
+    fi
+    wait_for_app_health || true
     APP_URL="$(env_value APP_URL)"; APP_URL="${APP_URL:-http://localhost:8000}"
     info "App URL: $APP_URL"
     info "Note: database migrations run automatically on container start."
+    info "Note: changes to .env need a full re-run of install.sh to reach the service."
     ok "Update complete."
     exit 0
 fi
 
+
+# ---- Fresh installation ----
 title "OpenSinop TUI Installer (bash)"
 info "Interactive setup for Docker-based self-hosting."
+info "The application runs as a Docker Swarm stack: app, PostgreSQL 16 and Redis 7"
+info "as services on an overlay network, with the database password in a Docker secret."
 info "Press Enter to accept a suggested default."
 echo
 
-if ! require_docker; then
+if ! ensure_docker; then
     exit 1
 fi
-ok "Docker found."
-
-if ! ensure_compose_file; then
-    exit 1
-fi
-if ! validate_compose_file; then
-    exit 1
-fi
+ok "Docker is ready."
 
 # Existing .env backup
 if [ -f "$ENV_FILE" ]; then
     cp "$ENV_FILE" "$ROOT/.env.previous" 2>/dev/null || true
     warn "Existing .env backed up to .env.previous"
 fi
-
-declare -a FIELDS=()
-add() { FIELDS+=("$1=$2"); }
 
 title "Application"
 APP_NAME=$(ask "Application name" "OpenSinop")
@@ -415,19 +631,32 @@ DB_CONNECTION=$(ask_choice "Database driver" "pgsql" pgsql mysql sqlite)
 if [ "$DB_CONNECTION" = "sqlite" ]; then
     # Keep SQLite inside the persisted storage volume so it survives container recreation.
     DB_HOST=""; DB_PORT=""; DB_DATABASE="/app/storage/database.sqlite"; DB_USERNAME=""; DB_PASSWORD=""
-else
-    DB_HOST="db"
-    DB_PORT="$([ "$DB_CONNECTION" = pgsql ] && echo 5432 || echo 3306)"
+elif [ "$DB_CONNECTION" = "mysql" ]; then
+    warn "No MySQL service is created; DB_HOST must point at an existing server."
+    DB_HOST=$(ask "Database host" "db")
+    DB_PORT=3306
     DB_DATABASE="opensinop"
     DB_USERNAME="opensinop"
     DB_PASSWORD="opensinop"
+else
+    DB_HOST="opensinop-db"
+    DB_PORT=5432
+    DB_DATABASE="opensinop"
+    DB_USERNAME="opensinop"
+    DB_PASSWORD="$(env_value DB_PASSWORD)"
+    if [ -z "$DB_PASSWORD" ]; then
+        DB_PASSWORD="$(generate_random_password)"
+        ok "Generated a random database password (kept in .env and a Docker secret)."
+    else
+        ok "Keeping the existing database password from .env"
+    fi
 fi
 
 # Common environment defaults (production)
 CACHE_STORE="database"
 SESSION_DRIVER="database"
 QUEUE_CONNECTION="database"
-REDIS_HOST="redis"
+REDIS_HOST="opensinop-redis"
 REDIS_PORT="6379"
 REDIS_PASSWORD="null"
 
@@ -503,6 +732,9 @@ title "Review"
 printf '  APP_NAME=%s\n' "$APP_NAME"
 printf '  APP_ENV=%s APP_DEBUG=%s\n' "$APP_ENV" "$APP_DEBUG"
 printf '  DB_CONNECTION=%s\n' "$DB_CONNECTION"
+if [ "$DB_CONNECTION" = "pgsql" ]; then
+    printf '  DB_PASSWORD=(kept in .env and a Docker secret)\n'
+fi
 printf '  CACHE_STORE=%s SESSION_DRIVER=%s QUEUE_CONNECTION=%s\n' "$CACHE_STORE" "$SESSION_DRIVER" "$QUEUE_CONNECTION"
 printf '  LEPTON_DRIVER=%s CHAIN=%s\n' "$LEPTON_DRIVER" "$LEPTON_CHAIN"
 echo
@@ -573,39 +805,170 @@ chmod 600 "$ENV_FILE" 2>/dev/null || true
 printf 'APP_PORT="%s"\n' "$APP_PORT" >> "$ENV_FILE"
 ok "Wrote $ENV_FILE"
 
-if [ ! -f "$ROOT/Dockerfile" ]; then
+title "Setting up Docker Swarm"
+if ! ensure_swarm; then
+    exit 1
+fi
+
+SWARM_ENDPOINT_ARGS=()
+if [ "${ENDPOINT_MODE:-}" = "dnsrr" ]; then
+    SWARM_ENDPOINT_ARGS=(--endpoint-mode dnsrr)
+    info "Using endpoint mode dnsrr (ENDPOINT_MODE=dnsrr)."
+elif is_proxmox_lxc; then
+    SWARM_ENDPOINT_ARGS=(--endpoint-mode dnsrr)
+    warn "Detected an LXC container; using --endpoint-mode dnsrr for Swarm services."
+fi
+
+if ! ensure_network; then
+    exit 1
+fi
+
+DB_SECRET_ARGS=()
+if [ "$DB_CONNECTION" = "pgsql" ]; then
+    if ! ensure_secret "$DB_SECRET" "$DB_PASSWORD"; then
+        exit 1
+    fi
+    DB_SECRET_ARGS=(--secret source="$DB_SECRET")
+fi
+
+# A re-run recreates the services with the new configuration; named volumes
+# (and therefore the data) are kept.
+remove_service "$APP_SERVICE"
+remove_service "$DB_SERVICE"
+remove_service "$REDIS_SERVICE"
+
+LOCAL_IMAGE=0
+if [ -f "$ROOT/Dockerfile" ]; then
+    title "Building application image"
+    info "Found a local Dockerfile; building $IMAGE ..."
+    if ! "${DOCKER_CMD[@]}" build -t "$IMAGE" -f "$ROOT/Dockerfile" "$ROOT"; then
+        err "docker build failed."
+        exit 1
+    fi
+    ok "Application image built."
+    LOCAL_IMAGE=1
+else
     title "Pulling application image"
-    info "No local build context found; fetching the published image."
-    if ! docker compose pull app; then
+    info "No local build context found; fetching $IMAGE ..."
+    if ! "${DOCKER_CMD[@]}" pull "$IMAGE"; then
         err "Could not pull the application image."
         info "If the ghcr.io image is private, authenticate first: docker login ghcr.io (token with read:packages)."
-        info "Or clone the repository and run install.sh from it so Compose builds the image locally."
+        info "Or clone the repository and run install.sh from it so the image is built locally."
         exit 1
     fi
     ok "Application image is ready."
 fi
 
-title "Starting containers"
-info "Running: docker compose up -d"
-if ! docker compose up -d; then
-    err "docker compose up failed."
+RESOLVE_ARGS=()
+if [ "$LOCAL_IMAGE" = 1 ]; then
+    RESOLVE_ARGS=(--no-resolve-image)
+fi
+
+if [ "$DB_CONNECTION" = "pgsql" ]; then
+    title "Starting PostgreSQL"
+    if ! "${DOCKER_CMD[@]}" service create \
+        --name "$DB_SERVICE" \
+        --replicas 1 \
+        --network "$NETWORK" \
+        --mount type=volume,source=opensinop_db,target=/var/lib/postgresql/data \
+        --secret source="$DB_SECRET" \
+        --env POSTGRES_DB="$DB_DATABASE" \
+        --env POSTGRES_USER="$DB_USERNAME" \
+        --env POSTGRES_PASSWORD_FILE=/run/secrets/"$DB_SECRET" \
+        --update-order stop-first \
+        "${SWARM_ENDPOINT_ARGS[@]}" \
+        postgres:16-alpine; then
+        err "Could not create the $DB_SERVICE service."
+        exit 1
+    fi
+    info "Waiting for PostgreSQL to accept connections ..."
+    db_ready=0
+    for ((attempt = 0; attempt < 30; attempt++)); do
+        db_cid="$(service_container_id "$DB_SERVICE")"
+        if [ -n "$db_cid" ] && "${DOCKER_CMD[@]}" exec "$db_cid" pg_isready -U "$DB_USERNAME" -d "$DB_DATABASE" >/dev/null 2>&1; then
+            db_ready=1
+            break
+        fi
+        sleep 2
+    done
+    if [ "$db_ready" = 1 ]; then
+        ok "PostgreSQL is ready."
+    else
+        warn "PostgreSQL did not report ready yet; continuing (the application retries)."
+    fi
+fi
+
+title "Starting Redis"
+if ! "${DOCKER_CMD[@]}" service create \
+    --name "$REDIS_SERVICE" \
+    --replicas 1 \
+    --network "$NETWORK" \
+    --mount type=volume,source=opensinop_redis,target=/data \
+    --update-order stop-first \
+    "${SWARM_ENDPOINT_ARGS[@]}" \
+    redis:7-alpine; then
+    err "Could not create the $REDIS_SERVICE service."
     exit 1
 fi
-ok "Containers started."
+ok "Redis service created."
+
+# Pass every value written to .env to the application service. DB_PASSWORD is
+# replaced by the mounted secret (or passed directly when no database service
+# is managed); APP_PORT is Compose-only and unused here.
+SERVICE_ENV=()
+while IFS= read -r line; do
+    case "$line" in
+        ''|'#'*) continue ;;
+    esac
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+        DB_PASSWORD|APP_PORT) continue ;;
+    esac
+    case "$value" in
+        \"*\") value="${value#\"}"; value="${value%\"}" ;;
+    esac
+    SERVICE_ENV+=(-e "$key=$value")
+done < "$ENV_FILE"
+if [ "$DB_CONNECTION" = "pgsql" ]; then
+    SERVICE_ENV+=(-e "DB_PASSWORD_FILE=/run/secrets/$DB_SECRET")
+else
+    SERVICE_ENV+=(-e "DB_PASSWORD=$DB_PASSWORD")
+fi
+
+title "Starting application"
+if ! "${DOCKER_CMD[@]}" service create \
+    --name "$APP_SERVICE" \
+    --replicas 1 \
+    --network "$NETWORK" \
+    --mount type=volume,source=opensinop_storage,target=/app/storage \
+    --mount type=volume,source=opensinop_cache,target=/app/bootstrap/cache \
+    --publish mode=host,published="$APP_PORT",target=8000 \
+    --health-cmd healthcheck \
+    --health-interval 10s \
+    --health-timeout 5s \
+    --health-retries 12 \
+    --health-start-period 60s \
+    --update-parallelism 1 \
+    --update-order stop-first \
+    "${SWARM_ENDPOINT_ARGS[@]}" \
+    "${RESOLVE_ARGS[@]}" \
+    "${DB_SECRET_ARGS[@]}" \
+    "${SERVICE_ENV[@]}" \
+    "$IMAGE"; then
+    err "Could not create the $APP_SERVICE service."
+    exit 1
+fi
+ok "Application service created."
 
 title "Health check"
-healthy=0
-for _ in $(seq 1 24); do
-    status=$(docker inspect --format '{{.State.Health.Status}}' opensinop 2>/dev/null || true)
-    if [ "$status" = "healthy" ]; then healthy=1; break; fi
-    if [ "$status" = "unhealthy" ]; then break; fi
-    sleep 5
-done
-if [ "$healthy" = 1 ]; then ok "Application is healthy."; else warn "Application did not report healthy yet; see docker logs opensinop."; fi
+wait_for_app_health || true
 
 title "Next steps"
 info "Open the app at $APP_URL"
+info "Services: docker service ls"
+info "Logs: docker service logs $APP_SERVICE"
 info "Create the first administrator:"
-printf '  %s\n' "$(c "$BOLD" "docker exec -it opensinop php artisan app:bootstrap-admin --name=\"School Operator\" --email=\"operator@example.org\"")"
+printf '  %s\n' "docker exec -it \"\$(docker ps -q -f label=com.docker.swarm.service.name=$APP_SERVICE | head -n1)\" php artisan app:bootstrap-admin --name=\"School Operator\" --email=\"operator@example.org\""
 info "Circle/Arc features require the Circle CLI and arc-canteen on your workflow host."
 ok "Installation complete."
