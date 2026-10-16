@@ -50,6 +50,9 @@ export default defineConfig({
             'resources/js/components/ui/*',
             'resources/js/routes/**',
             'resources/js/wayfinder/**',
+            // The docs site is a separate Astro + Starlight toolchain with its own
+            // package.json; the application's Vite-Plus check must not format it.
+            'docs/**',
         ],
     },
     fmt: {
@@ -76,6 +79,9 @@ export default defineConfig({
             '.github/**',
             'public/**',
             '**/*.md',
+            // The docs site is a separate Astro + Starlight toolchain with its own
+            // package.json; the application's Vite-Plus check must not format it.
+            'docs/**',
             'resources/js/actions/**',
             'resources/js/routes/**',
             'resources/js/wayfinder/**',

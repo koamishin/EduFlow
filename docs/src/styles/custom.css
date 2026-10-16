@@ -1,0 +1,17 @@
+/* Starlight theme overrides for the OpenSinop documentation site. */
+
+/* Brand accent: amber, the same primary colour used by the admin and finance
+   Filament panels. Overrides the default purple accents in both themes. */
+:root {
+	--sl-color-accent-low: #fdf3e0;
+	--sl-color-accent: #b45309;
+	--sl-color-accent-high: #92400e;
+	--sl-color-accent-contrast: #1c1917;
+}
+
+:root[data-theme='dark'] {
+	--sl-color-accent-low: #451a03;
+	--sl-color-accent: #f59e0b;
+	--sl-color-accent-high: #fbbf24;
+	--sl-color-accent-contrast: #1c1917;
+}

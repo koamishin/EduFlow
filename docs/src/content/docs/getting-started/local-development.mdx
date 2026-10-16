@@ -1,0 +1,121 @@
+---
+title: Local Development
+description: Run OpenSinop locally with the simulated driver, seeded demo data and the full quality toolchain.
+---
+
+Once installed, everyday development runs from a single command.
+
+## The one-command start
+
+```bash
+composer run dev
+```
+
+This starts four processes side by side via `concurrently`:
+
+1. **Laravel server** — `php artisan serve` (backend)
+2. **Vite** — `npm run dev` (frontend with HMR)
+3. **Queue worker** — `php artisan queue:listen` (background finance, submission and
+   observation jobs)
+4. **Pail** — `php artisan pail` (real-time application logs)
+
+Open the printed URL (`http://localhost:8000` by default).
+
+## Working without a chain
+
+Use the in-memory driver while developing without Circle credentials:
+
+```dotenv
+LEPTON_DRIVER=fake
+```
+
+Everything then runs in memory. `is_fake` is set on every receipt and the UI badges them
+**Simulated**, so a fake run can never be mistaken for settlement. The fake driver also
+defaults automatically under `APP_ENV=testing`, and needs no network, credentials or
+cost — the whole Pest suite runs offline.
+
+## Database
+
+SQLite is the default: zero-config, stored at `database/database.sqlite`. For
+MySQL/PostgreSQL, update `DB_CONNECTION` and the host credentials in `.env`.
+
+Seed data is intentionally thin:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+`migrate:fresh --seed` seeds only roles and (in local/testing) developer demo accounts.
+It no longer creates the legacy organisation, wallets, budgets, invoices, vendors or
+assistance requests — those records come through the Circle/Lepton agent path, not the
+database.
+
+:::caution
+`migrate:fresh` deletes existing database records. Never run it on a school database or
+an instance holding configured providers or payment history.
+:::
+
+### Demo accounts
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Student | `juan@eduflow.test` | `password` |
+| Finance officer | `finance@eduflow.test` | `password` |
+
+These belong to the legacy developer demo. The student account still exposes legacy
+assistance screens; it is not a fee-payment portal and is not a prerequisite for the
+institution pilot.
+
+## The seeded demo cycle
+
+```bash
+php artisan app:demo
+```
+
+One cycle moves **85 USDC** of real testnet USDC (30 + 45 + the 10 USDC aid portion).
+It is not a simulation under the `circle` driver and is not repeatable without
+re-funding. To watch the workflow without touching a chain, run it under
+`LEPTON_DRIVER=fake`.
+
+| Invoice | Amount | Decision | Why |
+| --- | ---: | --- | --- |
+| `INV-FIBER-30` | 30 | auto-pay | verified vendor, under the limit |
+| `INV-CLOUD-45` | 45 | auto-pay | verified vendor, under the limit |
+| `INV-UNVERIFIED-60` | 60 | escalate | vendor not verified, checked first |
+| `INV-LAB-90` | 90 | escalate | over the 50 limit, wallet can still afford it |
+| `INV-SUPPLY-200` | 200 | hold | would breach the 20 USDC reserve |
+| `INV-HAZARD-2000` | 2000 | reject | equipment budget only holds 500 |
+
+Plus one student aid request at **15 USDC** against a **10 USDC** auto-limit, producing
+a bounded split: 10 approved instantly, 5 escalated for advisor review.
+
+## Tooling
+
+- **Laravel Pail** — because `composer run dev` starts Pail, log lines stream into your
+  terminal; no `tail -f storage/logs/laravel.log` needed.
+- **Tinker** — `php artisan tinker` for REPL access to models and services.
+- **Pest Agent Plugin** — `vendor/bin/pest --agent='…'` runs a one-off assertion without
+  creating a test file (route status, rendered page, model relationship, screenshot…).
+- **Browser tests** — Playwright via `pestphp/pest-plugin-browser` (group `browser`);
+  CI runs them separately and uploads failure screenshots as artifacts.
+
+## Code quality before pushing
+
+```bash
+composer lint      # Laravel Pint (PHP style)
+composer phpstan   # PHPStan static analysis
+composer rector    # Rector dry-run
+npm run check      # Vite-Plus lint + format (frontend)
+npm run types:check # tsc --noEmit
+composer test      # config:clear + lint + Pest
+```
+
+`composer ci` runs the whole gate in one go: lint → PHPStan → Rector → tests.
+
+:::tip[PATH trap on this machine]
+`which circle` can resolve to a broken `mise` shim. If every Lepton call fails with
+“No version is set for shim”, set `LEPTON_CIRCLE_BIN` to the absolute path of the npm
+global binary in `.env`. Also note `circle wallet limit` is mainnet-only, so
+`php artisan lepton:status` failing for a testnet wallet with “Wallet not found … on
+ARC” is expected — check `isAuthenticatedFor('ARC-TESTNET')` instead.
+:::

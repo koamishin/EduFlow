@@ -1,0 +1,119 @@
+---
+title: Pilot Playbook
+description: The college shadow pilot end to end — minimum inputs, roles, the five-step workflow, and the evidence to collect.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+The pilot product question is: **what should the institution do with the fees it has
+already collected from students?** OpenSinop reviews those funds alongside approved
+budgets and commitments, proposes which approved obligations can be funded, and explains
+any holds or shortfalls. Finance staff keep every decision.
+
+The college keeps collecting fees and paying bills through its existing local-currency
+process. Pilot planning uses approved opening funds or staff-verified aggregate realized
+receipts — it needs no student records, a new fee portal, SIS or bank integration.
+
+## Minimum inputs (supplied or confirmed by authorised staff)
+
+- **Department and budget period** — approved allocation, already-spent/committed
+  amounts, restricted funds and protected reserves. Allocation is not proof of cash.
+- **Staff-verified aggregate realized receipts** or approved opening funds — source
+  stream/reference, non-overlapping collection interval, source-document digest, exact
+  original currency/amount, restrictions, and independent review. Opening funds must
+  exclude the same receipts. Expected tuition, promised grants and forecast revenue are
+  **not** available funds.
+- **Anonymised approved bills** — stable source reference, original amount/currency, due
+  date, budget category, vendor alias, business approval, and recurring-obligation
+  evidence where relevant.
+- **Current approved finance policy** — authorised reviewers, exact mirror-rate/rounding
+  rule, allow-listed controlled testnet recipients, spend/fee caps, and a stop/recovery
+  owner.
+
+## The workflow
+
+<Steps>
+
+1. **Capture and review collections.** Cashier/finance staff record or import aggregate
+   receipts (`CollectionBatch`); a separate verified admin reviews each batch. Only
+   reviewed, unrestricted receipts can fund a plan.
+
+2. **Capture bill evidence and destinations.** A maker records each bill's exact source
+   amount/currency with source and business-approval references; a separate checker
+   approves the evidence and the vendor's testnet destination with independent control
+   verification. Destination approval is never payment approval.
+
+3. **Snapshot the budget and plan.** Staff capture a `BudgetSnapshot` binding allocation,
+   spend, commitments, reviewed receipts, opening funds, outflows, restricted cash and
+   protected reserve; the deterministic planner walks that closed bill set and proposes
+   payment order with reasons.
+
+4. **Review, prepare, authorise.** A supervisor accepts the plan; the maker prepares an
+   immutable payment intent (`can_execute=false`); a funding window admits bounded
+   capacity holds; an **enrolled** reviewer authorises the payment with fresh
+   password + TOTP within 5 minutes. Payment authorisation and plan acceptance are
+   different acts held by different people.
+
+5. **Submit and verify.** With the submission runtime explicitly enabled (testnet
+   only), the isolated executor submits each authorised payment, observes the Circle
+   transaction id to a hash, and `ArcSettlementVerifier` records a matching successful
+   receipt with finality. Unknown outcomes stay unresolved; retries cannot pay twice.
+
+</Steps>
+
+### Two execution lanes
+
+- **Human path (default).** Each eligible admin-approved item produces its own linked
+  USDC payment on `ARC-TESTNET` through the existing Circle Agent Wallet / Lepton path.
+  An unrelated transfer, fake receipt or read-only dashboard does not complete it.
+- **Capped autonomous lane (separately authorised, testnet-only).** Once the human path
+  passes its gates, a reviewed standing mandate may let existing approved recurring bills
+  from allow-listed vendors run automatically, within per-payment and cumulative limits,
+  budget, reserve and fee protection. Everything else goes to staff; hard policy failures
+  stay held. The autonomous allowance starts at zero.
+
+## Money and privacy boundaries
+
+- Preserve the exact local amount/currency and a staff-approved immutable reference-rate
+  snapshot with rounding to six-decimal USDC units. Testnet mapping is not real FX or bank
+  settlement; never assume one local-currency unit equals one USDC.
+- Use approved, controlled testnet recipients linked off-chain to vendor aliases. A
+  mirror does not mean the real vendor received money or accepts USDC. Keep local
+  actual-paid state separate from testnet mirror state; never clear the college's payable
+  from testnet proof.
+- Use verified faucet-funded balances with fee allowance. If funds cannot cover
+  full-value mirrors, select smaller real bills or obtain sufficient authorised testnet
+  funding — never silently scale source amounts or seed fictional funds.
+- Keep identities and sensitive documents off-chain. Get separate permission for
+  external AI processing, testnet execution, staff recording and any public college
+  name/logo/quotes.
+
+## Money posture: the three money flows
+
+| Flow | Direction | Authority |
+| --- | --- | --- |
+| Student tuition | student → college | Student consents to a bounded transfer; posting derives from verified evidence. Testnet USDC is **not** official tuition — it is a designated-account allocation only |
+| Student bill payment | student → college | Inbound lane: records a classification assessment only (`approved_amount = 0`, requires human approval); it never carries spend authority |
+| Vendor bill payment | institution → vendor | Full maker/checker lifecycle: policy, reservation, MFA authorisation, executor, settlement verification |
+
+## Evidence to collect for a pilot
+
+- Video of staff using the workflow (college-authorised), linked reasoning/audit records,
+  and verified testnet transaction URLs.
+- Proposals approved as-is versus edited/rejected, holds/pending separately, review time
+  against an agreed baseline including correction effort, and automatic versus escalated
+  outcomes.
+- Staff agreement with automatic decisions counted **separately** from per-item approvals.
+- Sample sizes, feedback and limitations — no invented savings, adoption or guaranteed
+  promotion.
+
+## Operating the pilot safely
+
+- Keep the stop switch ready: `EDUFLOW_*_STOP` halts new submissions while leaving
+  reconciliation and recovery running.
+- Run supervised durable queue workers plus the scheduler, with event/outbox recovery,
+  deduplicated occurrences and bounded retries.
+- Reading a notification is not approval; silence never authorises payment. Pause new
+  submissions or suspend a mandate while preserving in-flight reconciliation and audit.
+- Compare verified testnet transaction evidence with each authorised bill, while keeping
+  actual local collections/payments in the school's existing accounting process.

@@ -578,7 +578,8 @@ For environments running PHP and web servers directly on host infrastructure:
 
 > **Never** regenerate `APP_KEY`, reset the database, or delete financial records as
 > credential cleanup. Preview builds use the `preview` tag only; official releases come from
-> `main` after CI. See `docs/getting-started/installation.mdx` and `docker/Dockerfile`.
+> `main` after CI. See the [installation documentation](https://koamishin.github.io/OpenSinop/getting-started/installation/)
+> (source in `docs/`) and `docker/Dockerfile`.
 
 ### Lepton agent package (Circle + Arc)
 

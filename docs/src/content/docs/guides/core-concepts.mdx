@@ -1,0 +1,131 @@
+---
+title: Core Concepts
+description: The five design rules, exact money, evidence-linked approvals, the three AI tiers, and the single-institution boundary.
+---
+
+## The five design rules
+
+These rules are enforced in code and asserted in tests. They are the first thing to
+read before touching any payment path.
+
+1. **The LLM never moves money.** Policy decisions live in plain PHP
+   (`FinancialPolicyEngine`, `EvaluateAssistancePolicy`). The model explains decisions;
+   it never makes them.
+2. **Exact money is required.** USDC payments use 6 decimals, so `45.00` is `45_000000`.
+   Arc native balance/gas uses 18 decimals. Never `(int) (45.00 * 1000000)` and never
+   `hexdec()` a chain quantity — `hexdec()` returns a float past `PHP_INT_MAX` and an
+   `(int)` cast wraps negative. Use `Yukazakiri\Lepton\Support\Amounts`.
+3. **A transaction hash is not proof.** Successful matching movement and finality must be
+   verified. Only the `verified` verdict means money moved.
+4. **No hardcoded CLI.** All Circle/Arc access goes through the Lepton gateways
+   (`WalletGateway`, `ArcNetworkGateway`, `AuthGateway`, `X402Gateway`) — never a
+   hardcoded `circle` or `arc-canteen` command.
+5. **Demo funding must match the chain.** Use explicit consent for testnet runs and label
+   fake results as simulated. Testnet settlement is not proof of mainnet readiness.
+
+## The three AI tiers
+
+| Tier | Owner | Can move funds? |
+| --- | --- | --- |
+| **Deterministic** | PHP — limits, reserve, caps, rate locking, auto-vs-escalate | Only after every check passes |
+| **Advisory** | LLM — hardship category, urgency, confidence, narrative, anomaly flags | Never |
+| **Prohibited** | — | Approved amount, policy verdict, recipient selection |
+
+The one-way ratchet: the model may only *tighten* a decision — an `ESCALATE` verdict can
+never be downgraded by any model response.
+
+This is enforced structurally, not just promised:
+
+- **Allowlist, not filter.** `AdvisoryEnvelope` is a readonly DTO with no amount,
+  verdict or recipient field; unknown keys are dropped before construction, so a
+  prompt-injected `"approved_amount": 999999` has nowhere to land. Advisory is namespaced
+  under a metadata `advisory` key and cannot overwrite `approved_amount`.
+- **`DisburseAssistance` is `Approvable`** — `needsApproval()` runs the real policy
+  evaluation, and `handle()` re-evaluates rather than trusting the earlier verdict,
+  because a model may propose different arguments between pause and resume.
+- Adversarial tests cover injected amounts, injected verdicts, malformed output,
+  provider failure and prompt injection, all offline via the SDK's own fakes.
+
+## Exact money and currencies
+
+Settlement always happens in USDC base units. Staff-facing screens show a local-currency
+equivalent using the locked quote stored on the agent decision — never a live rate.
+
+| Currency | Code | Type | Minor unit decimals | Multiplier |
+| --- | --- | --- | --- | --- |
+| USD Coin (settlement) | `USDC` | Stablecoin | 6 | 1,000,000 |
+| US Dollar | `USD` | Fiat | 2 | 100 |
+| Philippine Peso | `PHP` | Fiat | 2 | 100 |
+| Euro | `EUR` | Fiat | 2 | 100 |
+| British Pound | `GBP` | Fiat | 2 | 100 |
+| Canadian Dollar | `CAD` | Fiat | 2 | 100 |
+| Singapore Dollar | `SGD` | Fiat | 2 | 100 |
+| Indian Rupee | `INR` | Fiat | 2 | 100 |
+
+Rate snapshots preserve source time/expiry and reject future, expired, non-positive and
+old sources. Static fallback rates remain *indicative display values* only —
+`requireFreshQuote()` requires a non-fallback source with expiry; it is not an executable
+provider offer, fee guarantee or FX settlement certification.
+
+## Evidence, not assertions
+
+Every financial record carries a canonical SHA-256 snapshot digest over the facts it
+binds (source document, wallet, budget, vendor, policy content, activation evidence). The
+digest is **change detection** — not a signature, approval, recipient-ownership proof or
+payment receipt. A retried identical request returns the existing identity; changed
+fields require a reviewed successor rather than mutating an approved record.
+
+Reviews are explicit acts recorded against stored digests (`expected_digest`): an
+approval that was made against different evidence is refused, and self-review is refused
+even for super-admins.
+
+## The single-institution boundary
+
+One installation serves one institution: one database, storage, queue/cache namespace,
+encryption key, mail configuration and institution-owned treasury context. Two schools
+run two instances — even when one IT provider manages both — and never share provider
+credentials or wallet sessions.
+
+- `Organization` is the institution identity (no competing `School` model).
+- The installation institution is resolved **fail-closed**: a missing, corrupt, stale or
+  ambiguous context disables treasury actions instead of choosing the first row. Local
+  and testing retain automatic selection only when exactly one institution exists.
+- After setup, Eloquent refuses creation of another institution; raw database access can
+  bypass the model guard, but ambiguous data still disables selection.
+- `EDUFLOW_INSTITUTION_ID` remains supported for legacy instances; when both exist they
+  must agree.
+
+:::caution
+This is not complete tenant isolation. Do not host unrelated schools in one database.
+:::
+
+## Hybrid architecture
+
+The application runs two front ends over one Laravel core:
+
+- **Student / staff-facing SPA** — `resources/js` (React 19 + Inertia v3 + Tailwind v4),
+  rendered server-side through `Inertia::render()` in `routes/web.php`.
+- **Admin & finance panels** — two Filament v5 panels:
+  - **Admin** at `/admin` — users, students, tuition accounts, invoices, assistance
+    requests, payment submissions, AI activity, activity logs, settings.
+  - **Finance** at `/finance` — finance dashboard, supervisor, collections, payment
+    reviews, treasury wallet, JEV decision analytics, plus the finance widgets.
+
+Panels share the same database, session and auth system but enforce a navigation
+contract: finance widgets link only within `/finance` (a finance → admin link would be a
+privilege escalation), while admin widgets may link into `/finance`.
+
+Routes are type-safe in TypeScript through **Wayfinder** (`resources/js/actions`,
+`resources/js/routes`) — generated at build time by `npm run build`; never hardcode URLs.
+
+## Money vocabulary
+
+| Term | Meaning |
+| --- | --- |
+| **Allocation** | A department's approved budget — an accounting decision, never a transfer |
+| **Available cash** | Unrestricted, received, verified money; budget ≠ cash |
+| **Funding window** | A 15-minute, block-bound binding of policy, bills, treasury and Arc cash used to admit reservations |
+| **Reservation (capacity hold)** | Cumulative hold of a bill plus maximum fee against allocation/cash capacity — an application hold, not a Circle wallet lock |
+| **Payment intent** | An immutable, non-executable USDC draft bound to reviewed evidence (`can_execute=false`) |
+| **Payment authorization** | A reviewer's MFA-backed decision on a reserved bill, valid 5 minutes |
+| **Settlement** | Verified matching Arc movement with finality — a tx hash, provider ID or `CONFIRMED` label alone is never settlement |

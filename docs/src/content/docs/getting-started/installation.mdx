@@ -1,0 +1,214 @@
+---
+title: Installation
+description: Requirements and deployment paths for OpenSinop — Docker Compose, the interactive installer, or a bare-metal setup.
+---
+
+OpenSinop runs as a standard Laravel application. Choose the path that matches your goal:
+
+| Goal | Start here |
+| --- | --- |
+| Evaluate the application locally | [Local development](../../getting-started/local-development/) with `LEPTON_DRIVER=fake` |
+| Deploy on your own infrastructure | [Docker Compose](#docker-compose-recommended) or [bare metal](#bare-metal-production-setup) |
+| Upgrade an existing deployment | [Updating a Docker deployment](#updating-a-docker-deployment) |
+| Configure wallets and chains | [Configuration](../../getting-started/configuration/) |
+
+## Requirements
+
+| Tool | Version | Notes |
+| --- | --- | --- |
+| PHP | **8.5** (required) | `composer.json` requires `^8.5`. Extensions: `pdo`, `mbstring`, `openssl`, `curl`, `fileinfo`, `dom`, `xml`, `zip`, `bcmath` |
+| Composer | 2.x | Dependency manager for PHP |
+| Node.js & npm | 20.18.2+ | Frontend build and Vite dev server |
+| Docker (self-hosting) | 24.0+ (Compose v2) | Pairs the app with PostgreSQL 16 and Redis 7 |
+| Circle CLI | 1.1.4+ | Only for real (testnet) settlement — `npm i -g @circle-fin/cli` |
+| `uv` / `arc-canteen` | latest | Optional — Arc blockchain queries now use direct HTTP JSON-RPC (`uv tool install arc-canteen && arc-canteen login`) |
+
+:::caution
+Installation scripts download and execute repository code. Review them before running
+them on a server that holds credentials or financial records.
+:::
+
+## Docker Compose (recommended)
+
+The Compose stack pairs the FrankenPHP + Octane application image with PostgreSQL 16 and
+Redis 7. Images are published to GitHub Container Registry through the release
+workflows — confirm the chosen tag exists before deploying; preview releases never
+update `latest`.
+
+### One-line quick start
+
+```bash
+docker compose -f https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml up -d
+```
+
+Pass environment variables before the command to customise ports or identity settings,
+e.g. `APP_PORT=8080 docker compose … up -d`. The published image bakes safe identity
+defaults (`APP_NAME=OpenSinop`, `APP_ENV=production`, `APP_DEBUG=false`,
+`APP_URL=http://localhost:8000`); override them per deployment via Compose or build
+arguments.
+
+:::caution[Current deployment limitation]
+The checked-in Compose file fixes the database driver to PostgreSQL and does not forward
+every value collected by the installer. Selecting MySQL, SQLite or a wallet driver in
+the wizard alone does not configure those services inside the container. Review the
+resolved Compose configuration before relying on non-default settings.
+:::
+
+### Interactive TUI installer
+
+Run the wizard from a dedicated installation directory. It collects the application URL,
+port, database choice, school identity, wallet driver and optional AI settings; common
+settings fall back to production defaults.
+
+- **macOS / Linux**
+
+  ```bash
+  bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)
+  ```
+
+- **Windows (PowerShell)**
+
+  ```powershell
+  irm https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1 | iex
+  ```
+
+### Bootstrap the first administrator
+
+On first boot the container runs migrations, enables required modules and initialises the
+school identity. Once the instance is healthy, create the first super-administrator
+interactively:
+
+```bash
+docker exec -it opensinop php artisan app:bootstrap-admin --name="School Operator" --email="operator@example.org"
+```
+
+Bootstrap asks for the password through hidden prompts; it refuses existing users and a
+second super-admin. Verify the email and configure MFA before opening access.
+
+:::caution[Data persistence]
+Compose declares the `opensinop_db`, `opensinop_storage`, `opensinop_cache` and
+`opensinop_redis` volumes (normally prefixed by the Compose project name). Keep the
+original project identity when upgrading, and never run `docker compose down -v` on an
+instance whose records you need.
+:::
+
+## Bare-metal production setup
+
+1. **Server prerequisites** — PHP 8.5 with the extensions above, Composer,
+   Node.js 20.18+, plus the Circle CLI and `arc-canteen` for treasury features.
+
+2. **Application code**
+
+   ```bash
+   git clone https://github.com/koamishin/OpenSinop.git /var/www/opensinop
+   cd /var/www/opensinop
+   composer install --no-dev --optimize-autoloader
+   npm ci
+   npm run build
+   ```
+
+3. **Environment**
+
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
+
+   Set at minimum:
+
+   ```dotenv
+   APP_NAME="Your School"
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_URL=https://opensinop.example.org
+
+   DB_CONNECTION=pgsql        # or mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=5432
+   DB_DATABASE=opensinop
+   DB_USERNAME=opensinop
+   DB_PASSWORD=change-me
+
+   QUEUE_CONNECTION=database   # or redis
+   SESSION_DRIVER=database     # or redis
+   CACHE_STORE=database        # or redis
+   ```
+
+4. **Database & storage** (never run `migrate:fresh` on a real instance)
+
+   ```bash
+   php artisan module:enable Blog --no-interaction
+   php artisan migrate --force
+   php artisan module:migrate --force --no-interaction
+   php artisan storage:link
+   ```
+
+5. **School identity and first administrator** (idempotent; safe to repeat as a no-op)
+
+   ```bash
+   php artisan app:install --institution="Pilot School" --country=PH --timezone=Asia/Manila --currency=PHP --no-interaction
+   php artisan app:bootstrap-admin --name="School Operator" --email="operator@school.example"
+   ```
+
+6. **Optimise for production**
+
+   ```bash
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   php artisan event:cache
+   ```
+
+7. **Process management** — run a long-lived queue worker and the scheduler under
+   Supervisor or systemd. The background finance runtime requires both:
+
+   ```bash
+   php artisan queue:work --sleep=3 --tries=3
+   php artisan schedule:work
+   ```
+
+   The included Docker image (`docker/Dockerfile`) runs FrankenPHP + Octane + Supervisor
+   (queue, scheduler, and Horizon/Pulse when installed) — see `docker/start-container`.
+
+8. **Revenue/agent config** — set `LEPTON_TREASURY_ADDRESS`, `LEPTON_CHAIN` and the
+   finance env flags only after reviewing [Configuration](../../getting-started/configuration/)
+   and the release-safety notes.
+
+:::danger
+Never regenerate `APP_KEY`, reset the database, or delete financial records as
+“credential cleanup”. Preview builds use the `preview` tag only; official releases come
+from `main` after CI.
+:::
+
+## Updating a Docker deployment
+
+Run updates from the original installation directory so the scripts find the same
+`.env`, Compose project and volumes. The update path attempts a PostgreSQL dump to
+`./backups/`, pulls images and starts services again.
+
+:::caution[Back up independently]
+The current updater can continue after a failed dump; it is not a complete backup or
+rollback system. Do not assume it backs up SQLite, MySQL, uploaded files or encryption
+keys.
+:::
+
+- **macOS / Linux**
+
+  ```bash
+  bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh) --update
+  ```
+
+- **Windows (PowerShell)**
+
+  ```powershell
+  iwr https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1 -OutFile install.ps1; .\install.ps1 -Update
+  ```
+
+## Installer guarantees
+
+The `app:install` command creates roles, one institution with zero autonomous
+thresholds, the persisted country/locale/timezone/currency, and disables public
+registration, impersonation and AI. It never migrates, resets data, seeds demo records,
+generates keys, creates wallets or calls external providers. Repeat runs are a no-op;
+changed identity metadata is refused rather than overwritten. See
+[Adoption overview](../../institution/overview/) for the full single-institution boundary.

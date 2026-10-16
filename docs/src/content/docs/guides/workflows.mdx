@@ -1,0 +1,152 @@
+---
+title: Workflows
+description: How money moves through OpenSinop, and how the background runtime (queues, scheduler, workers) executes it.
+---
+
+## The intended lifecycle
+
+The target is the collections-to-budget lifecycle. Each step below is a separate,
+recorded act with its own authority:
+
+```text
+Student fees paid through the college's existing local process
+        ↓
+Staff-verified realized collections or approved opening funds
+        ↓
+Available cash, restrictions, reserves and commitments
+        ↓
+Agent proposes use within the department's approved budget
+        ↓
+Deterministic checks: permit review, hold or reject
+        ↓
+Staff authorization or separately approved capped recurring policy
+        ↓
+Reserved payment intent and recoverable Circle Agent Wallet submission
+        ↓
+Matching successful Arc testnet settlement and linked audit evidence
+```
+
+Budget allocation is an accounting decision, not a wallet transfer. Collected local fees
+are **not** automatically converted or bridged into USDC. A testnet mirror never clears
+the college's real local-currency bill.
+
+## Intake: collections and evidence
+
+**Cashier side (manual lane).** The college's existing cash/bank channel is authoritative.
+Verified finance staff record or import aggregate received amounts — a `CollectionBatch`
+binds the source stream, reference, document digest, exact original currency/amount,
+restrictions and interval. A separate authorised admin reviews the batch. Pending, held
+or rejected receipts cannot supply planning cash.
+
+**Optional student portal.** A student-initiated transfer (student → college) uses an
+immutable quote/consent record, an expiring fee ceiling and chain/purpose guards. The
+rail cannot enforce an accepted sender-fee ceiling with the installed
+`circle wallet transfer`, so the signer **refuses** rather than sending unbounded — an
+estimate is not a spending limit. Unsettled or ambiguous receipts stay outside spendable
+cash; they are never a planning input.
+
+## Planning: deterministic, closed-set
+
+`DepartmentBudgetPlanner` walks the closed bill set a human supplied when capturing the
+`BudgetSnapshot` — no discovery, ranking or deprioritisation. It sorts by due date, applies
+cumulative checks (budget, cash, reserve, commitments) and emits
+`propose_human_review` or `hold`. Money cannot go anywhere a human has not already
+authorised.
+
+A plan captures exact allocation, already-spent, commitments, opening funds, realized
+receipts, outflows, restricted cash and protected reserve **separately**. Staff attests
+that buckets are disjoint and that opening funds exclude the selected receipts.
+
+## Decision and approval
+
+- Plan decisions: `FinancePlanReview` (`accept_plan` / `reject_plan` / `request_correction`).
+- Invoice evidence: `InvoiceVersion` (maker) → separate checker (`approve_evidence`).
+- Vendor destinations: `VendorDestinationVersion` (maker) → separate admin (`control_verified`).
+- Finance policy: `FinancePolicyVersion` prepared, then activated by a separate reviewer
+  with explicit expected-activation context.
+- Funding and capacity: a `FundingWindow` (≤15 min) admits `PaymentReservation` holds.
+- Payment authorisation: an **enrolled** reviewer with fresh password + unused TOTP, bound
+  to displayed draft/reservation digests; expires in 5 minutes and cannot outlive funding.
+
+Cashier entry, independent reconciliation, business approval, payment authorisation and
+accounting posting are distinct acts held by distinct people.
+
+## Execution and settlement
+
+Submission is a separate opt-in runtime (`EDUFLOW_SUBMISSION_ENABLED`) with a stop switch,
+and the isolated executor refuses anything but `ARC-TESTNET`. An authorised payment still
+does not settle the local payable — verified movement to a bound testnet recipient proves
+movement, not that a real vendor received the college's money.
+
+Circle agent-wallet transfers are asynchronous: `circle wallet transfer` returns a
+Circle transaction id (a UUID), not an on-chain hash, and without `--quiet` it returns a
+fee preview only. The working path is quiet submit → poll until COMPLETE/FAILED → take
+the hash → `ArcSettlementVerifier`. A provider timeout is `unknown`, never `failed`; a
+blind resend risks paying twice.
+
+## Background runtime
+
+Background **planning** is read-only and enabled in `config/eduflow.php`; payment
+execution keeps separate gates. It only does work with a durable (`database`/`redis`)
+queue connection plus a supervised worker and scheduler:
+
+```dotenv
+EDUFLOW_FINANCE_QUEUE_CONNECTION=database
+```
+
+:::caution[Scheduled money movement is not off by default]
+`eduflow:autonomous-pipeline-bridge --latest` is scheduled every five minutes and the
+pipeline flags default on (`enabled`, `auto_disburse`, 50 USDC ceiling). Wherever the
+scheduler runs, that bridge can capture evidence, authorise, submit and reconcile a
+payment. Set `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false` and
+`EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false` until you have reviewed the gates — see
+[Configuration](../../getting-started/configuration/#one-exception-the-autonomous-pipeline-bridge-is-on-by-default).
+:::
+
+The scheduler (`routes/console.php`) runs, each gated on its own flag:
+
+| Command | Cadence | Gate |
+| --- | --- | --- |
+| `app:recover-circle-notifications` | every minute | webhooks enabled |
+| `app:dispatch-finance-workflows` | every minute | `background_finance.enabled` |
+| `app:dispatch-student-tuition` | every minute | tuition submission or observation |
+| `app:reconcile-tuition-receipts` | every 5 minutes | tuition auto-intake |
+| `app:reconcile-student-bill-receipts` | every 5 minutes | bill auto-intake |
+| `app:dispatch-student-bill-payments` | every minute | bill submission or observation |
+| `app:dispatch-payment-submissions` | every minute (`--recover-stale` every 5) | submission runtime |
+| `app:reconcile-payment-submissions` | every minute | submission runtime |
+| `app:dispatch-mandate-occurrences` | every minute | mandate runtime |
+| `app:dispatch-policy-evaluations` | every minute | policy advice enabled |
+| `eduflow:autonomous-pipeline-bridge --latest` | every 5 minutes | autonomous pipeline (**on by default**) |
+
+All ticks use `withoutOverlapping()` and `onOneServer()`. Two ticks racing on the same
+row would be the difference between one owed payment and two attempts at it. `sync` as a
+queue connection is refused for finance planning; the scheduled legacy developer agent
+cycle is not the safe lifecycle and must not be scheduled.
+
+## The legacy developer path
+
+The older invoice/assistance cycle still exists for development:
+
+```text
+Invoices + aid requests → OpenSinopAgent::runAutonomousCycle()
+        → FinancialPolicyEngine / EvaluateAssistancePolicy   ← deterministic PHP
+        → CircleWalletService → WalletGateway → circle wallet transfer
+        → Transaction row (status + hash)                    ← a claim
+        → lepton:reconcile → eth_getTransactionReceipt      ← receipt verdict, still not amount-matched
+```
+
+It is **not** the fee-collections intake, the departmental review UI or the safe new
+payment lifecycle. Existing student-assistance screens must not be presented as a
+fee-collection or vendor-payment workflow.
+
+## Standing mandates (bounded autonomy)
+
+A *standing mandate* authorises a class of recurring payment; a deterministic evaluator
+admits each occurrence. The scanner is sessionless and holds no payment authority: it
+creates no payment intent, reserves nothing, and never passes a fabricated human actor to
+a staff action. A bill is only a candidate if it appears in a current, valid
+`BudgetSnapshot`'s bill set for the mandate's budget with a matching snapshot digest —
+otherwise a mandate would widen its own reach to every invoice the vendor ever sends.
+Both runtime and nonzero-allowance switches default off; the autonomous allowance starts
+at zero.
