@@ -9,6 +9,8 @@ storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
+bootstrap/cache/*
+!bootstrap/cache/.gitignore
 .env
 .env.*
 !.env.example
@@ -23,3 +25,5 @@ frankenphp
 frankenphp-worker.php
 npm-debug.log
 yarn-error.log
+database/*.sqlite*
+*.sqlite*

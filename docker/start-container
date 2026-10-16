@@ -2,7 +2,7 @@
 set -e
 
 container_mode=${CONTAINER_MODE:-"http"}
-octane_server=${OCTANE_SERVER}
+octane_server=${OCTANE_SERVER:-"frankenphp"}
 running_migrations_and_seeders=${RUNNING_MIGRATIONS_AND_SEEDERS:-"false"}
 
 ROOT=${ROOT:-/app}
@@ -21,15 +21,76 @@ if [ -z "${APP_KEY}" ]; then
     export APP_KEY
 fi
 
+# If .env exists in ROOT and APP_KEY is empty in .env, persist it
+if [ -f "${ROOT}/.env" ] && grep -q '^APP_KEY=$' "${ROOT}/.env" 2>/dev/null; then
+    sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|" "${ROOT}/.env" 2>/dev/null || true
+fi
+
+# Ensure SQLite database file and directory exist if SQLite is used
+ensure_sqlite_db() {
+    db_conn="${DB_CONNECTION:-sqlite}"
+    if [ "${db_conn}" = "sqlite" ]; then
+        db_file="${DB_DATABASE:-${ROOT}/storage/database.sqlite}"
+        case "$db_file" in
+            */*) ;;
+            *) db_file="${ROOT}/storage/${db_file}.sqlite" ;;
+        esac
+        export DB_DATABASE="$db_file"
+        db_dir=$(dirname "${db_file}")
+        mkdir -p "${db_dir}"
+        if [ ! -f "${db_file}" ]; then
+            echo "Creating SQLite database at ${db_file}..."
+            touch "${db_file}"
+        fi
+        chown -R "${USER:-laravel}:${USER:-laravel}" "${db_dir}" 2>/dev/null || true
+        chmod 775 "${db_dir}" 2>/dev/null || true
+        chown "${USER:-laravel}:${USER:-laravel}" "${db_file}" 2>/dev/null || true
+        chmod 664 "${db_file}" 2>/dev/null || true
+    fi
+}
+
 fix_permissions() {
-    chown -R "${USER:-laravel}:${USER:-laravel}" "${ROOT}/storage" "${ROOT}/bootstrap/cache" 2>/dev/null || true
+    chown -R "${USER:-laravel}:${USER:-laravel}" "${ROOT}/storage" "${ROOT}/bootstrap/cache" "${ROOT}/.config" "${ROOT}/.data" 2>/dev/null || true
+    chmod -R 775 "${ROOT}/storage" "${ROOT}/bootstrap/cache" "${ROOT}/.config" "${ROOT}/.data" 2>/dev/null || true
+
+    for dir in "${ROOT}/database" "/var/www/html/database"; do
+        if [ -d "$dir" ]; then
+            chown -R "${USER:-laravel}:${USER:-laravel}" "$dir" 2>/dev/null || true
+            chmod 775 "$dir" 2>/dev/null || true
+        fi
+    done
+
+    db_conn="${DB_CONNECTION:-sqlite}"
+    if [ "${db_conn}" = "sqlite" ]; then
+        db_file="${DB_DATABASE:-${ROOT}/storage/database.sqlite}"
+        case "$db_file" in
+            */*) ;;
+            *) db_file="${ROOT}/storage/${db_file}.sqlite" ;;
+        esac
+        db_dir=$(dirname "${db_file}")
+        if [ -d "${db_dir}" ]; then
+            chown -R "${USER:-laravel}:${USER:-laravel}" "${db_dir}" 2>/dev/null || true
+            chmod 775 "${db_dir}" 2>/dev/null || true
+        fi
+        if [ -f "${db_file}" ]; then
+            chown "${USER:-laravel}:${USER:-laravel}" "${db_file}" 2>/dev/null || true
+            chmod 664 "${db_file}" 2>/dev/null || true
+        fi
+        for wal in "${db_file}-wal" "${db_file}-shm"; do
+            if [ -f "$wal" ]; then
+                chown "${USER:-laravel}:${USER:-laravel}" "$wal" 2>/dev/null || true
+                chmod 664 "$wal" 2>/dev/null || true
+            fi
+        done
+    fi
 }
 
 init_application() {
     echo "Preparing application..."
+    ensure_sqlite_db
     fix_permissions
     php artisan module:enable Blog --no-interaction || true
-    php artisan migrate --force || true
+    php artisan migrate --force --no-interaction || true
     php artisan module:migrate --force --no-interaction || true
     php artisan storage:link || true
 
@@ -81,8 +142,8 @@ initialStuff() {
 
     init_application
 
-    php artisan optimize:clear
-    php artisan optimize
+    php artisan optimize:clear || true
+    php artisan optimize || true
 }
 
 if [ "$1" != "" ]; then

@@ -5,27 +5,34 @@
 
 services:
     app:
+        build:
+            context: .
+            dockerfile: Dockerfile
         image: ghcr.io/koamishin/opensinop:${EDUFLOW_VERSION:-latest}
         container_name: opensinop
         restart: unless-stopped
         ports:
             - '${APP_PORT:-8000}:8000'
+        env_file:
+            - path: .env
+              required: false
         environment:
             APP_NAME: ${APP_NAME:-OpenSinop}
             APP_ENV: ${APP_ENV:-production}
+            APP_KEY: ${APP_KEY:-}
             APP_DEBUG: ${APP_DEBUG:-false}
             APP_URL: ${APP_URL:-http://localhost:8000}
-            DB_CONNECTION: pgsql
-            DB_HOST: db
-            DB_PORT: 5432
+            DB_CONNECTION: ${DB_CONNECTION:-pgsql}
+            DB_HOST: ${DB_HOST:-db}
+            DB_PORT: ${DB_PORT:-5432}
             DB_DATABASE: ${DB_DATABASE:-opensinop}
             DB_USERNAME: ${DB_USERNAME:-opensinop}
             DB_PASSWORD: ${DB_PASSWORD:-opensinop}
-            REDIS_HOST: redis
-            REDIS_PORT: 6379
-            CACHE_STORE: redis
-            SESSION_DRIVER: database
-            QUEUE_CONNECTION: database
+            REDIS_HOST: ${REDIS_HOST:-redis}
+            REDIS_PORT: ${REDIS_PORT:-6379}
+            CACHE_STORE: ${CACHE_STORE:-redis}
+            SESSION_DRIVER: ${SESSION_DRIVER:-database}
+            QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
             EDUFLOW_INSTITUTION: ${EDUFLOW_INSTITUTION:-My School}
             EDUFLOW_COUNTRY: ${EDUFLOW_COUNTRY:-US}
             EDUFLOW_TIMEZONE: ${EDUFLOW_TIMEZONE:-UTC}
@@ -36,6 +43,7 @@ services:
         depends_on:
             db:
                 condition: service_healthy
+                required: false
         healthcheck:
             test: ['CMD-SHELL', 'healthcheck']
             interval: 10s
@@ -48,16 +56,16 @@ services:
         container_name: opensinop-db
         restart: unless-stopped
         environment:
-            POSTGRES_DB: ${DB_DATABASE:-opensinop}
-            POSTGRES_USER: ${DB_USERNAME:-opensinop}
-            POSTGRES_PASSWORD: ${DB_PASSWORD:-opensinop}
+            POSTGRES_DB: ${POSTGRES_DB:-opensinop}
+            POSTGRES_USER: ${POSTGRES_USER:-${DB_USERNAME:-opensinop}}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:-opensinop}}
         volumes:
             - opensinop_db:/var/lib/postgresql/data
         healthcheck:
             test:
                 [
                     'CMD-SHELL',
-                    'pg_isready -U ${DB_USERNAME:-opensinop} -d ${DB_DATABASE:-opensinop}',
+                    'pg_isready -U $${POSTGRES_USER:-$${DB_USERNAME:-opensinop}} -d $${POSTGRES_DB:-opensinop}',
                 ]
             interval: 5s
             timeout: 5s

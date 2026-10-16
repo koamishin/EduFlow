@@ -28,7 +28,9 @@ err() { printf '  %s\n' "$(c "$RED" "[error] $1")"; }
 
 tty_read() {  # read into var name passed as $1
     local __var="$1"
-    if exec 2>/dev/null 3</dev/tty; then
+    if [ ! -t 0 ]; then
+        IFS= read -r "$__var" || true
+    elif exec 2>/dev/null 3</dev/tty; then
         IFS= read -r "$__var" <&3 || true
         exec 3<&- 2>/dev/null || true
     else
@@ -38,6 +40,10 @@ tty_read() {  # read into var name passed as $1
 
 ask() {
     local prompt="$1" default="${2:-}" value
+    if [ "${NON_INTERACTIVE:-0}" = "1" ]; then
+        printf '%s' "$default"
+        return
+    fi
     if [ -n "$default" ]; then
         printf '  %s [%s]: ' "$prompt" "$default" >&2
     else
@@ -50,12 +56,18 @@ ask() {
 
 ask_secret() {
     local prompt="$1" default="${2:-}" value
+    if [ "${NON_INTERACTIVE:-0}" = "1" ]; then
+        printf '%s' "$default"
+        return
+    fi
     if [ -n "$default" ]; then
         printf '  %s [hidden]: ' "$prompt" >&2
     else
         printf '  %s: ' "$prompt" >&2
     fi
-    if exec 2>/dev/null 3</dev/tty; then
+    if [ ! -t 0 ]; then
+        IFS= read -r value || true
+    elif exec 2>/dev/null 3</dev/tty; then
         IFS= read -rs value <&3 || true
         exec 3<&- 2>/dev/null || true
         echo >&2
@@ -71,6 +83,10 @@ ask_choice() {
     # prompt default choice1 choice2 ...
     local prompt="$1" default="$2"; shift 2
     local choices=("$@")
+    if [ "${NON_INTERACTIVE:-0}" = "1" ]; then
+        printf '%s' "$default"
+        return
+    fi
     printf '  %s\n' "$(c "$BOLD" "$prompt")" >&2
     local i=1
     for ch in "${choices[@]}"; do
@@ -97,6 +113,10 @@ ask_choice() {
 
 yes_no() {
     local prompt="$1" default="${2:-yes}" ans
+    if [ "${NON_INTERACTIVE:-0}" = "1" ]; then
+        printf '%s' "$default"
+        return
+    fi
     printf '  %s [%s]: ' "$prompt" "$default" >&2
     tty_read ans
     ans="${ans:-$default}"
@@ -107,6 +127,19 @@ yes_no() {
 }
 
 cmd_exists() { command -v "$1" >/dev/null 2>&1; }
+
+port_in_use() {
+    local p="$1"
+    if cmd_exists ss; then
+        ss -tlpn 2>/dev/null | grep -E -q "[:.]${p}[[:space:]]" && return 0
+    elif cmd_exists netstat; then
+        netstat -tlpn 2>/dev/null | grep -E -q "[:.]${p}[[:space:]]" && return 0
+    elif cmd_exists lsof; then
+        lsof -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+    fi
+    (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null && { exec 3<&- 3>&-; return 0; }
+    return 1
+}
 
 redis_ping() {
     local host="$1" port="$2" pass="$3"
@@ -160,10 +193,12 @@ gen_key() {
 
 # ---- Argument parsing ----
 UPDATE=0
+NON_INTERACTIVE=0
 for arg in "$@"; do
     case "$arg" in
         --update|-u) UPDATE=1 ;;
-        --help|-h) echo "Usage: install.sh [--update]"; exit 0 ;;
+        --yes|-y|--defaults|-d|--non-interactive) NON_INTERACTIVE=1 ;;
+        --help|-h) echo "Usage: install.sh [--update] [--yes|-y]"; exit 0 ;;
     esac
 done
 
@@ -183,18 +218,32 @@ if [ "$UPDATE" = "1" ]; then
         info "Downloading docker-compose.yml ..."
         curl -fsSL "$COMPOSE_URL" -o "$COMPOSE_FILE" || { err "download failed"; exit 1; }
     fi
-    DB_USER="$(env_value DB_USERNAME)"; DB_USER="${DB_USER:-opensinop}"
-    DB_NAME="$(env_value DB_DATABASE)"; DB_NAME="${DB_NAME:-opensinop}"
-    DB_CID="$(docker compose ps -q db 2>/dev/null || true)"
-    if [ -n "$DB_CID" ]; then
-        backup_dir="$ROOT/backups"
-        mkdir -p "$backup_dir"
-        backup_file="$backup_dir/opensinop-$(date +%Y%m%d-%H%M%S).sql"
-        if docker compose exec -T db sh -c "pg_dump -U '$DB_USER' '$DB_NAME'" > "$backup_file" 2>/dev/null; then
-            ok "Database backup written to $backup_file"
-        else
-            warn "Database backup failed; continuing update."
-            rm -f "$backup_file"
+    DB_CONN="$(env_value DB_CONNECTION)"; DB_CONN="${DB_CONN:-pgsql}"
+    if [ "$DB_CONN" = "pgsql" ]; then
+        DB_USER="$(env_value DB_USERNAME)"; DB_USER="${DB_USER:-opensinop}"
+        DB_NAME="$(env_value DB_DATABASE)"; DB_NAME="${DB_NAME:-opensinop}"
+        DB_CID="$(docker compose ps -q db 2>/dev/null || true)"
+        if [ -n "$DB_CID" ]; then
+            backup_dir="$ROOT/backups"
+            mkdir -p "$backup_dir"
+            backup_file="$backup_dir/opensinop-$(date +%Y%m%d-%H%M%S).sql"
+            if docker compose exec -T db sh -c "pg_dump -U '$DB_USER' '$DB_NAME'" > "$backup_file" 2>/dev/null; then
+                ok "Database backup written to $backup_file"
+            else
+                warn "Database backup failed; continuing update."
+                rm -f "$backup_file"
+            fi
+        fi
+    elif [ "$DB_CONN" = "sqlite" ]; then
+        APP_CID="$(docker compose ps -q app 2>/dev/null || true)"
+        if [ -n "$APP_CID" ]; then
+            backup_dir="$ROOT/backups"
+            mkdir -p "$backup_dir"
+            backup_file="$backup_dir/opensinop-$(date +%Y%m%d-%H%M%S).sqlite"
+            DB_FILE="$(env_value DB_DATABASE)"; DB_FILE="${DB_FILE:-/app/database/database.sqlite}"
+            if docker compose exec -T app sh -c "sqlite3 '$DB_FILE' '.backup /tmp/backup.sqlite' && cat /tmp/backup.sqlite" > "$backup_file" 2>/dev/null; then
+                ok "Database backup written to $backup_file"
+            fi
         fi
     fi
     title "Pulling latest images"
@@ -250,7 +299,16 @@ title "Application"
 APP_NAME=$(ask "Application name" "OpenSinop")
 APP_ENV="production"
 APP_DEBUG="false"
-APP_PORT=$(ask "Published HTTP port" "8000")
+DEFAULT_PORT="8000"
+if port_in_use "$DEFAULT_PORT"; then
+    for candidate in 8080 8088 8888 8008; do
+        if ! port_in_use "$candidate"; then
+            DEFAULT_PORT="$candidate"
+            break
+        fi
+    done
+fi
+APP_PORT=$(ask "Published HTTP port" "$DEFAULT_PORT")
 APP_URL=$(ask "Public URL" "http://localhost:$APP_PORT")
 APP_KEY="$(gen_key)"
 ok "Generated APP_KEY"
@@ -272,7 +330,7 @@ fi
 CACHE_STORE="database"
 SESSION_DRIVER="database"
 QUEUE_CONNECTION="database"
-REDIS_HOST="127.0.0.1"
+REDIS_HOST="redis"
 REDIS_PORT="6379"
 REDIS_PASSWORD="null"
 

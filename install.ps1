@@ -28,6 +28,7 @@ function Read-Secret([string]$Prompt) {
 }
 
 function Ask([string]$Prompt, [string]$Default = "") {
+    if ($global:NonInteractive) { return $Default }
     if ($Default) { $shown = "$Prompt [$Default]: " } else { $shown = "$Prompt`: " }
     $value = Read-Host $shown
     if ([string]::IsNullOrWhiteSpace($value)) { return $Default }
@@ -35,6 +36,7 @@ function Ask([string]$Prompt, [string]$Default = "") {
 }
 
 function Ask-Choice([string]$Prompt, [string]$Default, [string[]]$Choices) {
+    if ($global:NonInteractive) { return $Default }
     Write-Host ("  " + $Prompt)
     for ($i = 0; $i -lt $Choices.Count; $i++) {
         $mark = ""
@@ -51,6 +53,7 @@ function Ask-Choice([string]$Prompt, [string]$Default, [string[]]$Choices) {
 }
 
 function Yes-No([string]$Prompt, [string]$Default = "yes") {
+    if ($global:NonInteractive) { return $Default }
     $ans = Read-Host ("  " + $Prompt + " [" + $Default + "]")
     if ([string]::IsNullOrWhiteSpace($ans)) { $ans = $Default }
     if ($ans -match '^(y|yes|true|1)$') { return "yes" }
@@ -103,7 +106,8 @@ function Gen-Key {
 }
 
 
-$Update = ($args -contains "--update" -or $args -contains "-Update")
+$Update = ($args -contains "--update" -or $args -contains "-Update" -or $args -contains "-u")
+$global:NonInteractive = ($args -contains "--yes" -or $args -contains "-y" -or $args -contains "-Yes" -or $args -contains "--defaults" -or $args -contains "-Defaults")
 if ($Update) {
     Title "OpenSinop Update"
     if (-not (Test-Path $EnvFile)) {
@@ -114,22 +118,41 @@ if ($Update) {
         Info "Downloading docker-compose.yml ..."
         try { Invoke-WebRequest -Uri $ComposeUrl -OutFile $ComposeFile -UseBasicParsing } catch { Err $_.Exception.Message; return }
     }
-    $DB_USER = (Select-String -Path $EnvFile -Pattern '^DB_USERNAME=' | Select-Object -Last 1).Line.Split('=',2)[1].Trim('"')
-    if ([string]::IsNullOrWhiteSpace($DB_USER)) { $DB_USER = "opensinop" }
-    $DB_NAME = (Select-String -Path $EnvFile -Pattern '^DB_DATABASE=' | Select-Object -Last 1).Line.Split('=',2)[1].Trim('"')
-    if ([string]::IsNullOrWhiteSpace($DB_NAME)) { $DB_NAME = "opensinop" }
-
+    $DB_CONN = (Select-String -Path $EnvFile -Pattern '^DB_CONNECTION=' | Select-Object -Last 1).Line.Split('=',2)[1].Trim('"')
+    if ([string]::IsNullOrWhiteSpace($DB_CONN)) { $DB_CONN = "pgsql" }
     $backupDir = Join-Path $Root "backups"
-    $dbCid = (docker compose ps -q db 2>$null)
-    if ($dbCid) {
-        New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
-        $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-        $backupFile = Join-Path $backupDir ("opensinop-" + $stamp + ".sql")
-        try {
-            docker compose exec -T db sh -c ("pg_dump -U '" + $DB_USER + "' '" + $DB_NAME + "'") | Out-File -FilePath $backupFile -Encoding utf8
-            Ok ("Database backup written to " + $backupFile)
-        } catch {
-            Warn "Database backup failed; continuing update."
+    if ($DB_CONN -eq "pgsql") {
+        $DB_USER = (Select-String -Path $EnvFile -Pattern '^DB_USERNAME=' | Select-Object -Last 1).Line.Split('=',2)[1].Trim('"')
+        if ([string]::IsNullOrWhiteSpace($DB_USER)) { $DB_USER = "opensinop" }
+        $DB_NAME = (Select-String -Path $EnvFile -Pattern '^DB_DATABASE=' | Select-Object -Last 1).Line.Split('=',2)[1].Trim('"')
+        if ([string]::IsNullOrWhiteSpace($DB_NAME)) { $DB_NAME = "opensinop" }
+
+        $dbCid = (docker compose ps -q db 2>$null)
+        if ($dbCid) {
+            New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+            $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $backupFile = Join-Path $backupDir ("opensinop-" + $stamp + ".sql")
+            try {
+                docker compose exec -T db sh -c ("pg_dump -U '" + $DB_USER + "' '" + $DB_NAME + "'") | Out-File -FilePath $backupFile -Encoding utf8
+                Ok ("Database backup written to " + $backupFile)
+            } catch {
+                Warn "Database backup failed; continuing update."
+            }
+        }
+    } elseif ($DB_CONN -eq "sqlite") {
+        $appCid = (docker compose ps -q app 2>$null)
+        if ($appCid) {
+            New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+            $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $backupFile = Join-Path $backupDir ("opensinop-" + $stamp + ".sqlite")
+            $dbFileLine = Select-String -Path $EnvFile -Pattern '^DB_DATABASE=' | Select-Object -Last 1
+            $dbFile = if ($dbFileLine) { $dbFileLine.Line.Split('=',2)[1].Trim('"') } else { "/app/storage/database.sqlite" }
+            try {
+                docker compose exec -T app sh -c "sqlite3 '$dbFile' '.backup /tmp/backup.sqlite' && cat /tmp/backup.sqlite" | Out-File -FilePath $backupFile
+                Ok ("Database backup written to " + $backupFile)
+            } catch {
+                Warn "Database backup failed; continuing update."
+            }
         }
     }
 
@@ -203,7 +226,7 @@ Title "Cache, session and queue"
 $CACHE_STORE = "database"
 $SESSION_DRIVER = "database"
 $QUEUE_CONNECTION = "database"
-$REDIS_HOST = "127.0.0.1"
+$REDIS_HOST = "redis"
 $REDIS_PORT = "6379"
 $REDIS_PASSWORD = "null"
 

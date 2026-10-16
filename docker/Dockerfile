@@ -23,7 +23,8 @@ RUN composer install \
     --ignore-platform-reqs
 
 COPY . .
-RUN mkdir -p \
+RUN rm -rf bootstrap/cache/* database/*.sqlite* *.sqlite* \
+    && mkdir -p \
     storage/framework/sessions \
     storage/framework/views \
     storage/framework/cache \
@@ -49,6 +50,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package.json package-lock.json ./
 RUN bun install --no-save
 COPY . .
+RUN rm -rf bootstrap/cache/* database/*.sqlite* *.sqlite*
 
 # Copy vendor directory for Wayfinder and other Laravel packages
 COPY --from=vendor /app/vendor ./vendor
@@ -89,6 +91,8 @@ ENV APP_ENV=${APP_ENV}
 ENV APP_DEBUG=${APP_DEBUG}
 ENV APP_URL=${APP_URL}
 ENV CONTAINER_MODE=http
+ENV DB_CONNECTION=sqlite
+ENV DB_DATABASE=${ROOT}/storage/database.sqlite
 
 ENV TERM=xterm-color
 ENV OCTANE_SERVER=frankenphp
@@ -114,7 +118,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libzip-dev \
     libicu-dev \
-    libpq-dev && \
+    libpq-dev \
+    sqlite3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
@@ -127,6 +132,9 @@ RUN install-php-extensions \
     sockets \
     pdo_pgsql \
     pgsql \
+    pdo_sqlite \
+    sqlite3 \
+    pdo_mysql \
     opcache \
     exif \
     zip \
@@ -162,25 +170,31 @@ RUN chmod +x /usr/local/bin/start-container /usr/local/bin/healthcheck
 # Create user and directories
 RUN groupadd --force -g ${GROUP_ID} ${USER} \
     && useradd -ms /bin/bash --no-user-group -g ${GROUP_ID} -u ${USER_ID} ${USER} \
+    && rm -rf /var/www/html \
+    && ln -s ${ROOT} /var/www/html \
     && mkdir -p \
+    database \
     storage/framework/sessions \
     storage/framework/views \
     storage/framework/cache \
     storage/framework/testing \
     storage/logs \
+    storage/app/public \
     bootstrap/cache \
     .config \
     .data \
     /tmp/opcache-file-cache
 
 # Copy application code from build stages
+COPY --chown=${USER}:${USER} . .
+RUN rm -rf bootstrap/cache/* database/*.sqlite* *.sqlite*
 COPY --chown=${USER}:${USER} --from=vendor /app/vendor ./vendor
 COPY --chown=${USER}:${USER} --from=build-assets /app/public/build ./public/build
-COPY --chown=${USER}:${USER} . .
 
 # Set ownership
-RUN chown -R ${USER}:${USER} ${ROOT}/storage ${ROOT}/bootstrap/cache ${ROOT}/.config ${ROOT}/.data \
-    && chmod -R 777 /tmp/opcache-file-cache
+RUN chown -R ${USER}:${USER} ${ROOT}/storage ${ROOT}/bootstrap/cache ${ROOT}/database ${ROOT}/.config ${ROOT}/.data \
+    && chmod -R 777 /tmp/opcache-file-cache \
+    && chmod -R 775 ${ROOT}/database ${ROOT}/storage ${ROOT}/bootstrap/cache
 
 # Allow FrankenPHP to bind to port 80 and 443 (if needed) and run as non-root
 RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp
@@ -192,4 +206,4 @@ EXPOSE 2019
 
 ENTRYPOINT ["start-container"]
 
-HEALTHCHECK --start-period=5s --interval=1s --timeout=3s --retries=10 CMD healthcheck || exit 1
+HEALTHCHECK --start-period=60s --interval=10s --timeout=5s --retries=12 CMD healthcheck || exit 1
