@@ -1,19 +1,28 @@
 import { Head, router, useHttp, usePage, usePoll } from '@inertiajs/react';
 import {
     ArrowLeft,
+    ArrowRight,
     BookOpenText,
+    Bot,
+    Check,
     CheckCheck,
+    CheckCircle2,
     ChevronRight,
     FileText,
     FlaskConical,
+    HelpCircle,
     History,
+    Info,
+    Layers,
     ListFilter,
     Plus,
     Save,
+    Send,
     ShieldCheck,
     SlidersHorizontal,
     Sparkles,
     Trash2,
+    Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -121,6 +130,32 @@ type Assessment = {
         description?: string;
     };
 };
+type PolicyTemplate = {
+    key: string;
+    name: string;
+    badge: string;
+    tagline: string;
+    icon: string;
+    description: string;
+    recommended_for: string;
+    controls: Controls;
+    highlights: string[];
+    categories_count: number;
+    examples_count: number;
+    active?: boolean;
+    content?: Content;
+};
+
+type SimulationResult = {
+    status: 'match' | 'needs_review';
+    category_name: string;
+    category_id: string;
+    confidence: number;
+    explanation: string;
+    citations: { clause_id: string; quote: string }[];
+    decision_steps: string[];
+};
+
 type Props = {
     institution: { id: number; name: string };
     versions: Version[];
@@ -136,9 +171,12 @@ type Props = {
     aiEnabled: boolean;
     financeUrl: string;
     queueReady: boolean;
+    templates?: PolicyTemplate[];
 };
 
 const sections = [
+    { id: 'templates', label: '1-Click Templates', icon: Sparkles },
+    { id: 'simulator', label: 'JEV Decision Simulator', icon: FlaskConical },
     { id: 'policy', label: 'Policy document', icon: BookOpenText },
     { id: 'categories', label: 'Categories', icon: ListFilter },
     { id: 'examples', label: 'Examples', icon: FileText },
@@ -331,6 +369,7 @@ export default function InstitutionPolicies({
     aiEnabled,
     financeUrl,
     queueReady,
+    templates = [],
 }: Props) {
     const user = usePage<{ auth: { user: { id: number } } }>().props.auth.user;
     const [selected, setSelected] = useState<Version | null>(
@@ -350,6 +389,129 @@ export default function InstitutionPolicies({
     const [localAssessment, setLocalAssessment] = useState<Assessment | null>(
         null,
     );
+    const [applyingTemplate, setApplyingTemplate] = useState<string | null>(null);
+    const [simDescription, setSimDescription] = useState(
+        'Disposable sterile pipettes and petri dishes for undergraduate biology lab class experiments'
+    );
+    const [simulating, setSimulating] = useState(false);
+    const [simResult, setSimResult] = useState<SimulationResult | null>(null);
+    const [simError, setSimError] = useState<string | null>(null);
+
+    const simulatorPresets = [
+        {
+            label: 'Student Tuition',
+            desc: 'Student tuition fee downpayment of 250 USDC for Fall 2026 semester enrollment',
+            badge: 'Tuition Receipt',
+        },
+        {
+            label: 'Lab Supplies',
+            desc: 'Disposable sterile pipettes, reagent tubes, and petri dishes for biology class experiments',
+            badge: 'Consumables',
+        },
+        {
+            label: 'Campus Fest Sound',
+            desc: 'Audio equipment and stage lighting vendor rental invoice for annual campus festival',
+            badge: 'Event Operations',
+        },
+        {
+            label: 'Campus Utilities',
+            desc: 'Monthly campus grid electricity and high-speed broadband utility invoice',
+            badge: 'Utility Bill',
+        },
+        {
+            label: 'High-Value Server',
+            desc: 'Procurement of 3x rackmount GPU deep learning compute nodes for computer science research',
+            badge: 'Capital Gear',
+        },
+        {
+            label: 'Unapproved Gift',
+            desc: 'Luxury staff gifts and gold watches without departmental invoice citations or purchase order',
+            badge: 'Unapproved / Blocked',
+        },
+    ];
+
+    async function handleApplyTemplate(templateKey: string) {
+        setApplyingTemplate(templateKey);
+        try {
+            const res = await fetch('/finance/policies/apply-template', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN':
+                        (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '',
+                },
+                body: JSON.stringify({
+                    template_key: templateKey,
+                    auto_publish: true,
+                    reason: 'Activated blueprint via 1-Click Policy Studio',
+                }),
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                setNoticeTitle('Policy Blueprint Activated');
+                setNotice(data.message || 'Policy template applied and activated for JEV AI.');
+                router.reload();
+            } else {
+                setNoticeTitle('Application Failed');
+                setNotice(data.message || 'Could not apply template.');
+            }
+        } catch {
+            setNoticeTitle('Application Error');
+            setNotice('Network error applying policy template.');
+        } finally {
+            setApplyingTemplate(null);
+        }
+    }
+
+    function handleCustomizeTemplate(tpl: PolicyTemplate) {
+        if (tpl.content) {
+            setContent(tpl.content);
+            setSelected(null);
+            setDirty(true);
+            setSection('policy');
+            setNoticeTitle('Template Loaded');
+            setNotice(
+                `Loaded ${tpl.name} into the editor. You can now customize clauses, operational categories, and guardrail limits before saving.`
+            );
+        }
+    }
+
+    async function handleRunSimulation(descToRun?: string) {
+        const text = descToRun ?? simDescription;
+        if (!text.trim()) return;
+        if (descToRun) {
+            setSimDescription(descToRun);
+        }
+        setSimulating(true);
+        setSimError(null);
+        try {
+            const res = await fetch('/finance/policies/simulate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN':
+                        (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '',
+                },
+                body: JSON.stringify({
+                    description: text,
+                    version_id: selected?.id ?? current?.institution_policy_version_id ?? null,
+                }),
+            });
+            const json = await res.json();
+            if (res.ok && json.data) {
+                setSimResult(json.data);
+            } else {
+                setSimError(json.message || 'Simulation failed to produce a decision.');
+            }
+        } catch {
+            setSimError('Failed to communicate with JEV Policy Simulator.');
+        } finally {
+            setSimulating(false);
+        }
+    }
+
     const saveHttp = useHttp<Record<string, never>, { data: Version }>({});
     const assessmentHttp = useHttp<Record<string, never>, { data: Assessment }>(
         {},
@@ -564,15 +726,88 @@ export default function InstitutionPolicies({
                                 agent understands.
                             </p>
                         </div>
-                        <Button
-                            type="button"
-                            size="sm"
-                            disabled={saveHttp.processing}
-                            onClick={saveRevision}
-                        >
-                            <Save />
-                            {saveHttp.processing ? 'Saving…' : 'Save revision'}
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={section === 'templates' ? 'default' : 'outline'}
+                                onClick={() => setSection('templates')}
+                                className={section !== 'templates' ? 'border-[#c4a46c]/40 text-[#c4a46c] hover:bg-[#c4a46c]/10' : ''}
+                            >
+                                <Sparkles className="size-4 mr-1 text-amber-400" />
+                                1-Click Blueprints
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant={section === 'simulator' ? 'default' : 'outline'}
+                                onClick={() => setSection('simulator')}
+                                className={section !== 'simulator' ? 'border-sky-500/40 text-sky-400 hover:bg-sky-500/10' : ''}
+                            >
+                                <FlaskConical className="size-4 mr-1 text-sky-400" />
+                                JEV Simulator
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                disabled={saveHttp.processing}
+                                onClick={saveRevision}
+                            >
+                                <Save />
+                                {saveHttp.processing ? 'Saving…' : 'Save revision'}
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Interactive Policy Status & Assistant Header Banner */}
+                    <div className="rounded-xl border border-border bg-card/60 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <Bot className="size-4 text-[#c4a46c]" />
+                                <span className="text-xs font-mono font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Autonomous JEV Policy Status
+                                </span>
+                                {current?.controls_active ? (
+                                    <Badge variant="success-light" className="text-[10px]">
+                                        Active in Production
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="warning-light" className="text-[10px]">
+                                        Setup Recommended
+                                    </Badge>
+                                )}
+                            </div>
+                            <h3 className="text-sm sm:text-base font-semibold text-foreground">
+                                {current
+                                    ? `In Force: Revision #${current.institution_policy_version_id} · ${
+                                          versions.find((v) => v.id === current.institution_policy_version_id)?.title || 'Institution Policy'
+                                      }`
+                                    : 'No policy currently published. JEV will hold transactions for human bursar review.'}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                {current?.controls_active
+                                    ? 'Financial safeguards, category classifications, and auto-settlement caps are actively enforced.'
+                                    : 'Choose a pre-configured 1-click template or author custom clauses to automate your transaction pipeline.'}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSection('templates')}
+                                className="text-xs h-8"
+                            >
+                                Change Blueprint
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSection('simulator')}
+                                className="text-xs h-8"
+                            >
+                                Test Transaction
+                            </Button>
+                        </div>
                     </div>
                     {notice && (
                         <Alert role="status" variant="success">
@@ -660,6 +895,294 @@ export default function InstitutionPolicies({
                             </Alert>
                         </aside>
                         <div className="flex min-w-0 flex-col gap-6">
+                            {section === 'templates' && (
+                                <Panel
+                                    title="1-Click Policy Blueprints"
+                                    description="Battle-tested operating policies designed for educational institutions. Applying a blueprint sets up all legal clauses, operational budget categories, verified decision scenarios, and fiscal guardrails in a single click."
+                                    action={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setSection('simulator')}
+                                        >
+                                            <FlaskConical className="size-3.5 mr-1.5 text-sky-400" />
+                                            Open Decision Simulator
+                                        </Button>
+                                    }
+                                >
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {templates.map((tpl) => (
+                                            <div
+                                                key={tpl.key}
+                                                className={`rounded-xl border p-5 flex flex-col justify-between transition-all bg-card/60 hover:bg-card ${
+                                                    tpl.active
+                                                        ? 'border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
+                                                        : 'border-border'
+                                                }`}
+                                            >
+                                                <div className="space-y-3">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="size-8 rounded-lg bg-[#c4a46c]/10 flex items-center justify-center text-[#c4a46c] font-semibold text-sm">
+                                                                <Sparkles className="size-4" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-semibold text-sm text-foreground">
+                                                                    {tpl.name}
+                                                                </h4>
+                                                                <span className="text-[10px] font-mono text-muted-foreground block">
+                                                                    {tpl.recommended_for}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <Badge
+                                                            variant={tpl.active ? 'success-light' : 'outline'}
+                                                            className="text-[10px] shrink-0"
+                                                        >
+                                                            {tpl.active ? 'In Force' : tpl.badge}
+                                                        </Badge>
+                                                    </div>
+
+                                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                                        {tpl.description}
+                                                    </p>
+
+                                                    <div className="rounded-lg border border-border/80 bg-muted/40 p-3 space-y-1.5 text-xs">
+                                                        <div className="flex items-center justify-between font-mono">
+                                                            <span className="text-muted-foreground">Emergency Reserve:</span>
+                                                            <span className="font-semibold text-foreground">
+                                                                {tpl.controls.minimum_reserve} USDC
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between font-mono">
+                                                            <span className="text-muted-foreground">Auto-Pay Cap:</span>
+                                                            <span className="font-semibold text-foreground">
+                                                                {tpl.controls.max_auto_payment} USDC
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between font-mono">
+                                                            <span className="text-muted-foreground">Daily Limit:</span>
+                                                            <span className="font-semibold text-foreground">
+                                                                {tpl.controls.max_daily_disbursement} USDC
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-1.5 pt-1">
+                                                        <span className="text-[11px] font-medium text-foreground block">
+                                                            Key Capabilities:
+                                                        </span>
+                                                        <ul className="space-y-1 text-[11px] text-muted-foreground">
+                                                            {tpl.highlights.map((h, i) => (
+                                                                <li key={i} className="flex items-start gap-1.5">
+                                                                    <CheckCircle2 className="size-3 text-emerald-500 shrink-0 mt-0.5" />
+                                                                    <span>{h}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-4 mt-4 border-t border-border flex flex-col gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        disabled={applyingTemplate !== null}
+                                                        onClick={() => handleApplyTemplate(tpl.key)}
+                                                        className="w-full text-xs font-semibold"
+                                                    >
+                                                        {applyingTemplate === tpl.key ? (
+                                                            'Applying & Activating…'
+                                                        ) : (
+                                                            <>
+                                                                <Zap className="size-3.5 mr-1" />
+                                                                1-Click Apply & Activate
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleCustomizeTemplate(tpl)}
+                                                        className="w-full text-xs text-muted-foreground hover:text-foreground"
+                                                    >
+                                                        Customize in Editor
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </Panel>
+                            )}
+
+                            {section === 'simulator' && (
+                                <Panel
+                                    title="Interactive JEV Decision Simulator"
+                                    description="Test how JEV AI evaluates transactions under your active policy. Enter any invoice or receipt description, or pick a sample event scenario below."
+                                    action={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setSection('templates')}
+                                        >
+                                            <Sparkles className="size-3.5 mr-1 text-[#c4a46c]" />
+                                            Browse Blueprints
+                                        </Button>
+                                    }
+                                >
+                                    <div className="space-y-4">
+                                        {/* Preset chips */}
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-medium text-muted-foreground">
+                                                Quick Test Scenarios (Click to simulate):
+                                            </Label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {simulatorPresets.map((preset, idx) => (
+                                                    <Button
+                                                        key={idx}
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleRunSimulation(preset.desc)}
+                                                        className="text-xs h-7 rounded-full border-border/80 hover:border-primary"
+                                                    >
+                                                        <Badge variant="outline" className="text-[9px] mr-1.5 font-mono">
+                                                            {preset.badge}
+                                                        </Badge>
+                                                        {preset.label}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Input box */}
+                                        <div className="space-y-3">
+                                            <Field
+                                                htmlFor="sim-desc"
+                                                label="Transaction or Invoice Description"
+                                                hint="Describe the counterparty, item details, or academic purpose."
+                                            >
+                                                <Textarea
+                                                    id="sim-desc"
+                                                    rows={3}
+                                                    value={simDescription}
+                                                    onChange={(e) => setSimDescription(e.target.value)}
+                                                    placeholder="e.g. Laboratory supplies: 50 sterile pipettes and reagent tubes for chemistry department"
+                                                    className="font-sans text-sm"
+                                                />
+                                            </Field>
+
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <span className="text-xs text-muted-foreground">
+                                                    Simulating against:{' '}
+                                                    <strong>
+                                                        {selected
+                                                            ? selected.title
+                                                            : current
+                                                              ? `Active Revision #${current.institution_policy_version_id}`
+                                                              : 'Default Policy'}
+                                                    </strong>
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    disabled={simulating || !simDescription.trim()}
+                                                    onClick={() => handleRunSimulation()}
+                                                >
+                                                    <Send className="size-3.5 mr-1.5" />
+                                                    {simulating ? 'Analyzing Transaction…' : 'Simulate JEV Decision'}
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {simError && (
+                                            <Alert variant="destructive">
+                                                <AlertTitle>Simulation Error</AlertTitle>
+                                                <AlertDescription>{simError}</AlertDescription>
+                                            </Alert>
+                                        )}
+
+                                        {/* Decision Output Card */}
+                                        {simResult && (
+                                            <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in duration-300">
+                                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+                                                    <div className="space-y-0.5">
+                                                        <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider block">
+                                                            Simulated JEV Outcome
+                                                        </span>
+                                                        <h4 className="text-base font-semibold text-foreground flex items-center gap-2">
+                                                            Category: {simResult.category_name}
+                                                        </h4>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge
+                                                            variant={simResult.status === 'match' ? 'success-light' : 'warning-light'}
+                                                            className="text-xs px-2.5 py-1"
+                                                        >
+                                                            {simResult.status === 'match'
+                                                                ? 'Autonomous Match'
+                                                                : 'Held for Bursar Review'}
+                                                        </Badge>
+                                                        <Badge variant="outline" className="text-xs font-mono">
+                                                            {simResult.confidence}% Confidence
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <span className="text-xs font-medium text-foreground block">
+                                                        JEV Reasoning:
+                                                    </span>
+                                                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed bg-muted/40 p-3 rounded-lg border border-border/60">
+                                                        {simResult.explanation}
+                                                    </p>
+                                                </div>
+
+                                                {simResult.decision_steps && simResult.decision_steps.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <span className="text-xs font-medium text-foreground block">
+                                                            Step-by-Step Decision Trail:
+                                                        </span>
+                                                        <ol className="space-y-1.5 text-xs text-muted-foreground list-decimal list-inside bg-muted/20 p-3 rounded-lg border border-border/40">
+                                                            {simResult.decision_steps.map((step, idx) => (
+                                                                <li key={idx} className="leading-snug">
+                                                                    <span className="text-foreground">{step}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ol>
+                                                    </div>
+                                                )}
+
+                                                {simResult.citations && simResult.citations.length > 0 && (
+                                                    <div className="space-y-1.5 pt-1">
+                                                        <span className="text-xs font-medium text-foreground block">
+                                                            Policy Citations:
+                                                        </span>
+                                                        <div className="space-y-1 text-xs">
+                                                            {simResult.citations.map((cite, idx) => (
+                                                                <div
+                                                                    key={idx}
+                                                                    className="rounded bg-muted/30 border border-border/40 p-2 font-mono text-[11px]"
+                                                                >
+                                                                    <span className="text-primary font-semibold">
+                                                                        [{cite.clause_id}]
+                                                                    </span>
+                                                                    : "{cite.quote}"
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </Panel>
+                            )}
+
                             {section === 'policy' && (
                                 <Panel
                                     title="Policy document"

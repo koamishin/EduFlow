@@ -97,4 +97,10 @@ class InstitutionPolicyVersion extends Model
     {
         return $this->belongsTo(FinancePolicyVersion::class, 'finance_policy_version_id');
     }
+
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
 }

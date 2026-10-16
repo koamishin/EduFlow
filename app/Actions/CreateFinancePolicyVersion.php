@@ -33,7 +33,7 @@ final readonly class CreateFinancePolicyVersion
         if ($autoLimit->minorUnits > $dailyLimit->minorUnits) {
             throw ValidationException::withMessages(['policy' => 'Automatic limit cannot exceed daily limit.']);
         }
-        $institution = $this->institutions->require();
+        $institution = $actor->organization ?? $this->institutions->require($actor);
 
         return DB::transaction(function () use ($institution, $actor, $version, $reserve, $autoLimit, $dailyLimit, $maxFee): FinancePolicyVersion {
             Organization::query()->whereKey($institution->id)->lockForUpdate()->firstOrFail();

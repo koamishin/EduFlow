@@ -42,12 +42,12 @@ function institutionPolicyAnswer(?string $category = 'teaching-materials'): arra
 function institutionPolicyContext(): array
 {
     config(['queue.default' => 'database', 'eduflow.institution_id' => null, 'queue.connections.database.retry_after' => 360]);
-    Organization::factory()->create();
-    $maker = User::factory()->create()->assignRole(Role::findOrCreate('finance_officer', 'web'));
-    $reviewer = User::factory()->create()->assignRole(Role::findOrCreate('admin', 'web'));
+    $org = Organization::query()->first() ?? Organization::factory()->create();
+    $maker = User::factory()->create(['organization_id' => $org->id])->assignRole(Role::findOrCreate('finance_officer', 'web'));
+    $reviewer = User::factory()->create(['organization_id' => $org->id])->assignRole(Role::findOrCreate('admin', 'web'));
     $policy = app(InstitutionPolicyWorkspace::class)->save($maker, institutionPolicyInput());
 
-    return ['maker' => $maker, 'reviewer' => $reviewer, 'policy' => $policy];
+    return ['maker' => $maker, 'reviewer' => $reviewer, 'policy' => $policy, 'organization' => $org];
 }
 
 /** @param array<string, mixed> $c */

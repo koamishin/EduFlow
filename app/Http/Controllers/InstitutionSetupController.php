@@ -8,6 +8,7 @@ use App\Models\Budget;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\InstallationInstitution;
+use App\Services\InstitutionPolicyTemplates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -81,6 +82,7 @@ class InstitutionSetupController extends Controller
                     'explorer' => 'https://testnet.arcscan.io',
                 ],
             ],
+            'policyTemplates' => app(InstitutionPolicyTemplates::class)->all($org),
         ]);
     }
 
@@ -112,6 +114,7 @@ class InstitutionSetupController extends Controller
             'minimum_reserve' => ['nullable', 'numeric', 'min:0'],
             'max_auto_payment' => ['nullable', 'numeric', 'min:0'],
             'max_daily_disbursement' => ['nullable', 'numeric', 'min:0'],
+            'policy_template' => ['nullable', 'string'],
             'budgets' => ['nullable', 'array'],
             'budgets.*.id' => ['required', 'integer'],
             'budgets.*.allocated_amount' => ['required', 'numeric', 'min:0'],
@@ -127,6 +130,8 @@ class InstitutionSetupController extends Controller
 
         if (isset($validated['max_daily_disbursement'])) {
             $org->max_daily_disbursement = (float) $validated['max_daily_disbursement'];
+        } elseif (isset($validated['max_auto_payment']) && (float) $org->max_daily_disbursement < (float) $validated['max_auto_payment']) {
+            $org->max_daily_disbursement = max((float) $validated['max_auto_payment'] * 10, 1000.0);
         }
 
         if (! empty($validated['budgets'])) {
@@ -142,6 +147,34 @@ class InstitutionSetupController extends Controller
 
         $org->is_setup_completed = true;
         $org->save();
+
+        // Automatically activate verified policy template so JEV is operational from day 1
+        $templateKey = $validated['policy_template'] ?? InstitutionPolicyTemplates::TEMPLATE_STANDARD;
+        $controlOverrides = [];
+        if (isset($validated['minimum_reserve']) && is_numeric($validated['minimum_reserve'])) {
+            $controlOverrides['minimum_reserve'] = (string) $validated['minimum_reserve'];
+        }
+        if (isset($validated['max_auto_payment']) && is_numeric($validated['max_auto_payment'])) {
+            $controlOverrides['max_auto_payment'] = (string) $validated['max_auto_payment'];
+        }
+        if (isset($validated['max_daily_disbursement']) && is_numeric($validated['max_daily_disbursement'])) {
+            $controlOverrides['max_daily_disbursement'] = (string) $validated['max_daily_disbursement'];
+        } elseif (isset($controlOverrides['max_auto_payment'])) {
+            $controlOverrides['max_daily_disbursement'] = (string) max((float) $controlOverrides['max_auto_payment'] * 10, 1000.0);
+        }
+
+        try {
+            app(InstitutionPolicyTemplates::class)->applyAndActivate(
+                $user,
+                $org,
+                $templateKey,
+                $controlOverrides,
+                autoPublish: true,
+                reason: "Initial setup activation of {$templateKey} policy for {$org->name}."
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return redirect()->to('/finance')
             ->with('status', 'Institution setup completed successfully! Welcome to your OpenSinop Finance Console.');

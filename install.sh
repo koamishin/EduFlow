@@ -15,6 +15,8 @@
 #
 # Environment overrides:
 #   EDUFLOW_VERSION      application image tag (default: latest)
+#   EDUFLOW_SOURCE_URL   source tarball used to build the image when the pull
+#                        fails (default: the koamishin/OpenSinop main branch)
 #   DOCKER_VERSION       pin Docker Engine (e.g. 28.5.0) when the installer installs it
 #   DISTRO_FAMILY        override Linux distribution detection for Docker install
 #   ADVERTISE_ADDR       address for `docker swarm init` on multi-interface hosts
@@ -267,11 +269,15 @@ Usage: install.sh [--update] [--yes|-y]
   Arch, Alpine, Void, Gentoo and their derivatives.
 
   --update, -u   Update an existing installation (pull or rebuild the image
-                 and roll the application service).
+                 and roll the application service). When the registry image
+                 cannot be pulled, the installer builds it from the public
+                 source tree instead.
   --yes, -y      Non-interactive: accept every default. Also NON_INTERACTIVE=1.
 
 Environment:
   EDUFLOW_VERSION      application image tag (default: latest)
+  EDUFLOW_SOURCE_URL   source tarball used for the fallback image build
+                       (default: koamishin/OpenSinop main branch tarball)
   DOCKER_VERSION       pin Docker Engine (e.g. 28.5.0) when it gets installed
   DISTRO_FAMILY        override distribution detection for the Docker install
                        (debian|rhel|suse|arch|alpine|void|gentoo|nixos)
@@ -449,6 +455,39 @@ wait_for_docker_daemon() {  # up to ~15s for the daemon socket to answer
         sleep 1
     done
     return 1
+}
+
+fetch_and_build_image() {  # build $IMAGE from the public source tarball
+    local url="${EDUFLOW_SOURCE_URL:-https://codeload.github.com/koamishin/OpenSinop/tar.gz/refs/heads/main}"
+    local dir
+    if ! cmd_exists curl; then
+        err "curl is required to download the application source."
+        return 1
+    fi
+    if ! dir="$(mktemp -d "${TMPDIR:-/tmp}/opensinop-source.XXXXXX")"; then
+        err "Could not create a temporary directory for the source build."
+        return 1
+    fi
+    info "Downloading the application source from $url ..."
+    if ! curl -fsSL "$url" | tar -xz -C "$dir" --strip-components=1; then
+        err "Could not download the application source."
+        rm -rf "$dir"
+        return 1
+    fi
+    if [ ! -f "$dir/docker/Dockerfile" ]; then
+        err "The downloaded source tree does not contain docker/Dockerfile."
+        rm -rf "$dir"
+        return 1
+    fi
+    info "Building $IMAGE from source; this can take several minutes ..."
+    if ! "${DOCKER_CMD[@]}" build -t "$IMAGE" -f "$dir/docker/Dockerfile" "$dir"; then
+        err "docker build failed."
+        rm -rf "$dir"
+        return 1
+    fi
+    rm -rf "$dir"
+    ok "Application image built from source."
+    return 0
 }
 
 install_docker() {
@@ -735,10 +774,15 @@ if [ "$UPDATE" = "1" ]; then
     else
         title "Pulling latest application image"
         if ! "${DOCKER_CMD[@]}" pull "$IMAGE"; then
-            err "Could not pull the application image."
-            info "If the ghcr.io image is private, authenticate first: docker login ghcr.io (token with read:packages)."
-            info "Or clone the repository and run install.sh from it so the image is built locally."
-            exit 1
+            warn "Could not pull $IMAGE from the registry."
+            info "The image may be private or not published; building it from source instead."
+            if ! fetch_and_build_image; then
+                err "Could not obtain the application image."
+                info "If the ghcr.io image is private, authenticate first: docker login ghcr.io (token with read:packages)."
+                info "Or clone the repository and run install.sh from it so the image is built locally."
+                exit 1
+            fi
+            UPDATE_RESOLVE_ARGS=(--no-resolve-image)
         fi
     fi
 
@@ -852,9 +896,8 @@ EDUFLOW_CURRENCY=$(ask "Accounting currency" "USD" | tr '[:lower:]' '[:upper:]')
 title "Lepton agent (Circle + Arc)"
 info "Driver selection:"
 info "  • fake      - In-memory simulated ledger (no credentials needed; safe for testing/demos)"
-info "  • circle    - Circle CLI agent stack (email OTP login via Circle CLI binary)"
-info "  • developer - Pure HTTP REST API using Circle Developer-Controlled Wallets (no CLI needed)"
-LEPTON_DRIVER=$(ask_choice "Lepton driver" "fake" fake circle developer)
+info "  • developer - Circle Developer-Controlled Wallets over the REST API (no Circle CLI required)"
+LEPTON_DRIVER=$(ask_choice "Lepton driver" "fake" fake developer)
 LEPTON_CHAIN=$(ask_choice "Chain" "ARC-TESTNET" ARC-TESTNET ARC-MAINNET)
 LEPTON_DRY_RUN=$(ask_choice "Dry run (no real transfers)" "true" true false)
 LEPTON_TREASURY_ADDRESS=$(ask "Treasury wallet address (empty for fake)" "")
@@ -871,21 +914,14 @@ if [ "$LEPTON_DRIVER" = "developer" ]; then
     LEPTON_WALLET_SET_ID=$(ask "Wallet Set ID (optional)" "")
 fi
 
-title "Optional AI advisory"
-AI_PROVIDER=$(ask_choice "AI provider" "none" none local openai anthropic)
-AI_LOCAL_URL=""; AI_LOCAL_MODEL=""; AI_LOCAL_API_KEY=""; OPENAI_API_KEY=""; ANTHROPIC_API_KEY=""
-if [ "$AI_PROVIDER" = "local" ]; then
-    AI_PROVIDER="local"
-    AI_LOCAL_URL=$(ask "Local OpenAI-compatible URL" "http://127.0.0.1:11434/v1")
-    AI_LOCAL_MODEL=$(ask "Local model" "llama3.1")
-    AI_LOCAL_API_KEY=$(ask_secret "Local API key (optional)" "")
-elif [ "$AI_PROVIDER" = "openai" ]; then AI_PROVIDER="openai"
-    OPENAI_API_KEY=$(ask_secret "OpenAI API key" "")
-elif [ "$AI_PROVIDER" = "anthropic" ]; then AI_PROVIDER="anthropic"
-    ANTHROPIC_API_KEY=$(ask_secret "Anthropic API key" "")
-else
-    AI_PROVIDER="local"
-fi
+# AI providers are configured in the admin panel (Settings → AI). The wizard
+# never asks for an endpoint; values already present in .env are kept as-is.
+AI_PROVIDER="$(env_value AI_PROVIDER)"
+AI_LOCAL_URL="$(env_value AI_LOCAL_URL)"
+AI_LOCAL_MODEL="$(env_value AI_LOCAL_MODEL)"
+AI_LOCAL_API_KEY="$(env_value AI_LOCAL_API_KEY)"
+OPENAI_API_KEY="$(env_value OPENAI_API_KEY)"
+ANTHROPIC_API_KEY="$(env_value ANTHROPIC_API_KEY)"
 
 title "Live network checks"
 rpc_target="${LEPTON_RPC_URL:-https://rpc.testnet.arc.io}"
@@ -899,7 +935,13 @@ elif [ -n "$res" ]; then
     ok "Arc RPC reachable ($rpc_target): chainId=$res"
 fi
 
-if cmd_exists circle; then ok "Circle CLI found on PATH."; else warn "Circle CLI not found on PATH (needed only for circle driver)."; fi
+if [ "$LEPTON_DRIVER" = "developer" ]; then
+    circle_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.circle.com/v1/w3s/wallets 2>/dev/null || true)"
+    case "$circle_code" in
+        2*|4*) ok "Circle REST API reachable (HTTP $circle_code)." ;;
+        *) warn "Circle REST API check failed (no response from api.circle.com)." ;;
+    esac
+fi
 
 title "Review"
 printf '  APP_NAME=%s\n' "$APP_NAME"
@@ -962,12 +1004,6 @@ LEPTON_CIRCLE_API_KEY="$LEPTON_CIRCLE_API_KEY"
 LEPTON_ENTITY_SECRET="$LEPTON_ENTITY_SECRET"
 LEPTON_WALLET_SET_ID="$LEPTON_WALLET_SET_ID"
 LEPTON_CIRCLE_API_URL="https://api.circle.com/v1/w3s"
-AI_PROVIDER="$AI_PROVIDER"
-AI_LOCAL_URL="$AI_LOCAL_URL"
-AI_LOCAL_MODEL="$AI_LOCAL_MODEL"
-AI_LOCAL_API_KEY="$AI_LOCAL_API_KEY"
-OPENAI_API_KEY="$OPENAI_API_KEY"
-ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 REDIS_HOST="$REDIS_HOST"
 REDIS_PORT="$REDIS_PORT"
 REDIS_PASSWORD="$REDIS_PASSWORD"
@@ -976,6 +1012,14 @@ EOF
 chmod 600 "$ENV_FILE" 2>/dev/null || true
 # also persist port in .env for reference
 printf 'APP_PORT="%s"\n' "$APP_PORT" >> "$ENV_FILE"
+# Keep advisory-provider settings an existing .env carried; a fresh install
+# omits them and admins configure AI in the panel (config/ai.php defaults apply).
+if [ -n "$AI_PROVIDER" ]; then printf 'AI_PROVIDER="%s"\n' "$AI_PROVIDER" >> "$ENV_FILE"; fi
+if [ -n "$AI_LOCAL_URL" ]; then printf 'AI_LOCAL_URL="%s"\n' "$AI_LOCAL_URL" >> "$ENV_FILE"; fi
+if [ -n "$AI_LOCAL_MODEL" ]; then printf 'AI_LOCAL_MODEL="%s"\n' "$AI_LOCAL_MODEL" >> "$ENV_FILE"; fi
+if [ -n "$AI_LOCAL_API_KEY" ]; then printf 'AI_LOCAL_API_KEY="%s"\n' "$AI_LOCAL_API_KEY" >> "$ENV_FILE"; fi
+if [ -n "$OPENAI_API_KEY" ]; then printf 'OPENAI_API_KEY="%s"\n' "$OPENAI_API_KEY" >> "$ENV_FILE"; fi
+if [ -n "$ANTHROPIC_API_KEY" ]; then printf 'ANTHROPIC_API_KEY="%s"\n' "$ANTHROPIC_API_KEY" >> "$ENV_FILE"; fi
 ok "Wrote $ENV_FILE"
 
 title "Setting up Docker Swarm"
@@ -1024,10 +1068,15 @@ else
     title "Pulling application image"
     info "No local build context found; fetching $IMAGE ..."
     if ! "${DOCKER_CMD[@]}" pull "$IMAGE"; then
-        err "Could not pull the application image."
-        info "If the ghcr.io image is private, authenticate first: docker login ghcr.io (token with read:packages)."
-        info "Or clone the repository and run install.sh from it so the image is built locally."
-        exit 1
+        warn "Could not pull $IMAGE from the registry."
+        info "The image may be private or not published; building it from source instead."
+        if ! fetch_and_build_image; then
+            err "Could not obtain the application image."
+            info "If the ghcr.io image is private, authenticate first: docker login ghcr.io (token with read:packages)."
+            info "Or clone the repository and run install.sh from it so the image is built locally."
+            exit 1
+        fi
+        LOCAL_IMAGE=1
     fi
     ok "Application image is ready."
 fi

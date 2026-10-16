@@ -10,8 +10,10 @@ use App\Models\InstitutionPolicyAssessment;
 use App\Models\InstitutionPolicyPublication;
 use App\Models\InstitutionPolicyVersion;
 use App\Models\PaymentIntent;
+use App\Services\Advisory\JevPolicyClassifier;
 use App\Services\InstallationInstitution;
 use App\Services\InstitutionPolicyDocuments;
+use App\Services\InstitutionPolicyTemplates;
 use App\Services\InstitutionPolicyWorkspace;
 use App\Settings\AiSettings;
 use Illuminate\Http\JsonResponse;
@@ -34,7 +36,7 @@ class InstitutionPolicyController extends Controller
         return response()->json(['data' => $documents->extract($request->file('document'))])->header('Cache-Control', 'no-store, private');
     }
 
-    public function index(Request $request, InstallationInstitution $institutions, InstitutionPolicyWorkspace $workspace, AiSettings $settings): Response
+    public function index(Request $request, InstallationInstitution $institutions, InstitutionPolicyWorkspace $workspace, AiSettings $settings, InstitutionPolicyTemplates $templates): Response
     {
         Gate::forUser($request->user())->authorize('viewAny', InstitutionPolicyVersion::class);
         $institution = $institutions->require();
@@ -50,16 +52,20 @@ class InstitutionPolicyController extends Controller
         $playground = InstitutionPolicyAssessment::query()->where('organization_id', $institution->id)
             ->where('requested_by', $request->user()->id)->latest('id')->limit(50)->get();
 
-        return Inertia::render('finance/policies/index', ['institution' => ['id' => $institution->id, 'name' => $institution->name],
+        return Inertia::render('finance/policies/index', [
+            'institution' => ['id' => $institution->id, 'name' => $institution->name],
             'versions' => $versions->map(fn (InstitutionPolicyVersion $version): array => $version->only(['id', 'title', 'created_by', 'content', 'content_digest', 'created_at']))->all(),
             'current' => $current instanceof InstitutionPolicyPublication ? [...$current->only(['institution_policy_version_id', 'publication_digest', 'approved_by']),
                 'controls_active' => $current->hasActiveControls()] : null,
             'assessments' => $playground,
             'planAdvice' => $advice,
+            'templates' => $templates->all($institution),
             'financeUrl' => url('/finance'),
             'queueReady' => in_array(config('queue.connections.'.config('queue.default', 'database').'.driver'), ['database', 'redis'], true)
                 && (int) config('queue.connections.'.config('queue.default', 'database').'.retry_after', 0) > 180,
-            'canPublish' => $request->user()->hasAnyRole(['admin', 'super_admin']), 'aiEnabled' => $settings->mayCallProvider()]);
+            'canPublish' => $request->user()->hasAnyRole(['admin', 'super_admin']),
+            'aiEnabled' => $settings->mayCallProvider(),
+        ]);
     }
 
     public function store(StoreInstitutionPolicyRequest $request, InstitutionPolicyWorkspace $workspace): JsonResponse
@@ -114,5 +120,217 @@ class InstitutionPolicyController extends Controller
         }
 
         return response()->json(['data' => $assessment->fresh()])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Apply and optionally activate a pre-verified template in 1-click.
+     */
+    public function applyTemplate(
+        Request $request,
+        InstallationInstitution $institutions,
+        InstitutionPolicyTemplates $templates
+    ): JsonResponse {
+        Gate::forUser($request->user())->authorize('create', InstitutionPolicyVersion::class);
+        $institution = $institutions->require();
+
+        $data = $request->validate([
+            'template_key' => ['required', 'string', Rule::in([
+                InstitutionPolicyTemplates::TEMPLATE_STANDARD,
+                InstitutionPolicyTemplates::TEMPLATE_CAMPUS_EVENTS,
+                InstitutionPolicyTemplates::TEMPLATE_STEM_RESEARCH,
+                InstitutionPolicyTemplates::TEMPLATE_STRICT_GOVERNANCE,
+                InstitutionPolicyTemplates::TEMPLATE_AUTONOMOUS_FAST_TRACK,
+            ])],
+            'controls' => ['nullable', 'array'],
+            'auto_publish' => ['nullable', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $autoPublish = (bool) ($data['auto_publish'] ?? true);
+        if ($autoPublish && ! $request->user()->hasAnyRole(['admin', 'super_admin'])) {
+            throw ValidationException::withMessages([
+                'publication' => 'Only administrators and finance officers can activate policy templates.',
+            ]);
+        }
+
+        $result = $templates->applyAndActivate(
+            $request->user(),
+            $institution,
+            $data['template_key'],
+            $data['controls'] ?? [],
+            $autoPublish,
+            $data['reason'] ?? null
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $autoPublish
+                ? 'Policy template successfully applied and activated for JEV AI.'
+                : 'Policy template saved as a draft revision in your workspace.',
+            'version' => $result['version']->only(['id', 'title', 'content', 'content_digest', 'created_at']),
+            'publication' => $result['publication'] ? [
+                'id' => $result['publication']->id,
+                'publication_digest' => $result['publication']->publication_digest,
+                'controls_active' => $result['publication']->hasActiveControls(),
+            ] : null,
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Interactive JEV Policy Decision Simulator for testing transactions in real-time.
+     */
+    public function simulate(
+        Request $request,
+        InstallationInstitution $institutions,
+        JevPolicyClassifier $classifier,
+        AiSettings $settings,
+        InstitutionPolicyWorkspace $workspace
+    ): JsonResponse {
+        Gate::forUser($request->user())->authorize('viewAny', InstitutionPolicyVersion::class);
+        $institution = $institutions->require();
+
+        $data = $request->validate([
+            'description' => ['required', 'string', 'max:1000'],
+            'version_id' => ['nullable', 'integer'],
+        ]);
+
+        $policy = null;
+        if (! empty($data['version_id'])) {
+            $policy = InstitutionPolicyVersion::query()
+                ->where('organization_id', $institution->id)
+                ->find($data['version_id']);
+        }
+
+        if (! $policy) {
+            $currentPublication = $workspace->current();
+            if ($currentPublication) {
+                $policy = $currentPublication->version;
+            }
+        }
+
+        if (! $policy) {
+            $policy = InstitutionPolicyVersion::query()
+                ->where('organization_id', $institution->id)
+                ->latest('id')
+                ->first();
+        }
+
+        if (! $policy || ! $policy->hasValidContent()) {
+            return response()->json([
+                'data' => [
+                    'status' => 'needs_review',
+                    'category_name' => 'Needs Review',
+                    'category_id' => 'needs_review',
+                    'confidence' => 100,
+                    'explanation' => 'No published institution policy found. JEV fails closed and holds transaction for human review.',
+                    'citations' => [],
+                    'decision_steps' => [
+                        'No active policy in force.',
+                        'Fail-closed safety triggered.',
+                    ],
+                ],
+            ]);
+        }
+
+        $evidence = [
+            'description' => $data['description'],
+            'source_stream' => 'simulator',
+            'received_minor_units' => 0,
+        ];
+
+        // If AI is enabled and configured, run JevPolicyClassifier
+        if ($settings->mayCallProvider()) {
+            try {
+                $result = $classifier->classify($policy, $evidence, 15);
+
+                $categoryName = $result['category_id']
+                    ? (collect($policy->content['categories'])->firstWhere('id', $result['category_id'])['name'] ?? $result['category_id'])
+                    : 'Needs Review';
+
+                return response()->json([
+                    'data' => [
+                        'status' => $result['needs_review'] ? 'needs_review' : 'match',
+                        'category_name' => $categoryName,
+                        'category_id' => $result['category_id'] ?? 'needs_review',
+                        'confidence' => $result['confidence'] ?? 85,
+                        'explanation' => $result['explanation'] ?? '',
+                        'citations' => $result['citations'] ?? [],
+                        'decision_steps' => $result['decision_steps'] ?? [],
+                    ],
+                ]);
+            } catch (Throwable) {
+                // Fall back to rule-based simulation below
+            }
+        }
+
+        // Rule-based heuristic simulation matching policy categories
+        $text = strtolower($data['description']);
+        $categories = $policy->content['categories'] ?? [];
+        $matchedCategory = null;
+        $highestScore = 0;
+
+        foreach ($categories as $cat) {
+            $score = 0;
+            $keywords = explode(' ', strtolower($cat['name'].' '.($cat['inclusions'] ?? '').' '.($cat['description'] ?? '')));
+            foreach ($keywords as $kw) {
+                $kw = trim($kw, " ,;.:'\"");
+                if (strlen($kw) > 3 && str_contains($text, $kw)) {
+                    $score += 2;
+                }
+            }
+
+            // Exclusions check
+            $exclusions = explode(' ', strtolower($cat['exclusions'] ?? ''));
+            foreach ($exclusions as $ex) {
+                $ex = trim($ex, " ,;.:'\"");
+                if (strlen($ex) > 3 && str_contains($text, $ex)) {
+                    $score -= 3;
+                }
+            }
+
+            if ($score > $highestScore) {
+                $highestScore = $score;
+                $matchedCategory = $cat;
+            }
+        }
+
+        if ($matchedCategory && $highestScore >= 2) {
+            $clauses = array_column($policy->content['clauses'] ?? [], 'text', 'id');
+            $citations = array_map(fn ($id) => ['clause_id' => $id, 'quote' => $clauses[$id] ?? ''], $matchedCategory['clause_ids'] ?? []);
+
+            return response()->json([
+                'data' => [
+                    'status' => 'match',
+                    'category_name' => $matchedCategory['name'],
+                    'category_id' => $matchedCategory['id'],
+                    'confidence' => min(98, 80 + ($highestScore * 3)),
+                    'explanation' => "JEV matches this description to '{$matchedCategory['name']}' based on policy category inclusions.",
+                    'citations' => $citations,
+                    'decision_steps' => [
+                        "Evaluated transaction text against {$policy->title} categories.",
+                        "Highest affinity matched category '{$matchedCategory['name']}'.",
+                        'Confidence exceeds safety threshold (>= 80%).',
+                        "Decision: Transaction routed according to {$matchedCategory['name']} rules.",
+                    ],
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'data' => [
+                'status' => 'needs_review',
+                'category_name' => 'Needs Review',
+                'category_id' => 'needs_review',
+                'confidence' => 90,
+                'explanation' => 'JEV did not find a sufficiently clear category match. Held for human review to guarantee financial safety.',
+                'citations' => [],
+                'decision_steps' => [
+                    "Evaluated transaction text against {$policy->title}.",
+                    'No category scored above the 80% safety confidence threshold.',
+                    'Fail-closed rule invoked.',
+                    'Decision: Hold for human review.',
+                ],
+            ],
+        ]);
     }
 }

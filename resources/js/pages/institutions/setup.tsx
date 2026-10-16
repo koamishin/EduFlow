@@ -2,17 +2,20 @@ import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import {
     ArrowRight,
+    Bot,
     Building2,
     Check,
     CheckCircle2,
     Copy,
     DollarSign,
     ExternalLink,
+    FileText,
     GraduationCap,
     Layers,
     Shield,
     Sparkles,
     Wallet as WalletIcon,
+    Zap,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -57,6 +60,25 @@ interface NetworkConfig {
     explorer: string;
 }
 
+interface PolicyTemplate {
+    key: string;
+    name: string;
+    badge: string;
+    tagline: string;
+    icon: string;
+    description: string;
+    recommended_for: string;
+    controls: {
+        minimum_reserve: string;
+        max_auto_payment: string;
+        max_daily_disbursement: string;
+        max_fee: string;
+    };
+    highlights: string[];
+    categories_count: number;
+    examples_count: number;
+}
+
 interface Props {
     institution: Institution;
     treasury: Treasury;
@@ -66,6 +88,7 @@ interface Props {
         mainnet: NetworkConfig;
         testnet: NetworkConfig;
     };
+    policyTemplates?: PolicyTemplate[];
 }
 
 export default function InstitutionSetup({
@@ -74,9 +97,11 @@ export default function InstitutionSetup({
     budgets: initialBudgets,
     studentRegistrationUrl,
     arcNetwork,
+    policyTemplates = [],
 }: Props) {
     const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
-    const [minReserve, setMinReserve] = useState<number>(institution.minimum_reserve || 20);
+    const [selectedTemplate, setSelectedTemplate] = useState<string>('standard');
+    const [minReserve, setMinReserve] = useState<number>(institution.minimum_reserve || 500);
     const [maxAutoPayment, setMaxAutoPayment] = useState<number>(institution.max_auto_payment || 50);
     const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false);
@@ -85,6 +110,19 @@ export default function InstitutionSetup({
     const handleBudgetChange = (id: number, value: string) => {
         const val = parseFloat(value) || 0;
         setBudgets(budgets.map((b) => (b.id === id ? { ...b, allocated_amount: val } : b)));
+    };
+
+    const handleSelectTemplate = (key: string) => {
+        setSelectedTemplate(key);
+        const tpl = policyTemplates.find((t) => t.key === key);
+        if (tpl?.controls) {
+            if (tpl.controls.minimum_reserve) {
+                setMinReserve(parseFloat(tpl.controls.minimum_reserve) || 0);
+            }
+            if (tpl.controls.max_auto_payment) {
+                setMaxAutoPayment(parseFloat(tpl.controls.max_auto_payment) || 0);
+            }
+        }
     };
 
     const copyToClipboard = (text: string, type: 'url' | 'address') => {
@@ -103,6 +141,7 @@ export default function InstitutionSetup({
         setSubmitting(true);
 
         router.post('/institutions/setup/complete', {
+            policy_template: selectedTemplate,
             minimum_reserve: minReserve,
             max_auto_payment: maxAutoPayment,
             budgets: budgets.map((b) => ({
@@ -139,7 +178,7 @@ export default function InstitutionSetup({
 
                     <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-[11px] font-mono border-amber-500/30 bg-amber-500/10 text-amber-400">
-                            Setup Wizard · 4 Steps
+                            Setup Wizard · 5 Steps
                         </Badge>
                     </div>
                 </div>
@@ -327,14 +366,88 @@ export default function InstitutionSetup({
                         </CardContent>
                     </Card>
 
-                    {/* Section 4: Student Enrollment Share Link */}
+                    {/* Section 4: JEV AI Policy & Operational Blueprint */}
+                    <Card className="border-stone-800/80 bg-[#151311]/90 shadow-sm">
+                        <CardHeader className="pb-4 border-b border-stone-800/60">
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                    <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
+                                        <Bot className="size-4.5 text-[#c4a46c]" />
+                                        4. JEV AI Policy & Operational Blueprint
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-stone-400">
+                                        Choose an out-of-the-box operational policy template. JEV AI uses this blueprint to classify invoices, match student tuition, and enforce fiscal guardrails.
+                                    </CardDescription>
+                                </div>
+                                <Badge className="bg-[#c4a46c]/20 text-[#c4a46c] border border-[#c4a46c]/30 text-[10px]">
+                                    1-Click Setup
+                                </Badge>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="pt-5 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                                {policyTemplates.map((template) => {
+                                    const isSelected = selectedTemplate === template.key;
+                                    return (
+                                        <div
+                                            key={template.key}
+                                            onClick={() => handleSelectTemplate(template.key)}
+                                            className={`relative rounded-xl border p-4 cursor-pointer transition-all flex flex-col justify-between ${
+                                                isSelected
+                                                    ? 'border-[#c4a46c] bg-[#c4a46c]/10 shadow-md ring-1 ring-[#c4a46c]/40'
+                                                    : 'border-stone-800/80 bg-stone-900/40 hover:border-stone-700 hover:bg-stone-900/70'
+                                            }`}
+                                        >
+                                            <div className="space-y-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <span className="font-serif font-bold text-sm text-white flex items-center gap-1.5">
+                                                        {template.name}
+                                                    </span>
+                                                    {isSelected ? (
+                                                        <CheckCircle2 className="size-4 text-[#c4a46c] shrink-0" />
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-[9px] font-mono border-stone-700 text-stone-400">
+                                                            {template.badge}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-stone-300 font-medium leading-snug">
+                                                    {template.tagline}
+                                                </p>
+                                                <p className="text-[11px] text-stone-400 line-clamp-2">
+                                                    {template.description}
+                                                </p>
+                                            </div>
+
+                                            <div className="pt-3 mt-3 border-t border-stone-800/80 space-y-2">
+                                                <div className="flex items-center justify-between text-[11px] font-mono text-stone-400">
+                                                    <span>Reserve:</span>
+                                                    <span className="text-white font-semibold">{template.controls.minimum_reserve} {institution.currency}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-[11px] font-mono text-stone-400">
+                                                    <span>Auto-Pay Cap:</span>
+                                                    <span className="text-white font-semibold">{template.controls.max_auto_payment} {institution.currency}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-[10px] text-stone-400 pt-1">
+                                                    <span>{template.categories_count} Categories</span>
+                                                    <span>{template.examples_count} Scenarios</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Section 5: Student Enrollment Share Link */}
                     <Card className="border-stone-800/80 bg-[#151311]/90 shadow-sm">
                         <CardHeader className="pb-4 border-b border-stone-800/60">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
                                         <GraduationCap className="size-4.5 text-[#c4a46c]" />
-                                        4. Student Enrollment Link (Share with Students)
+                                        5. Student Enrollment Link (Share with Students)
                                     </CardTitle>
                                     <CardDescription className="text-xs text-stone-400">
                                         Provide this direct link to your students to register their academic identity and link their Web3 payout wallet.

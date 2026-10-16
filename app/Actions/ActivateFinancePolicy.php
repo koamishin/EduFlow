@@ -20,7 +20,7 @@ final readonly class ActivateFinancePolicy
 
     public function handle(User $reviewer, FinancePolicyVersion $policy, ?int $expectedActivationId): FinancePolicyActivation
     {
-        $institution = $this->institutions->require();
+        $institution = $policy->organization ?? $reviewer->organization ?? Organization::query()->find($policy->organization_id) ?? $this->institutions->require($reviewer);
 
         return DB::transaction(function () use ($reviewer, $policy, $expectedActivationId, $institution): FinancePolicyActivation {
             Organization::query()->whereKey($institution->id)->lockForUpdate()->firstOrFail();

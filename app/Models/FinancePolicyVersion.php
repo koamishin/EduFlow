@@ -8,6 +8,7 @@ use Brick\Math\BigInteger;
 use Database\Factories\FinancePolicyVersionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
 /**
@@ -84,5 +85,11 @@ class FinancePolicyVersion extends Model
             && preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/D', $this->version) === 1
             && $this->max_auto_payment_base_units <= $this->max_daily_disbursement_base_units
             && hash_equals($this->content_digest, PaymentIntent::digest($this->content()));
+    }
+
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }

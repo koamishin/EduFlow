@@ -17,8 +17,21 @@ use Spatie\LaravelSettings\Models\SettingsProperty;
 #[Scoped]
 class InstallationInstitution
 {
-    public function current(): ?Organization
+    public function current(?User $forUser = null): ?Organization
     {
+        // 0. Explicit configuration lock (e.g. tests or dedicated single-institution environment)
+        $configuredId = config('eduflow.institution_id');
+        if ($configuredId !== null && $configuredId !== '') {
+            if (filter_var($configuredId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== false) {
+                $configuredOrg = Organization::query()->find((int) $configuredId);
+                if ($configuredOrg instanceof Organization) {
+                    return $configuredOrg;
+                }
+            }
+
+            return null;
+        }
+
         // 1. Route parameters (institution_id or institution) or query params
         if (app()->bound('request')) {
             /** @var Request|null $request */
@@ -61,21 +74,26 @@ class InstallationInstitution
             }
         }
 
-        if (Auth::check()) {
+        $user = $forUser;
+        if (! $user && Auth::check()) {
             $user = Auth::user();
-            if ($user instanceof User) {
-                if (! empty($user->organization_id)) {
-                    $org = Organization::query()->find((int) $user->organization_id);
-                    if ($org instanceof Organization) {
-                        return $org;
-                    }
-                }
+        }
+        if (! $user && app()->bound('request')) {
+            $user = request()?->user();
+        }
 
-                if ($user->student && ! empty($user->student->organization_id)) {
-                    $org = Organization::query()->find((int) $user->student->organization_id);
-                    if ($org instanceof Organization) {
-                        return $org;
-                    }
+        if ($user instanceof User) {
+            if (! empty($user->organization_id)) {
+                $org = Organization::query()->find((int) $user->organization_id);
+                if ($org instanceof Organization) {
+                    return $org;
+                }
+            }
+
+            if ($user->student && ! empty($user->student->organization_id)) {
+                $org = Organization::query()->find((int) $user->student->organization_id);
+                if ($org instanceof Organization) {
+                    return $org;
                 }
             }
         }
@@ -135,9 +153,9 @@ class InstallationInstitution
         return $soleInstitution;
     }
 
-    public function require(): Organization
+    public function require(?User $forUser = null): Organization
     {
-        return $this->current() ?? throw new RuntimeException(
+        return $this->current($forUser) ?? throw new RuntimeException(
             'Institution context unavailable. Run app:install or configure an active institution.'
         );
     }

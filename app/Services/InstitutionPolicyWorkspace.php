@@ -44,7 +44,7 @@ final readonly class InstitutionPolicyWorkspace
                 throw ValidationException::withMessages(['examples' => 'Example must use an institution category or Needs review.']);
             }
         }
-        $institution = $this->institutions->require();
+        $institution = $actor->organization ?? $this->institutions->require($actor);
 
         return DB::transaction(function () use ($data, $actor, $institution): InstitutionPolicyVersion {
             Organization::query()->whereKey($institution->id)->lockForUpdate()->firstOrFail();
@@ -99,9 +99,14 @@ final readonly class InstitutionPolicyWorkspace
      * gate money must check `hasActiveControls()` rather than treat this as
      * active; callers that gate further publication want the chain head.
      */
-    public function current(): ?InstitutionPolicyPublication
+    public function current(?Organization $organization = null): ?InstitutionPolicyPublication
     {
-        $publication = InstitutionPolicyPublication::query()->where('organization_id', $this->institutions->require()->id)->latest('id')->first();
+        $org = $organization ?? $this->institutions->current();
+        if (! $org) {
+            return null;
+        }
+
+        $publication = InstitutionPolicyPublication::query()->where('organization_id', $org->id)->latest('id')->first();
         if ($publication !== null && ! $publication->hasValidHistory()) {
             throw ValidationException::withMessages(['policy' => 'Published policy integrity failed. Independent investigation required.']);
         }
@@ -117,9 +122,9 @@ final readonly class InstitutionPolicyWorkspace
      * null as "no institution policy in force" rather than falling back to the
      * stale head.
      */
-    public function active(): ?InstitutionPolicyPublication
+    public function active(?Organization $organization = null): ?InstitutionPolicyPublication
     {
-        $current = $this->current();
+        $current = $this->current($organization);
 
         return $current?->hasActiveControls() === true ? $current : null;
     }
@@ -127,13 +132,13 @@ final readonly class InstitutionPolicyWorkspace
     public function publish(User $reviewer, InstitutionPolicyVersion $version, string $digest, ?string $expectedCurrent, string $reason): InstitutionPolicyPublication
     {
         Gate::forUser($reviewer)->authorize('publish', $version);
-        $institution = $this->institutions->require();
+        $institution = $version->organization ?? $reviewer->organization ?? $this->institutions->require($reviewer);
 
         return DB::transaction(function () use ($reviewer, $version, $digest, $expectedCurrent, $reason, $institution): InstitutionPolicyPublication {
             Organization::query()->whereKey($institution->id)->lockForUpdate()->firstOrFail();
             $version = InstitutionPolicyVersion::query()->where('organization_id', $institution->id)->findOrFail($version->id);
             Gate::forUser($reviewer)->authorize('publish', $version);
-            $current = $this->current();
+            $current = $this->current($institution);
             if (! $version->hasValidContent() || $version->content_digest !== $digest || trim($reason) === '' || mb_strlen($reason) > 1000
                 || ($version->content['clarifications'] ?? []) !== []) {
                 throw ValidationException::withMessages(['publication' => 'Exact tested policy and resolved clarifications required.']);
