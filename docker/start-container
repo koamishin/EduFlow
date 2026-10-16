@@ -5,13 +5,6 @@ container_mode=${CONTAINER_MODE:-"http"}
 octane_server=${OCTANE_SERVER}
 running_migrations_and_seeders=${RUNNING_MIGRATIONS_AND_SEEDERS:-"false"}
 
-# Provide sane defaults for service env vars so health checks don't fail when
-# project .env hasn't been loaded into the container environment yet.
-REDIS_HOST="${REDIS_HOST:-}"
-DB_HOST="${DB_HOST:-pgsql}"
-DB_PORT="${DB_PORT:-5432}"
-export REDIS_HOST DB_HOST DB_PORT
-
 ROOT=${ROOT:-/app}
 export ROOT
 
@@ -86,90 +79,10 @@ initialStuff() {
         fi
     fi
 
-    check_connections
-
     init_application
 
     php artisan optimize:clear
     php artisan optimize
-}
-
-check_connections() {
-    echo "Checking connections..."
-
-    # Check Redis
-    if [ -n "${REDIS_HOST}" ]; then
-        echo "Testing Redis connection to ${REDIS_HOST}:${REDIS_PORT:-6379}..."
-        REDIS_PORT="${REDIS_PORT:-6379}"
-        export REDIS_PORT
-        php -r "
-            \$maxTries = 30;
-            for (\$i = 0; \$i < \$maxTries; \$i++) {
-                try {
-                    \$redis = new Redis();
-                    \$redis->connect(getenv('REDIS_HOST'), getenv('REDIS_PORT'));
-                    if (\$redis->ping()) {
-                        echo 'Redis connection successful.' . PHP_EOL;
-                        exit(0);
-                    }
-                } catch (Exception \$e) {}
-                sleep(1);
-            }
-            echo 'Failed to connect to Redis.' . PHP_EOL;
-            exit(1);
-        "
-    else
-        echo "Skipping Redis check (REDIS_HOST not set)."
-    fi
-
-    # Check Database
-    echo "Testing Database connection to ${DB_HOST}:${DB_PORT}..."
-    if [ -z "${DB_DATABASE}" ] || [ -z "${DB_USERNAME}" ]; then
-        echo "Skipping Database check (DB_DATABASE/DB_USERNAME not set in environment)."
-    else
-        php -r "
-            \$maxTries = 30;
-            for (\$i = 0; \$i < \$maxTries; \$i++) {
-                try {
-                    \$dsn = 'pgsql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_PORT') . ';dbname=' . getenv('DB_DATABASE');
-                    \$pdo = new PDO(\$dsn, getenv('DB_USERNAME'), getenv('DB_PASSWORD'));
-                    echo 'Database connection successful.' . PHP_EOL;
-                    exit(0);
-                } catch (Exception \$e) {}
-                sleep(1);
-            }
-            echo 'Failed to connect to Database.' . PHP_EOL;
-            exit(1);
-        "
-    fi
-
-    # Check Storage
-    echo "Testing Storage permissions..."
-    php -r "
-        \$path = '${ROOT}/storage/framework/testing/connection_test';
-        @mkdir(dirname(\$path), 0777, true);
-        if (@file_put_contents(\$path, 'test') !== false && @unlink(\$path)) {
-            echo 'Storage is writable and readable.' . PHP_EOL;
-            exit(0);
-        }
-        echo 'Storage is NOT writable or readable.' . PHP_EOL;
-        exit(1);
-    "
-
-    # Check OPcache directory
-    echo "Testing OPcache directory..."
-    php -r "
-        \$opcacheDir = '/tmp/opcache-file-cache';
-        if (!is_dir(\$opcacheDir)) {
-            mkdir(\$opcacheDir, 0777, true);
-        }
-        if (is_dir(\$opcacheDir) && is_writable(\$opcacheDir)) {
-            echo 'OPcache directory is accessible and writable.' . PHP_EOL;
-            exit(0);
-        }
-        echo 'OPcache directory is NOT accessible or writable.' . PHP_EOL;
-        exit(1);
-    "
 }
 
 if [ "$1" != "" ]; then
