@@ -7,7 +7,7 @@ namespace App\Services;
 use App\Services\Payments\CircleAgentHttpClient;
 use Throwable;
 use Yukazakiri\Lepton\Contracts\WalletGateway;
-use Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway;
+use Yukazakiri\Lepton\Gateways\CircleRestGateway;
 use Yukazakiri\Lepton\Support\Amounts;
 use Yukazakiri\Lepton\Support\CliRunner;
 use Yukazakiri\Lepton\Support\LeptonCliException;
@@ -39,7 +39,7 @@ class CircleAgentWalletCli
     {
         if ($this->wallets instanceof CircleRestGateway) {
             try {
-                $wallets = $this->wallets->listWallets($chain);
+                $wallets = $this->wallets->wallets(['chain' => $chain]);
 
                 return array_values(array_filter(array_map(
                     static fn (array $w): string => isset($w['address']) && is_string($w['address']) ? strtolower($w['address']) : '',
@@ -98,9 +98,14 @@ class CircleAgentWalletCli
         if ($this->wallets instanceof CircleRestGateway) {
             try {
                 $chain = (string) config('lepton.arc.chain', 'ARC-TESTNET');
-                $wallets = $this->wallets->createAgentWallet($idempotencyKey, [$chain]);
+                // A REST wallet set is created once and named explicitly; this call
+                // never picks one implicitly, and the caller must have configured it.
+                $created = $this->wallets->createWallet([
+                    'chain' => $chain,
+                    'idempotencyKey' => $idempotencyKey,
+                ]);
 
-                return ['data' => ['wallets' => $wallets]];
+                return ['data' => ['wallets' => $created['wallets'] ?? []]];
             } catch (Throwable $e) {
                 throw new LeptonCliException(['circle', 'wallet', 'create'], 1, $e->getMessage(), '');
             }
@@ -132,7 +137,8 @@ class CircleAgentWalletCli
     {
         if ($this->wallets instanceof CircleRestGateway) {
             try {
-                return ['data' => $this->wallets->fundTestnetWallet($address, $chain)];
+                // Testnet faucet only, and `requested` is not money received.
+                return ['data' => $this->wallets->fundWallet($address, ['chain' => $chain])];
             } catch (Throwable $e) {
                 throw new LeptonCliException(['circle', 'wallet', 'fund'], 1, $e->getMessage(), '');
             }
@@ -166,17 +172,17 @@ class CircleAgentWalletCli
     {
         if ($this->wallets instanceof CircleRestGateway) {
             try {
-                $fee = $this->wallets->estimateFee($toAddress, $amountBaseUnits, [
-                    'from' => $fromAddress,
+                // Never broadcast: this is the fee preflight the payer must see.
+                $fee = $this->wallets->estimateTransfer($fromAddress, $toAddress, $amountBaseUnits, [
                     'chain' => $chain,
                 ]);
 
                 return [
                     'data' => [
                         'estimatedFee' => [
-                            'networkFee' => $fee['medium']['networkFee'] ?? $fee['high']['networkFee'] ?? '0',
-                            'gasLimit' => $fee['medium']['gasLimit'] ?? null,
-                            'maxFee' => $fee['medium']['maxFee'] ?? null,
+                            'networkFee' => $fee['low']['networkFee'] ?? $fee['medium']['networkFee'] ?? $fee['high']['networkFee'] ?? '0',
+                            'gasLimit' => $fee['low']['gasLimit'] ?? $fee['medium']['gasLimit'] ?? null,
+                            'maxFee' => $fee['low']['maxFee'] ?? $fee['medium']['maxFee'] ?? null,
                         ],
                     ],
                 ];

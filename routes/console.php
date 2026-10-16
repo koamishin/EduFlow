@@ -8,6 +8,9 @@ Artisan::command('inspire', function (): void {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Schedule::command('app:recover-circle-notifications')->everyMinute()->withoutOverlapping(2)->onOneServer()
+    ->when(fn (): bool => (bool) config('lepton.webhooks.enabled', false));
+
 Schedule::command('app:dispatch-finance-workflows')->everyMinute()->withoutOverlapping(2)->onOneServer()
     ->when(fn (): bool => (bool) config('eduflow.background_finance.enabled', false));
 
