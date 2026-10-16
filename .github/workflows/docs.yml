@@ -46,8 +46,11 @@ jobs:
       - name: Build documentation site
         run: npm run build
 
+      - name: Check internal links
+        run: npm run check:links
+
       - name: Upload GitHub Pages artifact
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/dist
@@ -55,7 +58,9 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    if: github.event_name != 'pull_request'
+    # Only a push to main may publish. A pull_request (validation) build or a manual
+    # workflow_dispatch on any other branch must never replace production docs.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write

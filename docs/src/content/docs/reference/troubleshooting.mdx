@@ -68,10 +68,13 @@ parent directory is being picked up. Keep the project-local empty `postcss.confi
 **`app:demo` is not repeatable** — each run spends 85 USDC. Re-fund, or use
 `LEPTON_DRIVER=fake`.
 
-**Background finance does nothing** — it is opt-in: enable `EDUFLOW_BACKGROUND_FINANCE`,
-configure a durable `EDUFLOW_FINANCE_QUEUE_CONNECTION` (never `sync`), keep a supervised
-queue worker on the `finance-planning` queue and invoke the Laravel scheduler every
-minute. No scheduler task submits money.
+**Background finance does nothing** — the planning runtime is enabled in
+`config/eduflow.php`, so it only lacks plumbing: configure a durable
+`EDUFLOW_FINANCE_QUEUE_CONNECTION` (never `sync`), keep a supervised queue worker on the
+`finance-planning` queue and invoke the Laravel scheduler every minute. Most scheduler
+tasks submit no money — **except** `eduflow:autonomous-pipeline-bridge`, which defaults
+on and can submit and reconcile a payment within its 50 USDC ceiling. Disable it with
+`EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false` if that is not what you want.
 
 **A payment screen is stuck / a quote cannot be re-quoted** — a bill with an unresolved
 consent (consented, unsettled, unallocated, non-rehearsal) refuses a *new* request key;

@@ -4,8 +4,26 @@ description: Environment variables, runtime gates and config files that control 
 ---
 
 Configuration lives in `.env` and the PHP files under `config/`. The most important
-values are the finance runtime gates: **every payment path ships disabled** and is
-enabled only by an explicit operator decision.
+values are the finance runtime gates: the **submission, tuition, bill and mandate lanes
+ship disabled** and are enabled only by an explicit operator decision.
+
+## One exception: the Autonomous Pipeline Bridge is on by default
+
+:::caution
+`config/eduflow.php` defaults `eduflow.autonomous_pipeline.enabled` and
+`eduflow.autonomous_pipeline.auto_disburse` to **true**, with a
+`max_auto_disburse_usdc` ceiling of **50.00**, and `routes/console.php` schedules
+`eduflow:autonomous-pipeline-bridge --latest` every five minutes. When the bridge runs
+it resolves evidence, obtains the funding-window approval and — for a bill at or under
+the ceiling — **sets `eduflow.submission.enabled` to true in-process**, submits it,
+reconciles settlement and marks the invoice paid on verified movement.
+
+`composer run dev` does not start the scheduler, so this does not fire in the default
+development stack. It fires wherever the scheduler runs. If you are not ready for it,
+set `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false` (and
+`EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false`), and do not start the scheduler until
+you have read [Safety & Readiness](../../institution/safety-readiness/).
+:::
 
 ## Core application
 
@@ -74,7 +92,7 @@ Ingestion is contained: the handler requires `X-Circle-Signature` and `X-Circle-
 the notification key (`401` on failure), accepts only `transactions.inbound`,
 `transactions.outbound` and `webhooks.test` (`422` otherwise), validates the chain and
 UUID-shaped transaction id (`422`), and requires a durable `database`/`redis` queue
-(`503` otherwise). See [Security](/guides/security/#webhook-ingestion).
+(`503` otherwise). See [Security](../../guides/security/#webhook-ingestion).
 
 ## Finance runtime gates
 
@@ -119,10 +137,13 @@ consequence of anything else.
 | `EDUFLOW_INSTITUTION_ID` | Installation institution identity; required outside local/testing |
 | `EDUFLOW_INSTITUTION_POLICY_ADVICE` | Master switch for institution policy advisory calls |
 | `EDUFLOW_POLICY_CLASSIFICATION_ENGINE` | `text` or `jev` classification engine |
-| `EDUFLOW_BACKGROUND_FINANCE` | Opt-in planning runtime; requires a durable queue and a supervised scheduler |
+| `EDUFLOW_BACKGROUND_FINANCE` | Read-only planning runtime; enabled in `config/eduflow.php` and needs a durable queue plus a supervised scheduler to do work |
 | `EDUFLOW_DISPLAY_CURRENCY` | Local currency shown beside USDC settlement amounts (default `PHP`) |
 | `EDUFLOW_MAX_RATE_AGE_SECONDS` | Maximum age of a rate source (default `900`) |
-| `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED` | Autonomous Pipeline Bridge (tuition receipt → JEV evaluation → vendor disbursement) |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED` | Autonomous Pipeline Bridge (tuition receipt → JEV evaluation → vendor disbursement). **Defaults to `true`** |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE` | Whether the bridge may submit without manual authorisation. **Defaults to `true`** |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_MAX_USDC` | Auto-disburse ceiling for the bridge (default `50.00`); a bill above it is held for manual authorisation |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_MAKER_ID` / `_REVIEWER_ID` | Staff IDs the bridge attributes maker and reviewer roles to (defaults `4` / `1`) — set these to your own reviewed users |
 
 :::caution[Never run `composer require`/`update` without `--no-scripts`]
 The `post-update-cmd` script runs `php artisan install:features`, which consumes the
@@ -158,7 +179,7 @@ OPENAI_COMPATIBLE_API_KEY=…
 
 Providers can also be managed from **Settings → AI Providers** in the admin panel; API
 keys are encrypted at rest with `APP_KEY` and never rendered back into the edit form.
-See [Security](/guides/security/#ai-boundaries) for the authority boundaries.
+See [Security](../../guides/security/#ai-boundaries) for the authority boundaries.
 
 ## Config files
 

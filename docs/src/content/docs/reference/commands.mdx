@@ -25,7 +25,7 @@ identity metadata is refused rather than overwritten.
 | --- | --- |
 | `lepton:doctor` | **Run this first.** Verifies binaries, session, treasury, chain reads and ledger parity. `--transfer= --to= --skip-transfer --adopt-agent-wallet` |
 | `lepton:login` | Circle agent session (email OTP; owned by the Circle CLI). `lepton:login <email>` sends the OTP, `--request=<id> --otp=<code>` completes it, `--status` reports both networks |
-| `lepton:status` | Chain, block, balance and limits for an address — `--address=0x…` (mainnet-only `wallet limit`, see [Troubleshooting](/reference/troubleshooting/)) |
+| `lepton:status` | Chain, block, balance and limits for an address — `--address=0x…` (mainnet-only `wallet limit`, see [Troubleshooting](../../reference/troubleshooting/)) |
 | `lepton:transfer` | Single transfer — `0x… --amount=1.00 --from=0x…`; `--estimate` dry-runs |
 
 Mainnet and testnet sessions are independent; `isAuthenticatedFor('ARC-TESTNET')` is the
@@ -72,7 +72,7 @@ php artisan lepton:reconcile
 ```
 
 `--fix` marks a row failed **only** for `reverted`; unresolved rows are listed and left
-untouched for a human. See [Safety & Readiness](/institution/safety-readiness/#settlement-verdicts).
+untouched for a human. See [Safety & Readiness](../../institution/safety-readiness/#settlement-verdicts).
 
 ## Student lanes
 
@@ -93,4 +93,4 @@ untouched for a human. See [Safety & Readiness](/institution/safety-readiness/#s
 | `inspire` | Laravel's default motivational quote |
 
 `app:demo` is not repeatable without re-funding (`LEPTON_DRIVER=fake` for iteration) and
-is not the safe new payment lifecycle — see [Workflows](/guides/workflows/#the-legacy-developer-path).
+is not the safe new payment lifecycle — see [Workflows](../../guides/workflows/#the-legacy-developer-path).

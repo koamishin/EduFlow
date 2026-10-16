@@ -77,7 +77,7 @@ The finance domain is organised around immutable, digest-bound evidence:
   `student-tuition`, `student-bills`, `finance-mandate`, `policy-assessments`,
   `default`. Run workers on each queue you enable.
 - **Scheduler** — `routes/console.php`, every tick gated on its own flag (see
-  [Workflows](/guides/workflows/#background-runtime)).
+  [Workflows](../guides/workflows/#background-runtime)).
 - **Docker** — `docker/Dockerfile` builds a multi-stage image (Composer vendor stage,
   Bun asset stage, FrankenPHP runtime) managed by Supervisor; `Dockerfile` at the root
   builds the same production image and `docker-compose.yml` pairs it with PostgreSQL 16

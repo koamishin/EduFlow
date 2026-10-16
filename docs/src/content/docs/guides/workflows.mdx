@@ -86,14 +86,22 @@ blind resend risks paying twice.
 
 ## Background runtime
 
-Background finance is opt-in and read-only by default; payment execution keeps separate
-gates. Enable it only with a durable (`database`/`redis`) queue connection and a
-supervised worker plus scheduler:
+Background **planning** is read-only and enabled in `config/eduflow.php`; payment
+execution keeps separate gates. It only does work with a durable (`database`/`redis`)
+queue connection plus a supervised worker and scheduler:
 
 ```dotenv
-EDUFLOW_BACKGROUND_FINANCE=true
 EDUFLOW_FINANCE_QUEUE_CONNECTION=database
 ```
+
+:::caution[Scheduled money movement is not off by default]
+`eduflow:autonomous-pipeline-bridge --latest` is scheduled every five minutes and the
+pipeline flags default on (`enabled`, `auto_disburse`, 50 USDC ceiling). Wherever the
+scheduler runs, that bridge can capture evidence, authorise, submit and reconcile a
+payment. Set `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false` and
+`EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false` until you have reviewed the gates — see
+[Configuration](../../getting-started/configuration/#one-exception-the-autonomous-pipeline-bridge-is-on-by-default).
+:::
 
 The scheduler (`routes/console.php`) runs, each gated on its own flag:
 
@@ -109,7 +117,7 @@ The scheduler (`routes/console.php`) runs, each gated on its own flag:
 | `app:reconcile-payment-submissions` | every minute | submission runtime |
 | `app:dispatch-mandate-occurrences` | every minute | mandate runtime |
 | `app:dispatch-policy-evaluations` | every minute | policy advice enabled |
-| `eduflow:autonomous-pipeline-bridge --latest` | every 5 minutes | autonomous pipeline |
+| `eduflow:autonomous-pipeline-bridge --latest` | every 5 minutes | autonomous pipeline (**on by default**) |
 
 All ticks use `withoutOverlapping()` and `onOneServer()`. Two ticks racing on the same
 row would be the difference between one owed payment and two attempts at it. `sync` as a

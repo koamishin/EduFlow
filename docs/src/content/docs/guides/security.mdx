@@ -71,7 +71,7 @@ A verified event is stored once — unique `notificationId` + payload digest —
 queues observation: it never creates or submits a payment, never settles one, and
 responds `202` with `settlement_verified: false`. Duplicate notifications are deduped by
 the unique constraint, not by best effort. Notification logging is still not settlement
-verification — see [Safety & Readiness](/institution/safety-readiness/).
+verification — see [Safety & Readiness](../../institution/safety-readiness/).
 
 ## AI boundaries
 

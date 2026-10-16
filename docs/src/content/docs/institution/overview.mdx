@@ -46,7 +46,7 @@ institution context is missing or ambiguous.
 
 <Steps>
 
-1. **Deploy the instance.** Follow [Installation](/getting-started/installation/)
+1. **Deploy the instance.** Follow [Installation](../../getting-started/installation/)
    (Docker Compose or bare metal). Keep the original Compose project name — it prefixes
    the volume names.
 
@@ -88,8 +88,13 @@ institution context is missing or ambiguous.
    snapshots — all reviewed by a second person. Then run
    `php artisan app:finance-preview` for a read-only treasury/cashflow view.
 
-8. **Enable runtime gates deliberately.** Read [Safety & Readiness](/institution/safety-readiness/)
-   first. Every execution gate ships off.
+8. **Review the runtime gates deliberately.** Read
+   [Safety & Readiness](../../institution/safety-readiness/) first. The submission, tuition,
+   bill and mandate lanes ship off — but the **Autonomous Pipeline Bridge defaults on**
+   (50 USDC auto-disburse ceiling) and runs on the scheduler. Before starting the
+   scheduler, set `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false` and
+   `EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false`, then re-enable them deliberately
+   once your finance owner has reviewed the gates.
 
 </Steps>
 
@@ -131,4 +136,4 @@ belong to the enabled student-aid module — they are not installation prerequis
 
 Deepen the relationship with your college by starting with one department's approved
 budget and bills due over the next couple of weeks — see the
-[Pilot Playbook](/institution/pilot-playbook/).
+[Pilot Playbook](../../institution/pilot-playbook/).

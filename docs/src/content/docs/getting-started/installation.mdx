@@ -7,16 +7,16 @@ OpenSinop runs as a standard Laravel application. Choose the path that matches y
 
 | Goal | Start here |
 | --- | --- |
-| Evaluate the application locally | [Local development](/getting-started/local-development/) with `LEPTON_DRIVER=fake` |
+| Evaluate the application locally | [Local development](../../getting-started/local-development/) with `LEPTON_DRIVER=fake` |
 | Deploy on your own infrastructure | [Docker Compose](#docker-compose-recommended) or [bare metal](#bare-metal-production-setup) |
 | Upgrade an existing deployment | [Updating a Docker deployment](#updating-a-docker-deployment) |
-| Configure wallets and chains | [Configuration](/getting-started/configuration/) |
+| Configure wallets and chains | [Configuration](../../getting-started/configuration/) |
 
 ## Requirements
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| PHP | 8.4.1+ (8.5 recommended) | Extensions: `pdo`, `mbstring`, `openssl`, `curl`, `fileinfo`, `dom`, `xml`, `zip`, `bcmath` |
+| PHP | **8.5** (required) | `composer.json` requires `^8.5`. Extensions: `pdo`, `mbstring`, `openssl`, `curl`, `fileinfo`, `dom`, `xml`, `zip`, `bcmath` |
 | Composer | 2.x | Dependency manager for PHP |
 | Node.js & npm | 20.18.2+ | Frontend build and Vite dev server |
 | Docker (self-hosting) | 24.0+ (Compose v2) | Pairs the app with PostgreSQL 16 and Redis 7 |
@@ -94,7 +94,7 @@ instance whose records you need.
 
 ## Bare-metal production setup
 
-1. **Server prerequisites** — PHP 8.4+/8.5 with the extensions above, Composer,
+1. **Server prerequisites** — PHP 8.5 with the extensions above, Composer,
    Node.js 20.18+, plus the Circle CLI and `arc-canteen` for treasury features.
 
 2. **Application code**
@@ -171,7 +171,7 @@ instance whose records you need.
    (queue, scheduler, and Horizon/Pulse when installed) — see `docker/start-container`.
 
 8. **Revenue/agent config** — set `LEPTON_TREASURY_ADDRESS`, `LEPTON_CHAIN` and the
-   finance env flags only after reviewing [Configuration](/getting-started/configuration/)
+   finance env flags only after reviewing [Configuration](../../getting-started/configuration/)
    and the release-safety notes.
 
 :::danger
@@ -211,4 +211,4 @@ thresholds, the persisted country/locale/timezone/currency, and disables public
 registration, impersonation and AI. It never migrates, resets data, seeds demo records,
 generates keys, creates wallets or calls external providers. Repeat runs are a no-op;
 changed identity metadata is refused rather than overwritten. See
-[Adoption overview](/institution/overview/) for the full single-institution boundary.
+[Adoption overview](../../institution/overview/) for the full single-institution boundary.
