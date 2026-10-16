@@ -47,6 +47,46 @@ defaults (`APP_NAME=OpenSinop`, `APP_ENV=production`, `APP_DEBUG=false`,
 `APP_URL=http://localhost:8000`); override them per deployment via Compose or build
 arguments.
 
+:::caution[The stock Compose stack runs the web app only — no worker, no scheduler]
+`docker-compose.yml` defines just `app`, `db` and `redis`, and the image entrypoint
+(`docker/start-container`) defaults to `CONTAINER_MODE=http`, which starts Supervisor with
+`docker/supervisord.frankenphp.conf`: FrankenPHP/Octane and nothing else. That config
+includes only the optional Horizon/Pulse programs (which are blanked when those packages
+are absent).
+
+So on a fresh Compose deployment **queued work is never processed and the scheduler never
+runs** — submissions, receipt reconciliation, workflow dispatch and the Autonomous
+Pipeline Bridge all sit idle while the UI looks healthy. Before you rely on any
+background finance behaviour, run a worker and the scheduler. The image already ships the
+Supervisor configs at `/etc/supervisor/conf.d/`:
+
+- `supervisord.worker.conf` — queue worker
+- `supervisord.scheduler.conf` — scheduler
+
+Add them as `worker` and `scheduler` services in your Compose override (running the same
+image with those programs enabled), or run the processes directly:
+
+```bash
+docker exec opensinop php artisan queue:work --sleep=3 --tries=3 \
+  --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default
+docker exec opensinop php artisan schedule:work
+```
+
+:::caution[The worker must listen on the named queues]
+`queue:work` without `--queue` processes only the connection's default queue. Every
+finance job is dispatched to a named queue (`student-tuition`, `student-bills`,
+`finance-submission`, `finance-mandate`) and the planning/evaluation lanes use
+`finance-planning` and `policy-assessments` — so a worker started without the full list
+looks healthy while silently stranding every payment. The names come from
+`config/eduflow.php`; `composer run dev` passes the same list.
+:::
+
+Use a durable queue connection (never `sync`) for the finance lanes, and supervise both
+processes so they restart with the host. See
+[Workflows](../../guides/workflows/#background-runtime) for what each scheduled command
+does.
+:::
+
 :::caution[Current deployment limitation]
 The checked-in Compose file fixes the database driver to PostgreSQL and does not forward
 every value collected by the installer. Selecting MySQL, SQLite or a wallet driver in
@@ -160,15 +200,18 @@ instance whose records you need.
    ```
 
 7. **Process management** — run a long-lived queue worker and the scheduler under
-   Supervisor or systemd. The background finance runtime requires both:
+   Supervisor or systemd. The background finance runtime requires both, and the worker
+   must listen on the named queues:
 
    ```bash
-   php artisan queue:work --sleep=3 --tries=3
+   php artisan queue:work --sleep=3 --tries=3 \
+     --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default
    php artisan schedule:work
    ```
 
-   The included Docker image (`docker/Dockerfile`) runs FrankenPHP + Octane + Supervisor
-   (queue, scheduler, and Horizon/Pulse when installed) — see `docker/start-container`.
+   The image ships Supervisor configs for both (`docker/supervisord.worker.conf`,
+   `docker/supervisord.scheduler.conf`), but the default `http` container mode starts
+   neither — see the [Compose note](#one-line-quick-start) above.
 
 8. **Revenue/agent config** — set `LEPTON_TREASURY_ADDRESS`, `LEPTON_CHAIN` and the
    finance env flags only after reviewing [Configuration](../../getting-started/configuration/)

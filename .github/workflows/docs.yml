@@ -1,5 +1,13 @@
 name: Docs
 
+# Publishes the Astro + Starlight documentation site in docs/ to GitHub Pages.
+#
+# - Every pull request that touches the documentation is built and link-checked.
+# - A push to main that touches docs/** (content, config, styles, scripts or this
+#   workflow) rebuilds and publishes the site.
+# - workflow_dispatch republishes on demand from main, e.g. after a Pages outage
+#   or a settings change. It is deliberately ignored on any other branch so a
+#   feature branch can never replace the published documentation.
 on:
   push:
     branches:
@@ -18,9 +26,11 @@ on:
 permissions:
   contents: read
 
+# Serialise documentation runs per ref. Deployments are never cancelled midway:
+# an interrupted publish would leave the site in a partial state.
 concurrency:
   group: docs-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -46,11 +56,13 @@ jobs:
       - name: Build documentation site
         run: npm run build
 
+      # Fails the build if an in-content link escapes the configured base, points
+      # at a missing page, or names an anchor that does not exist.
       - name: Check internal links
         run: npm run check:links
 
       - name: Upload GitHub Pages artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/dist
@@ -58,9 +70,9 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    # Only a push to main may publish. A pull_request (validation) build or a manual
-    # workflow_dispatch on any other branch must never replace production docs.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Main only. A pull request (validation build) or a dispatch from any other
+    # branch must never replace the published documentation.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -72,3 +84,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Report published URL
+        run: echo "Documentation published at ${{ steps.deployment.outputs.page_url }}"

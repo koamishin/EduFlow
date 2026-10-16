@@ -52,8 +52,10 @@ accepted.
 application table. Use `migrate:refresh` for demos, or re-enter the key; the encryption
 protects a dump, not a deleted row.
 
-**Feature scaffolding disappeared after `composer require`/`update`** — `post-update-cmd`
-consumed the chisel system. Run composer with `--no-scripts`; recover with
+**Feature scaffolding disappeared** — something ran `php artisan install:features`, which
+consumes the chisel system (markers stripped, `chisel.php`, `chisel-paths.php` and
+`app/Console/Commands/InstallFeaturesCommand.php` deleted). Composer's `post-update-cmd`
+does **not** run it, so check your own scripts/CI; recover with
 `git checkout -- chisel.php chisel-paths.php app/Console/Commands/InstallFeaturesCommand.php`.
 
 **Tailwind v4 build error about `@layer components`** — a stray `postcss.config.js` in a
