@@ -67,9 +67,19 @@ Add them as `worker` and `scheduler` services in your Compose override (running 
 image with those programs enabled), or run the processes directly:
 
 ```bash
-docker exec opensinop php artisan queue:work --sleep=3 --tries=3
+docker exec opensinop php artisan queue:work --sleep=3 --tries=3 \
+  --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default
 docker exec opensinop php artisan schedule:work
 ```
+
+:::caution[The worker must listen on the named queues]
+`queue:work` without `--queue` processes only the connection's default queue. Every
+finance job is dispatched to a named queue (`student-tuition`, `student-bills`,
+`finance-submission`, `finance-mandate`) and the planning/evaluation lanes use
+`finance-planning` and `policy-assessments` — so a worker started without the full list
+looks healthy while silently stranding every payment. The names come from
+`config/eduflow.php`; `composer run dev` passes the same list.
+:::
 
 Use a durable queue connection (never `sync`) for the finance lanes, and supervise both
 processes so they restart with the host. See
@@ -190,10 +200,12 @@ instance whose records you need.
    ```
 
 7. **Process management** — run a long-lived queue worker and the scheduler under
-   Supervisor or systemd. The background finance runtime requires both:
+   Supervisor or systemd. The background finance runtime requires both, and the worker
+   must listen on the named queues:
 
    ```bash
-   php artisan queue:work --sleep=3 --tries=3
+   php artisan queue:work --sleep=3 --tries=3 \
+     --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default
    php artisan schedule:work
    ```
 

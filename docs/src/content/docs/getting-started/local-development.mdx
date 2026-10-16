@@ -57,21 +57,22 @@ an instance holding configured providers or payment history.
 
 ### Demo accounts
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Student | `juan@eduflow.test` | `password` |
-| Finance officer | `finance@eduflow.test` | `password` |
+| Role | Email | Password | Created by |
+| --- | --- | --- | --- |
+| Student | `juan@eduflow.test` | `password` | `EducationDemoSeeder` |
+| Finance officer | `finance@eduflow.test` | `password` | `EducationDemoSeeder` |
 
-`DemoUsersSeeder` (run by `DatabaseSeeder` in local/testing) creates demo *accounts*; the
-finance/education fixture data and the `Northstar Learning Center` institution come from
-the seeders below. The student account still exposes legacy assistance screens; it is
-not a fee-payment portal and is not a prerequisite for the institution pilot.
+The default `DatabaseSeeder` runs `DemoUsersSeeder` in local/testing, but that creates
+`admin@admin.com` and `user@user.com` — **not** the two accounts above. They exist only
+after the education fixtures below have been seeded, so run that step before trying to log
+in with them. The student account still exposes legacy assistance screens; it is not a
+fee-payment portal and is not a prerequisite for the institution pilot.
 
 ## The seeded demo cycle
 
-`DatabaseSeeder` deliberately does **not** seed financial fixtures — walls, budgets,
+`DatabaseSeeder` deliberately does **not** seed financial fixtures — wallets, budgets,
 invoices and the demo institution are no longer startup data. `app:demo` needs the legacy
-fixtures, so seed them first (this also creates the two accounts above):
+fixtures, so seed them first:
 
 ```bash
 php artisan db:seed --class=EduFlowFinancialSeeder
@@ -79,7 +80,11 @@ php artisan db:seed --class=EducationDemoSeeder
 php artisan db:seed --class=EduFlowPlanSeeder
 ```
 
-Without them the command refuses to run and tells you exactly this:
+Run all three: `EduFlowDemo` checks only that the `Northstar Learning Center` organisation
+exists (any of the financial/plan seeders can create it), so a partial run can execute the
+invoice cycle and then silently skip the student-aid scenario instead of refusing.
+
+If that organisation is missing entirely, the command refuses and says so:
 
 ```bash
 php artisan app:demo
