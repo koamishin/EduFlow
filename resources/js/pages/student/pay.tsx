@@ -42,7 +42,10 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { formatUsdc } from '@/lib/financial-aid';
-import { dashboard as studentDashboard, bills as studentBills } from '@/routes/student';
+import {
+    dashboard as studentDashboard,
+    bills as studentBills,
+} from '@/routes/student';
 import {
     classify as billClassify,
     consent as billConsent,
@@ -198,7 +201,10 @@ function formatBaseUnitsShort(baseUnits: string | number): string {
     try {
         const units = BigInt(baseUnits);
         const whole = (units / 1_000_000n).toLocaleString('en-US');
-        const cents = (units % 1_000_000n).toString().padStart(6, '0').slice(0, 2);
+        const cents = (units % 1_000_000n)
+            .toString()
+            .padStart(6, '0')
+            .slice(0, 2);
 
         return `${whole}.${cents}`;
     } catch {
@@ -265,7 +271,8 @@ export default function StudentPayPage({
     const payableBills = useMemo(
         () =>
             bills.filter(
-                (b) => BigInt(b.remaining_base_units) > 0n && b.status !== 'void',
+                (b) =>
+                    BigInt(b.remaining_base_units) > 0n && b.status !== 'void',
             ),
         [bills],
     );
@@ -305,7 +312,9 @@ export default function StudentPayPage({
 
     const defaultTuitionPayBaseUnits = Math.min(
         tuitionRemainingBase,
-        walletBalanceBaseUnits > 0 ? walletBalanceBaseUnits : tuitionRemainingBase,
+        walletBalanceBaseUnits > 0
+            ? walletBalanceBaseUnits
+            : tuitionRemainingBase,
     );
 
     const [payAmount, setPayAmount] = useState<string>(() => {
@@ -347,7 +356,9 @@ export default function StudentPayPage({
             return initialAmount;
         }
         if (selectedBill) {
-            return (Number(selectedBill.remaining_base_units) / 1_000_000).toFixed(2);
+            return (
+                Number(selectedBill.remaining_base_units) / 1_000_000
+            ).toFixed(2);
         }
 
         return '';
@@ -471,9 +482,9 @@ export default function StudentPayPage({
         hasBillInFlight ||
         Boolean(
             activeReceipt &&
-                !activeReceipt.posted &&
-                activeReceipt.state !== 'failed' &&
-                !activeReceipt.simulated,
+            !activeReceipt.posted &&
+            activeReceipt.state !== 'failed' &&
+            !activeReceipt.simulated,
         );
 
     usePoll(shouldFastPoll ? 2500 : 8000, {
@@ -1113,7 +1124,8 @@ export default function StudentPayPage({
                                         </span>
                                         <div>
                                             <p className="bulletin-eyebrow">
-                                                Circle Agent Wallet &middot; Send
+                                                Circle Agent Wallet &middot;
+                                                Send
                                             </p>
                                             <h1 className="clay-h2 mt-0.5">
                                                 {mode === 'tuition'
@@ -1416,22 +1428,24 @@ export default function StudentPayPage({
                                                             <Copy className="size-3.5" />
                                                         </button>
                                                     )}
-                                                    {wallet.qr_code && walletAddress && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                setQrModal({
-                                                                    title: 'Student Wallet QR',
-                                                                    address: walletAddress,
-                                                                    qr: wallet.qr_code!,
-                                                                })
-                                                            }
-                                                            className="clay-focus inline-flex size-7 items-center justify-center rounded-md text-[var(--clay-text-muted)] hover:bg-[var(--clay-surface-soft)] hover:text-[var(--clay-text)]"
-                                                            title="Show wallet QR code"
-                                                        >
-                                                            <QrCode className="size-3.5" />
-                                                        </button>
-                                                    )}
+                                                    {wallet.qr_code &&
+                                                        walletAddress && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setQrModal({
+                                                                        title: 'Student Wallet QR',
+                                                                        address:
+                                                                            walletAddress,
+                                                                        qr: wallet.qr_code!,
+                                                                    })
+                                                                }
+                                                                className="clay-focus inline-flex size-7 items-center justify-center rounded-md text-[var(--clay-text-muted)] hover:bg-[var(--clay-surface-soft)] hover:text-[var(--clay-text)]"
+                                                                title="Show wallet QR code"
+                                                            >
+                                                                <QrCode className="size-3.5" />
+                                                            </button>
+                                                        )}
                                                     {snapshot?.explorer_url && (
                                                         <a
                                                             href={
@@ -1502,22 +1516,24 @@ export default function StudentPayPage({
                                                             <Copy className="size-3.5" />
                                                         </button>
                                                     )}
-                                                    {treasury.qr_code && treasury.address && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                setQrModal({
-                                                                    title: 'Institution Treasury QR',
-                                                                    address: treasury.address!,
-                                                                    qr: treasury.qr_code!,
-                                                                })
-                                                            }
-                                                            className="clay-focus inline-flex size-7 items-center justify-center rounded-md text-[var(--clay-text-muted)] hover:bg-[var(--clay-surface-soft)] hover:text-[var(--clay-text)]"
-                                                            title="Show treasury QR code"
-                                                        >
-                                                            <QrCode className="size-3.5" />
-                                                        </button>
-                                                    )}
+                                                    {treasury.qr_code &&
+                                                        treasury.address && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setQrModal({
+                                                                        title: 'Institution Treasury QR',
+                                                                        address:
+                                                                            treasury.address!,
+                                                                        qr: treasury.qr_code!,
+                                                                    })
+                                                                }
+                                                                className="clay-focus inline-flex size-7 items-center justify-center rounded-md text-[var(--clay-text-muted)] hover:bg-[var(--clay-surface-soft)] hover:text-[var(--clay-text)]"
+                                                                title="Show treasury QR code"
+                                                            >
+                                                                <QrCode className="size-3.5" />
+                                                            </button>
+                                                        )}
                                                     {treasury.explorer_url && (
                                                         <a
                                                             href={
@@ -1606,7 +1622,9 @@ export default function StudentPayPage({
                                                         Payer gas fee
                                                     </dt>
                                                     <dd className="flex items-center gap-2 font-mono font-semibold text-emerald-400">
-                                                        <span>0.000000 USDC</span>
+                                                        <span>
+                                                            0.000000 USDC
+                                                        </span>
                                                         <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-sans text-[10px] font-semibold text-emerald-300">
                                                             Sponsored by Circle
                                                         </span>
@@ -1763,8 +1781,9 @@ export default function StudentPayPage({
                                                     parseBaseUnits(
                                                         payAmount,
                                                     ) === null ||
-                                                    parseBaseUnits(payAmount)! <=
-                                                        0
+                                                    parseBaseUnits(
+                                                        payAmount,
+                                                    )! <= 0
                                                 }
                                                 className="clay-focus h-12 w-full rounded-2xl bg-[var(--clay-primary)] text-sm font-bold text-[var(--clay-primary-foreground)] shadow-md transition-all hover:-translate-y-0.5 hover:bg-[var(--clay-primary-bright)] disabled:opacity-50"
                                             >
@@ -2074,11 +2093,14 @@ export default function StudentPayPage({
                                                                         <button
                                                                             type="button"
                                                                             onClick={() =>
-                                                                                setQrModal({
-                                                                                    title: 'Institution Treasury QR',
-                                                                                    address: billMountedQuote.recipient,
-                                                                                    qr: treasury.qr_code!,
-                                                                                })
+                                                                                setQrModal(
+                                                                                    {
+                                                                                        title: 'Institution Treasury QR',
+                                                                                        address:
+                                                                                            billMountedQuote.recipient,
+                                                                                        qr: treasury.qr_code!,
+                                                                                    },
+                                                                                )
                                                                             }
                                                                             className="clay-focus inline-flex size-5 items-center justify-center rounded text-[var(--clay-text-muted)] hover:text-[var(--clay-text)]"
                                                                             title="Show treasury QR code"
@@ -2320,7 +2342,14 @@ export default function StudentPayPage({
                                                                 className="mt-2.5 h-8 w-full rounded-full border-emerald-500/40 bg-emerald-500/10 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
                                                             >
                                                                 <ReceiptText className="mr-1.5 size-3.5" />
-                                                                View Official e-Receipt ({payment.receipt.receipt_number})
+                                                                View Official
+                                                                e-Receipt (
+                                                                {
+                                                                    payment
+                                                                        .receipt
+                                                                        .receipt_number
+                                                                }
+                                                                )
                                                             </Button>
                                                         )}
                                                     </div>
@@ -2447,7 +2476,8 @@ export default function StudentPayPage({
                                     {qrModal.title}
                                 </DialogTitle>
                                 <DialogDescription className="clay-meta text-xs">
-                                    Arc Testnet (Chain ID 5042002) &middot; Scan with crypto wallet
+                                    Arc Testnet (Chain ID 5042002) &middot; Scan
+                                    with crypto wallet
                                 </DialogDescription>
                             </DialogHeader>
 

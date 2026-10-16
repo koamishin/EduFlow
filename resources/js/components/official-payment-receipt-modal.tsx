@@ -107,8 +107,7 @@ export function OfficialPaymentReceiptModal({
         toast.success('e-Receipt downloaded');
     };
 
-    const isPartial =
-        BigInt(receipt.remaining_balance_base_units || '0') > 0n;
+    const isPartial = BigInt(receipt.remaining_balance_base_units || '0') > 0n;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -147,6 +146,7 @@ export function OfficialPaymentReceiptModal({
                             </DialogHeader>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 {/* Scrollable Receipt Body */}

@@ -103,7 +103,7 @@ final readonly class CircleAgentWalletTransport implements FeeBoundedPaymentTran
         // evidence that a transfer exists.
         $candidate = is_array($handle)
             ? trim((string) ($handle['id'] ?? $handle['transactionId'] ?? $handle['transaction_id'] ?? ''))
-            : trim((string) $handle);
+            : trim($handle);
 
         if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $candidate) !== 1) {
             throw new RuntimeException(

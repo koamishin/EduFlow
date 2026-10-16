@@ -193,12 +193,6 @@ parameters:
 			path: app/Ai/Tools/AdminStudentsTool.php
 
 		-
-			rawMessage: Access to an undefined property App\Models\Transaction::$created_at.
-			identifier: property.notFound
-			count: 1
-			path: app/Ai/Tools/AdminTreasuryOverviewTool.php
-
-		-
 			rawMessage: 'Call to an undefined static method App\Models\Organization::first().'
 			identifier: staticMethod.notFound
 			count: 1
@@ -937,12 +931,6 @@ parameters:
 			path: app/Http/Controllers/StudentDashboardController.php
 
 		-
-			rawMessage: Access to an undefined property App\Models\Transaction::$created_at.
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/StudentDashboardController.php
-
-		-
 			rawMessage: Expression on left side of ?? is not nullable.
 			identifier: nullCoalesce.expr
 			count: 2
@@ -977,6 +965,48 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/StudentDashboardController.php
+
+		-
+			rawMessage: Expression on left side of ?? is not nullable.
+			identifier: nullCoalesce.expr
+			count: 4
+			path: app/Http/Controllers/StudentPaymentsController.php
+
+		-
+			rawMessage: Ternary operator condition is always true.
+			identifier: ternary.alwaysTrue
+			count: 3
+			path: app/Http/Controllers/StudentPaymentsController.php
+
+		-
+			rawMessage: Using nullsafe method call on non-nullable type App\Models\StudentBill. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentPaymentsController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->fee_guarantee" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentPaymentsController.php
+
+		-
+			rawMessage: Using nullsafe property access on non-nullable type App\Models\AcademicTerm. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentPaymentsController.php
+
+		-
+			rawMessage: Using nullsafe property access on non-nullable type App\Models\StudentBill. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentPaymentsController.php
+
+		-
+			rawMessage: Using nullsafe property access on non-nullable type App\Models\TuitionAccount. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentPaymentsController.php
 
 		-
 			rawMessage: Using nullsafe method call on non-nullable type App\Models\AcademicTerm. Use -> instead.
@@ -1037,6 +1067,84 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/StudentProfileController.php
+
+		-
+			rawMessage: Expression on left side of ?? is not nullable.
+			identifier: nullCoalesce.expr
+			count: 4
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe method call on non-nullable type App\Models\StudentBill. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe method call on non-nullable type Carbon\CarbonInterface. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->amount_base_units" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->applied_base_units" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->executed_at" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->id" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->name" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->network_fee" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->overpayment_base_units" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->program" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->student_number" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
+
+		-
+			rawMessage: Using nullsafe property access on non-nullable type App\Models\StudentBill. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/StudentTuitionPaymentController.php
 
 		-
 			rawMessage: 'Strict comparison using !== between non-empty-array<string, string> and array{} will always evaluate to true.'
@@ -1111,6 +1219,18 @@ parameters:
 			path: app/Policies/TransactionPolicy.php
 
 		-
+			rawMessage: Class Yukazakiri\Lepton\Drivers\Circle\CircleCliGateway not found.
+			identifier: class.notFound
+			count: 1
+			path: app/Providers/AppServiceProvider.php
+
+		-
+			rawMessage: 'Offset ''authenticated'' on array{authenticated: bool, email: string|null, status: string|null, expires_in: string|null} on left side of ?? always exists and is not nullable.'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Providers/AppServiceProvider.php
+
+		-
 			rawMessage: Access to an undefined property Illuminate\Http\Request::$email.
 			identifier: property.notFound
 			count: 1
@@ -1165,6 +1285,78 @@ parameters:
 			path: app/Services/AskEduFlow.php
 
 		-
+			rawMessage: 'Call to function method_exists() with App\Models\User and ''getAppAuthenticatio…'' will always evaluate to true.'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/AutonomousPipelineBridge.php
+
+		-
+			rawMessage: 'Call to function method_exists() with App\Models\User and ''saveAppAuthenticati…'' will always evaluate to true.'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/AutonomousPipelineBridge.php
+
+		-
+			rawMessage: 'Strict comparison using === between App\Models\FinanceWorkflowRun and null will always evaluate to false.'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Services/AutonomousPipelineBridge.php
+
+		-
+			rawMessage: 'Strict comparison using === between App\Models\Vendor and null will always evaluate to false.'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Services/AutonomousPipelineBridge.php
+
+		-
+			rawMessage: 'Strict comparison using === between Carbon\CarbonInterface and null will always evaluate to false.'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Services/AutonomousPipelineBridge.php
+
+		-
+			rawMessage: Using nullsafe property access "?->mfa_method" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/AutonomousPipelineBridge.php
+
+		-
+			rawMessage: 'Call to method createAgentWallet() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/CircleAgentWalletCli.php
+
+		-
+			rawMessage: 'Call to method estimateFee() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/CircleAgentWalletCli.php
+
+		-
+			rawMessage: 'Call to method fundTestnetWallet() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/CircleAgentWalletCli.php
+
+		-
+			rawMessage: 'Call to method isAuthenticatedFor() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/CircleAgentWalletCli.php
+
+		-
+			rawMessage: 'Call to method listWallets() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/CircleAgentWalletCli.php
+
+		-
+			rawMessage: Class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway not found.
+			identifier: class.notFound
+			count: 5
+			path: app/Services/CircleAgentWalletCli.php
+
+		-
 			rawMessage: 'Call to an undefined static method App\Models\Transaction::create().'
 			identifier: staticMethod.notFound
 			count: 2
@@ -1205,6 +1397,30 @@ parameters:
 			identifier: staticMethod.notFound
 			count: 1
 			path: app/Services/PaymentService.php
+
+		-
+			rawMessage: 'Call to function is_array() with array<string, mixed> will always evaluate to true.'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/Payments/CircleAgentHttpClient.php
+
+		-
+			rawMessage: 'Call to function is_string() with string will always evaluate to true.'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/Payments/CircleAgentHttpClient.php
+
+		-
+			rawMessage: 'Offset ''dir'' on array{name: string, passwd: string, uid: int, gid: int, gecos: string, dir: string, shell: string} on left side of ?? always exists and is not nullable.'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Payments/CircleAgentHttpClient.php
+
+		-
+			rawMessage: Offset 0 on non-empty-list<string> on left side of ?? always exists and is not nullable.
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Payments/CircleAgentHttpClient.php
 
 		-
 			rawMessage: 'Call to an undefined static method App\Models\AgentDecision::create().'
