@@ -6,8 +6,9 @@ description: Set school identity, safe evaluation defaults, background connectio
 Start with a simulated evaluation. Add provider credentials and network payment
 capabilities only after a separately approved review.
 
-For a host installation, settings usually come from `.env`. In Docker, variables must
-be forwarded into each service. Laravel's cached configuration can keep old values:
+For a host installation, settings usually come from `.env`. The current Docker Compose
+file loads `.env` for the app and has an explicit environment block that takes
+precedence. Review each service's effective values. Laravel's cached configuration can keep old values:
 refresh configuration and restart long-lived web/worker processes after changes.
 
 ## Evaluation checklist

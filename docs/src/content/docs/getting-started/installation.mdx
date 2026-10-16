@@ -26,7 +26,8 @@ The experimental bridge defaults on; do not assume a fresh install cannot submit
   Check the locked dependency requirements with Composer before deployment.
 - **Database:** SQLite is convenient locally; the supplied Compose stack uses PostgreSQL 16.
 - **Background work:** a durable database or Redis queue, a worker, and a scheduler.
-- **Docker path:** Docker Engine and the Compose v2 plugin. The image supplies its PHP runtime.
+- **Docker path:** Docker Engine and Compose v2.24 or newer for the current optional
+  `env_file` syntax. The image supplies its PHP runtime.
 - **Payment experiments:** separate approved Circle/Arc setup. Not needed for a first simulated trial.
 
 PHP needs the appropriate PDO driver and the extensions required by `composer.lock`,
@@ -35,13 +36,12 @@ Do not bypass platform checks to make an unsupported host appear compatible.
 
 ## Docker: start an isolated web instance
 
-Download the Compose file into a dedicated installation directory so updates use the
-same project name and volumes:
+Use a checkout so the Compose file's build context and Dockerfile are available.
+Keep this directory and Compose project identity stable for updates:
 
 ```bash
-mkdir opensinop
+git clone https://github.com/koamishin/OpenSinop.git opensinop
 cd opensinop
-curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml
 ```
 
 Review it before starting. Set institution identity, URL, a unique database password,
@@ -55,28 +55,35 @@ APP_DEBUG=false
 APP_URL=http://localhost:8000
 APP_PORT=8000
 DB_PASSWORD=replace-with-a-unique-password
+DB_DATABASE=opensinop
+POSTGRES_DB=opensinop
 EDUFLOW_INSTITUTION="Your School"
 EDUFLOW_COUNTRY=PH
 EDUFLOW_TIMEZONE=Asia/Manila
 EDUFLOW_CURRENCY=PHP
 ```
 
-The Compose file forwards only its listed environment values. It does **not** forward
-all wallet, bridge, mail, or runtime settings from `.env`. Add the settings in
-[Configure your instance](../configuration/) to the service environment through a
-reviewed Compose override. A host `.env` entry alone does not configure an unlisted
-container variable.
+The current Compose file loads `.env` with `env_file` and has an explicit
+`environment` block. That block takes precedence, including its defaults. Review the
+resolved configuration rather than assuming the file was passed through unchanged.
+Keep `DB_DATABASE` and `POSTGRES_DB` aligned when using the bundled PostgreSQL service;
+they are separate settings in this version.
 
 For an evaluation, include the fake driver, disabled payment/bridge flags, and submission
-stop in that override **before** starting the app. Keep signing credentials absent.
+stop from [Configure your instance](../configuration/) in `.env` **before** starting
+the app. Keep signing credentials absent. Do not copy `.env.example` wholesale into
+Compose without adjusting host-oriented database settings.
 
 ```bash
 docker compose config
-docker compose up -d
+docker compose pull
+docker compose up -d --no-build
 docker compose logs app
 ```
 
-The entrypoint attempts migrations and institution initialization. It can continue after
+If building locally instead of using a published image, use `docker compose build`
+and then `docker compose up -d`. The entrypoint attempts migrations and institution
+initialization. It can continue after
 some failures, so inspect logs and confirm the institution exists; a healthy HTTP server
 alone does not prove setup succeeded.
 
@@ -180,9 +187,10 @@ then restart long-lived workers. See [Operations](../../guides/operations/).
 ## Back up and update
 
 Keep the original installation directory, Compose project identity, volumes, and key.
-Back up independently before changing code, images, or schema. The supplied updater
-attempts a PostgreSQL dump but can continue after a failed dump; it does not provide a
-complete recovery guarantee for every database or uploaded file.
+Back up independently before changing code, images, or schema. The supplied Linux updater
+attempts a PostgreSQL dump or SQLite backup, depending on configuration, but can continue
+after backup problems. It does not provide a complete recovery guarantee for every
+database or uploaded file.
 
 :::danger[Preserve records and encryption keys]
 Never use `migrate:fresh`, regenerate `APP_KEY`, or run `docker compose down -v` on an
@@ -192,7 +200,7 @@ settings unreadable. Resolve changes forward with reviewed backups and migration
 
 The optional `install.sh` and `install.ps1` wizards collect settings and have update
 modes. Review the downloaded code before executing it. Selecting a driver in a wizard
-does not fix missing Compose environment forwarding or certify payment readiness.
+does not validate resulting database connectivity or certify payment readiness.
 
 ## Next step
 

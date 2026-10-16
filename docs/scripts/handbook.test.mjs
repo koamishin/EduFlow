@@ -63,3 +63,13 @@ test('edit links point at the docs project instead of the application root', () 
     assert.ok(config.includes('https://github.com/koamishin/OpenSinop/edit/main/docs/'));
     assert.ok(!config.includes('edit/main/docs/src/content/docs/'));
 });
+
+test('installation describes the current Compose env_file and separate database names', () => {
+    const compose = source('docker-compose.yml');
+    assert.match(compose, /env_file:/);
+    assert.match(compose, /POSTGRES_DB:/);
+    const installation = page('getting-started/installation');
+    assert.match(installation, /loads `\.env` with `env_file`/);
+    assert.match(installation, /`DB_DATABASE` and `POSTGRES_DB` aligned/);
+    assert.match(installation, /docker compose up -d --no-build/);
+});
