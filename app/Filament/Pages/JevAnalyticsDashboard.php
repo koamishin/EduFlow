@@ -175,6 +175,7 @@ class JevAnalyticsDashboard extends Page implements HasTable
 
                 TextColumn::make('input.label')
                     ->label('Evidence Context')
+                    ->state(fn (InstitutionPolicyEvaluation $record): string => $record->input['label'] ?? (ucwords(str_replace('_', ' ', (string) $record->source_type)).' #'.$record->source_id))
                     ->limit(35)
                     ->tooltip(fn (InstitutionPolicyEvaluation $record): string => $record->input['label'] ?? $record->reason)
                     ->description(fn (InstitutionPolicyEvaluation $record): string => $record->reason),
@@ -207,6 +208,12 @@ class JevAnalyticsDashboard extends Page implements HasTable
                             return '—';
                         }
                         $cat = $result['top_category_name'] ?? $result['category_id'] ?? null;
+                        if ($cat === null && isset($result['lines']) && is_array($result['lines'])) {
+                            $categories = array_values(array_filter(array_unique(array_column($result['lines'], 'category_id'))));
+                            if ($categories !== []) {
+                                $cat = implode(', ', $categories);
+                            }
+                        }
                         $conf = isset($result['confidence']) && is_numeric($result['confidence'])
                             ? round(((float) $result['confidence']) * 100).'%'
                             : null;

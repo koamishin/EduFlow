@@ -62,11 +62,11 @@ class JevDecisionSummaryWidget extends StatsOverviewWidget
 
             Stat::make('Staff Approval Rate', $approvals['approval_rate'].'%')
                 ->description($approvals['total_approved'].' approved of '.$approvals['total_reviewed'].' reviewed')
-                ->color($approvals['approval_rate'] >= 80 ? 'success' : 'warning'),
+                ->color($approvals['total_reviewed'] === 0 ? 'gray' : ($approvals['approval_rate'] >= 80 ? 'success' : 'warning')),
 
             Stat::make('Staff Concurrence Rate', $approvals['concurrence_rate'].'%')
                 ->description($approvals['concurrence_count'].' agreed · '.$approvals['override_count'].' overrides')
-                ->color($approvals['concurrence_rate'] >= 80 ? 'success' : 'warning'),
+                ->color($approvals['total_reviewed'] === 0 ? 'gray' : ($approvals['concurrence_rate'] >= 80 ? 'success' : 'warning')),
 
             Stat::make('Avg Time to Approval', $approvals['avg_time_to_approval_human'])
                 ->description($approvals['pending_review'].' currently awaiting review')

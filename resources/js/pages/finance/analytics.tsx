@@ -756,7 +756,12 @@ export default function JevAnalyticsPage({
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-14 gap-1.5 sm:gap-2 h-44 items-end pt-4">
+                                <div
+                                    style={{
+                                        gridTemplateColumns: `repeat(${Math.max(trends.length, 1)}, minmax(0, 1fr))`,
+                                    }}
+                                    className="grid gap-1.5 sm:gap-2 h-44 items-end pt-4"
+                                >
                                     {trends.map((point) => {
                                         const heightPercent = Math.max(
                                             Math.round(

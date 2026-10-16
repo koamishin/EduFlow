@@ -93,22 +93,44 @@ final readonly class JevAnalyticsService
                 $confidenceCount++;
             }
 
-            if ($decision === 'match' && is_array($result) && ! empty($result['category_id'])) {
-                $catId = (string) $result['category_id'];
-                $catName = (string) ($result['top_category_name'] ?? $catId);
-                $conf = isset($result['confidence']) && is_numeric($result['confidence']) ? (float) $result['confidence'] : 1.0;
+            if ($decision === 'match' && is_array($result)) {
+                if (! empty($result['category_id'])) {
+                    $catId = (string) $result['category_id'];
+                    $catName = (string) ($result['top_category_name'] ?? $catId);
+                    $conf = isset($result['confidence']) && is_numeric($result['confidence']) ? (float) $result['confidence'] : 1.0;
 
-                if (! isset($categoryCounts[$catId])) {
-                    $categoryCounts[$catId] = [
-                        'id' => $catId,
-                        'name' => $catName,
-                        'count' => 0,
-                        'total_confidence' => 0.0,
-                    ];
+                    if (! isset($categoryCounts[$catId])) {
+                        $categoryCounts[$catId] = [
+                            'id' => $catId,
+                            'name' => $catName,
+                            'count' => 0,
+                            'total_confidence' => 0.0,
+                        ];
+                    }
+
+                    $categoryCounts[$catId]['count']++;
+                    $categoryCounts[$catId]['total_confidence'] += $conf;
+                } elseif (isset($result['lines']) && is_array($result['lines'])) {
+                    foreach ($result['lines'] as $line) {
+                        if (is_array($line) && ! empty($line['category_id'])) {
+                            $catId = (string) $line['category_id'];
+                            $catName = (string) ($line['top_category_name'] ?? $catId);
+                            $conf = 1.0;
+
+                            if (! isset($categoryCounts[$catId])) {
+                                $categoryCounts[$catId] = [
+                                    'id' => $catId,
+                                    'name' => $catName,
+                                    'count' => 0,
+                                    'total_confidence' => 0.0,
+                                ];
+                            }
+
+                            $categoryCounts[$catId]['count']++;
+                            $categoryCounts[$catId]['total_confidence'] += $conf;
+                        }
+                    }
                 }
-
-                $categoryCounts[$catId]['count']++;
-                $categoryCounts[$catId]['total_confidence'] += $conf;
             }
         }
 
@@ -239,7 +261,7 @@ final readonly class JevAnalyticsService
             'override_count' => $overrideCount,
             'override_rate' => $totalReviewed > 0 ? round(($overrideCount / $totalReviewed) * 100, 1) : 0.0,
             'avg_time_to_approval_seconds' => $avgSeconds,
-            'avg_time_to_approval_human' => $this->formatDuration($avgSeconds, $totalReviewed),
+            'avg_time_to_approval_human' => $timeDurations !== [] ? $this->formatDuration($avgSeconds, count($timeDurations)) : ($totalReviewed > 0 ? 'N/A' : 'N/A (No reviews)'),
             'fastest_approval_seconds' => $fastest,
             'slowest_approval_seconds' => $slowest,
         ];
@@ -284,7 +306,10 @@ final readonly class JevAnalyticsService
         }
 
         foreach ($evaluations as $eval) {
-            $day = $eval->created_at->toDateString();
+            $day = $eval->created_at?->toDateString();
+            if ($day === null) {
+                continue;
+            }
             if (! isset($buckets[$day])) {
                 continue;
             }
@@ -401,13 +426,12 @@ final readonly class JevAnalyticsService
                 $status = $isApproved ? 'approved' : ($review->decision === 'hold' ? 'held' : 'rejected');
                 $jevDecision = $this->classifyDecision($eval);
 
-                // Concurrence: JEV matched and staff approved, or JEV flagged hold/review and staff held/rejected
-                $concurrence = ($jevDecision === 'match' && $isApproved)
-                    || (in_array($jevDecision, ['needs_review', 'hold'], true) && ! $isApproved);
+                $isJevPositive = in_array($jevDecision, ['match', 'exempt'], true);
+                $concurrence = ($isJevPositive && $isApproved) || (! $isJevPositive && ! $isApproved);
 
                 $approvalTime = $review->created_at ?? now();
                 $baselineTime = $eval->completed_at ?? $eval->created_at;
-                $duration = (int) $approvalTime->diffInSeconds($baselineTime, true);
+                $duration = $baselineTime !== null ? (int) $approvalTime->diffInSeconds($baselineTime, true) : null;
 
                 $reviewer = User::query()->find($review->reviewed_by);
 
@@ -445,13 +469,12 @@ final readonly class JevAnalyticsService
                     $isApproved = $review->decision === 'accept_plan';
                     $status = $isApproved ? 'approved' : ($review->decision === 'request_correction' ? 'held' : 'rejected');
                     $jevDecision = $this->classifyDecision($eval);
-
-                    $concurrence = ($jevDecision === 'match' && $isApproved)
-                        || (in_array($jevDecision, ['needs_review', 'hold'], true) && ! $isApproved);
+                    $isJevPositive = in_array($jevDecision, ['match', 'exempt'], true);
+                    $concurrence = ($isJevPositive && $isApproved) || (! $isJevPositive && ! $isApproved);
 
                     $approvalTime = $review->created_at ?? now();
                     $baselineTime = $eval->completed_at ?? $eval->created_at;
-                    $duration = (int) $approvalTime->diffInSeconds($baselineTime, true);
+                    $duration = $baselineTime !== null ? (int) $approvalTime->diffInSeconds($baselineTime, true) : null;
 
                     $reviewer = User::query()->find($review->reviewed_by);
 
@@ -493,13 +516,12 @@ final readonly class JevAnalyticsService
                     $isApproved = $auth->decision === 'approve_payment';
                     $status = $isApproved ? 'approved' : ($auth->decision === 'hold_payment' ? 'held' : 'rejected');
                     $jevDecision = $this->classifyDecision($eval);
-
-                    $concurrence = ($jevDecision === 'match' && $isApproved)
-                        || (in_array($jevDecision, ['needs_review', 'hold'], true) && ! $isApproved);
+                    $isJevPositive = in_array($jevDecision, ['match', 'exempt'], true);
+                    $concurrence = ($isJevPositive && $isApproved) || (! $isJevPositive && ! $isApproved);
 
                     $approvalTime = $auth->created_at ?? now();
                     $baselineTime = $eval->completed_at ?? $eval->created_at;
-                    $duration = (int) $approvalTime->diffInSeconds($baselineTime, true);
+                    $duration = $baselineTime !== null ? (int) $approvalTime->diffInSeconds($baselineTime, true) : null;
 
                     $reviewer = User::query()->find($auth->reviewed_by);
 
@@ -568,16 +590,24 @@ final readonly class JevAnalyticsService
             $catName = is_array($result)
                 ? ($result['top_category_name'] ?? $result['category_id'] ?? null)
                 : null;
+            if ($catName === null && isset($result['lines']) && is_array($result['lines'])) {
+                $categories = array_values(array_filter(array_unique(array_column($result['lines'], 'category_id'))));
+                if ($categories !== []) {
+                    $catName = implode(', ', $categories);
+                }
+            }
 
             $timeHuman = $approval['time_to_approval_seconds'] !== null
                 ? $this->formatSeconds($approval['time_to_approval_seconds'])
                 : null;
 
+            $sourceTypeLabel = ucwords(str_replace('_', ' ', (string) $eval->source_type));
+
             return [
                 'id' => $eval->id,
                 'source_type' => $eval->source_type,
                 'source_id' => $eval->source_id,
-                'label' => $eval->input['label'] ?? ucfirst($eval->source_type).' #'.$eval->source_id,
+                'label' => $eval->input['label'] ?? "{$sourceTypeLabel} #{$eval->source_id}",
                 'reason' => $eval->reason,
                 'jev_decision' => $jevDecision,
                 'category_name' => $catName,

@@ -25,15 +25,28 @@ require_once __DIR__.'/../Helpers/InstitutionPolicyFixtures.php';
 
 beforeEach(function (): void {
     Bus::fake();
-    $this->org = Organization::factory()->create();
+    /** @var Organization $org */
+    $org = Organization::factory()->create();
+    $this->org = $org;
     config([
         'queue.default' => 'database',
         'eduflow.institution_id' => $this->org->id,
     ]);
 
-    $this->admin = User::factory()->create()->assignRole(Role::findOrCreate('super_admin', 'web'));
-    $this->financeOfficer = User::factory()->create()->assignRole(Role::findOrCreate('finance_officer', 'web'));
-    $this->student = User::factory()->create()->assignRole(Role::findOrCreate('student', 'web'));
+    /** @var User $admin */
+    $admin = User::factory()->create();
+    $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+    $this->admin = $admin;
+
+    /** @var User $financeOfficer */
+    $financeOfficer = User::factory()->create();
+    $financeOfficer->assignRole(Role::findOrCreate('finance_officer', 'web'));
+    $this->financeOfficer = $financeOfficer;
+
+    /** @var User $student */
+    $student = User::factory()->create();
+    $student->assignRole(Role::findOrCreate('student', 'web'));
+    $this->student = $student;
 
     $this->policy = app(InstitutionPolicyWorkspace::class)->save($this->financeOfficer, institutionPolicyInput());
     $this->policy->update(['organization_id' => $this->org->id]);
@@ -398,6 +411,7 @@ test('decisionTrends aggregates time series with populated evaluations without t
 test('dual-control multi-review picks the latest immutable review for concurrence', function (): void {
     $service = app(JevAnalyticsService::class);
 
+    /** @var Budget $budget */
     $budget = Budget::factory()->create(['organization_id' => $this->org->id]);
 
     $snapshotId = DB::table('budget_snapshots')->insertGetId([
@@ -505,6 +519,7 @@ test('dual-control multi-review picks the latest immutable review for concurrenc
 test('budget plan review with request_correction maps to held status', function (): void {
     $service = app(JevAnalyticsService::class);
 
+    /** @var Budget $budget */
     $budget = Budget::factory()->create(['organization_id' => $this->org->id]);
 
     $snapshotId = DB::table('budget_snapshots')->insertGetId([
@@ -598,4 +613,134 @@ test('filament jev widgets render correctly with both empty and populated data',
     Livewire::test(JevApprovalConcurrenceChart::class)->assertSuccessful();
     Livewire::test(JevDecisionsTrendChart::class)->assertSuccessful();
     Livewire::test(JevCategoryDistributionChart::class)->assertSuccessful();
+});
+
+test('staff approval of exempt evaluation counts as concurrence and rejection counts as override', function (): void {
+    $service = app(JevAnalyticsService::class);
+
+    $batchId = DB::table('collection_batches')->insertGetId([
+        'capture_key' => (string) Str::uuid(),
+        'organization_id' => $this->org->id,
+        'prepared_by' => $this->financeOfficer->id,
+        'source_stream' => 'exempt_stream',
+        'source_reference' => 'ref-exempt',
+        'source_document_digest' => str_repeat('1', 64),
+        'currency' => 'USDC',
+        'received_minor_units' => 500000,
+        'restricted_minor_units' => 0,
+        'collected_from' => now()->subDay(),
+        'collected_until' => now(),
+        'snapshot' => json_encode(['exempt' => true]),
+        'snapshot_digest' => str_repeat('2', 64),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    // 1. Approved exempt review -> Concurrence
+    $reviewId = DB::table('collection_batch_reviews')->insertGetId([
+        'organization_id' => $this->org->id,
+        'collection_batch_id' => $batchId,
+        'reviewed_by' => $this->admin->id,
+        'decision' => 'approve_receipts',
+        'verification_reference' => 'verified-exempt',
+        'reason' => 'Exempt collection approved by admin',
+        'batch_digest' => str_repeat('3', 64),
+        'review_digest' => str_repeat('4', 64),
+        'created_at' => now()->addMinutes(5),
+        'updated_at' => now()->addMinutes(5),
+    ]);
+
+    $evalId = DB::table('institution_policy_evaluations')->insertGetId([
+        'organization_id' => $this->org->id,
+        'institution_policy_version_id' => $this->policy->id,
+        'requested_by' => $this->financeOfficer->id,
+        'request_key' => (string) Str::uuid(),
+        'source_type' => 'collection',
+        'source_id' => $batchId,
+        'source_digest' => str_repeat('5', 64),
+        'policy_digest' => str_repeat('6', 64),
+        'publication_digest' => str_repeat('7', 64),
+        'reason' => 'Exempt collection test',
+        'input' => json_encode(['source_type' => 'collection', 'source_id' => $batchId]),
+        'input_digest' => str_repeat('8', 64),
+        'state' => 'completed',
+        'stage' => 'completed',
+        'completed_targets' => 1,
+        'total_targets' => 1,
+        'timeline' => json_encode([]),
+        'result' => json_encode([
+            'category_id' => 'exempt',
+            'needs_review' => false,
+            'confidence' => 1.0,
+        ]),
+        'result_digest' => str_repeat('9', 64),
+        'created_at' => now(),
+        'completed_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $eval = InstitutionPolicyEvaluation::query()->findOrFail($evalId);
+    $approval = $service->resolveStaffApproval($eval);
+
+    expect($approval['concurrence'])->toBeTrue()
+        ->and($approval['is_override'])->toBeFalse()
+        ->and($approval['status'])->toBe('approved');
+
+    // 2. Override: Staff held/rejected the exempt collection
+    DB::table('collection_batch_reviews')->where('id', $reviewId)->update([
+        'decision' => 'hold',
+    ]);
+
+    $approvalOverridden = $service->resolveStaffApproval($eval);
+
+    expect($approvalOverridden['concurrence'])->toBeFalse()
+        ->and($approvalOverridden['is_override'])->toBeTrue()
+        ->and($approvalOverridden['status'])->toBe('held');
+});
+
+test('budget snapshot lines categories are aggregated in decisionBreakdown and recentAuditLog', function (): void {
+    $service = app(JevAnalyticsService::class);
+
+    $evalId = DB::table('institution_policy_evaluations')->insertGetId([
+        'organization_id' => $this->org->id,
+        'institution_policy_version_id' => $this->policy->id,
+        'requested_by' => $this->financeOfficer->id,
+        'request_key' => (string) Str::uuid(),
+        'source_type' => 'budget_snapshot',
+        'source_id' => 555,
+        'source_digest' => str_repeat('a', 64),
+        'policy_digest' => str_repeat('b', 64),
+        'publication_digest' => str_repeat('c', 64),
+        'reason' => 'Multi-line budget snapshot test',
+        'input' => json_encode(['source_type' => 'budget_snapshot', 'source_id' => 555]),
+        'input_digest' => str_repeat('d', 64),
+        'state' => 'completed',
+        'stage' => 'completed',
+        'completed_targets' => 2,
+        'total_targets' => 2,
+        'timeline' => json_encode([]),
+        'result' => json_encode([
+            'lines' => [
+                ['decision' => 'propose_human_review', 'category_id' => 'equipment', 'top_category_name' => 'Lab Equipment'],
+                ['decision' => 'propose_human_review', 'category_id' => 'materials', 'top_category_name' => 'Teaching Materials'],
+            ],
+        ]),
+        'result_digest' => str_repeat('e', 64),
+        'created_at' => now(),
+        'completed_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $breakdown = $service->decisionBreakdown($this->org->id);
+
+    expect($breakdown['match'])->toBe(1)
+        ->and($breakdown['categories'])->toHaveKey('equipment')
+        ->and($breakdown['categories'])->toHaveKey('materials');
+
+    $audit = $service->recentAuditLog($this->org->id, 5);
+    $item = $audit->firstWhere('id', $evalId);
+
+    expect($item)->not->toBeNull()
+        ->and($item['label'])->toBe('Budget Snapshot #555')
+        ->and($item['category_name'])->toContain('equipment');
 });
