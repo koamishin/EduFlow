@@ -1,67 +1,57 @@
 ---
-title: Documentation home
-description: Self-hosted Laravel platform for school finance — fee collections, budget planning, deterministic policy decisions and bounded USDC payments on Arc via Circle Agent Wallets.
+title: OpenSinop handbook
+description: Learn how your school records collections, reviews spending plans, and follows payments. Practical guides for finance staff, IT operators, and developers.
 template: splash
 hero:
-  tagline: Bounded departmental finance on Circle Agent Wallets + Arc.
+  title: School finance, one step at a time.
+  tagline: Understand what came in, what can be used, and what needs a decision. A practical guide to OpenSinop for the people running it.
   actions:
-    - text: Get started
-      link: getting-started/installation/
+    - text: See how it works
+      link: guides/workflows/
       icon: right-arrow
-    - text: For institutions
-      link: institution/overview/
-      icon: open-book
-      variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-OpenSinop is a self-hosted, open-source platform (MIT) that lets a school review the
-student fees it has already collected, plan their permitted use inside a department's
-approved budget, and — only after deterministic policy checks and human authorisation —
-connect an approved bill to a USDC payment on the [Arc](https://docs.arc.io) network
-through a Circle **Agent Wallet**.
+OpenSinop helps a school record money it has received, check department spending
+against an approved budget, and keep the evidence behind each decision together.
+It also has experimental payment workflows using Circle wallets and USDC on Arc Testnet.
 
-The money decisions live in plain PHP, never in a language model. The model may explain
-a decision; it never makes one, never holds a signing key, and never authorises a
-transfer.
+**Your existing accounting system still matters.** Recording a receipt here does not
+check your bank account. A testnet payment is not payment of a real school bill.
+
+## Start with your role
 
 <CardGrid>
-	<Card title="Installation" icon="rocket">
-		Docker Compose, the interactive installer, or bare metal — plus the first
-		administrator bootstrap.
-		[Read the installation guide →](getting-started/installation/)
-	</Card>
-	<Card title="Core concepts" icon="open-book">
-		Exact money, evidence-linked approvals, the three AI tiers and the five design
-		rules that keep payments safe.
-		[Read core concepts →](guides/core-concepts/)
-	</Card>
-	<Card title="For institutions" icon="building">
-		One installation per school, what an institution owns, and how the pilot
-		workflow runs end to end.
-		[Adoption overview →](institution/overview/)
-	</Card>
-	<Card title="Architecture" icon="setting">
-		A Laravel monolith with an Inertia/React front end, two Filament panels and a
-		Circle + Arc settlement layer.
-		[Explore the architecture →](architecture/)
-	</Card>
-	<Card title="Commands" icon="setting">
-		Every Artisan command the application registers — installation, policy,
-		dispatch, reconciliation and diagnostics.
-		[Open the command reference →](reference/commands/)
-	</Card>
-	<Card title="Troubleshooting" icon="open-book">
-		Agent sessions, faucet limits, driver and precision traps — with the exact
-		diagnostics to run.
-		[See troubleshooting →](reference/troubleshooting/)
-	</Card>
+  <LinkCard title="I work in finance" description="Record a collection, review a plan, and understand the next step." href="guides/collections/" />
+  <LinkCard title="I look after the server" description="Set up an instance, manage access, and keep background work running." href="getting-started/installation/" />
+  <LinkCard title="I want to contribute" description="Run the app locally and understand where each part belongs." href="getting-started/local-development/" />
+  <LinkCard title="Our school is evaluating it" description="Understand responsibilities, current limits, and a manageable first pilot." href="institution/overview/" />
 </CardGrid>
 
-## Project status
+## Follow one collection through the application
 
-OpenSinop is under active development. Self-hosting does **not** certify financial
-readiness. Use simulated data (`LEPTON_DRIVER=fake`) or an explicitly authorised Arc
-**testnet** pilot. Review the [Safety & Readiness](institution/safety-readiness/) page
-before enabling any payment path.
+1. **Record what arrived.** A finance officer enters a receipt or completed collection report.
+2. **Check it independently.** Another authorized staff member checks the amount and any restrictions.
+3. **Plan within the budget.** Staff select approved bills. OpenSinop checks whether both the allocation and available cash cover them.
+4. **Keep payment decisions separate.** Accepting a plan is not the same as approving or verifying a payment.
+
+For an example with ordinary school expenses, read [How OpenSinop works](guides/workflows/).
+No student records or AI provider are needed for the aggregate collection and planning path.
+
+## Before trying payments
+
+OpenSinop is under development, not a certified school treasury system. Start with
+simulated data. Treat network payments as a separately approved testnet experiment.
+
+An experimental automatic bridge is **enabled by default** and has entry points in the
+scheduler, command line, and staff screens. It is not a substitute for independent human
+approval. Operators should read [Current limits](institution/safety-readiness/) before
+connecting a wallet or starting background services.
+
+## Find a quick answer
+
+- **What does this word mean?** [Terms in plain English](reference/glossary/)
+- **Why is this item on hold?** [Troubleshooting](reference/troubleshooting/)
+- **Which screen should I open?** [How OpenSinop works](guides/workflows/#find-your-workspace)
+- **How do docs reach GitHub Pages?** [Docs publishing](guides/ci-cd/#publish-this-handbook)

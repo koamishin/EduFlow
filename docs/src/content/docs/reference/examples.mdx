@@ -1,169 +1,86 @@
 ---
-title: Examples
-description: Verified code patterns — exact money, gated transfers, settlement observation, fake-driver testing and Inertia/Wayfinder pages.
+title: Code examples
+description: Small examples of exact money and read-only configuration checks, with links to real integration tests instead of copy-paste payment shortcuts.
 ---
 
-## Exact money, never floats
+These examples are for contributors. They intentionally do not sign or submit a
+payment. Use the application's reviewed lifecycle rather than calling a transfer
+gateway from a new controller or one-off script.
+
+## Parse an exact amount
+
+`Money` is the application's DTO. Its decimal input is a string with the currency's
+supported precision:
 
 ```php
-use Yukazakiri\Lepton\Support\Amounts;
+use App\DTOs\Money;
+use App\Enums\CurrencyCode;
 
-// "45.00" -> 45_000000  (USDC = 6 decimals)
-$units = Amounts::fromDecimalString('45.00');
+$amount = Money::fromDecimal('45.125001', CurrencyCode::USDC);
 
-// 45_000000 -> "45.00"
-$display = Amounts::toDecimalString($units);
+$amount->toBaseUnits(); // 45125001
+$amount->decimal(); // "45.125001"
+$amount->jsonSerialize();
+// ["minor_units" => "45125001", "currency" => "USDC", "decimal" => "45.125001"]
 ```
 
-Never cast `(int) (45.00 * 1000000)`, and never `hexdec()` a chain quantity — Arc
-native USDC is 18 decimals, so 20 USDC is 2e19 wei, past `PHP_INT_MAX`, where `hexdec()`
-returns a float and an `(int)` cast wraps negative:
+Do not multiply a float by a million and cast it back to an integer. Formatting or
+chart values are not the authoritative stored amount.
+
+## Format a stored aggregate
 
 ```php
-use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
-use Yukazakiri\Lepton\Support\Amounts;
+use App\DTOs\Money;
 
-$arc = app(ArcNetworkGateway::class);
-$wei = $arc->rpc('eth_getBalance', [$address, 'latest']);
-
-// String arithmetic — exact.
-$usdc = Amounts::fromHexQuantity($wei, 18);
+Money::formatExact('45125001', 'USDC'); // "45.125001 USDC"
 ```
 
-## Guard the rail before any transfer
+The helper also supports string aggregates beyond a single `Money` integer. Malformed
+input returns an unavailable message instead of guessing a plausible amount.
+
+## Inspect a gate without creating authority
 
 ```php
-use Yukazakiri\Lepton\Contracts\AuthGateway;
+$submissionEnabled = (bool) config('eduflow.submission.enabled', false);
+$newSubmissionsStopped = (bool) config('eduflow.submission.stop_switch', false);
 
-// Mainnet and testnet authenticate independently.
-if (! app(AuthGateway::class)->isAuthenticatedFor('ARC-TESTNET')) {
-    // Refuse and ask an operator to run: php artisan lepton:login
-}
+$automaticBridgeEnabled = (bool) config('eduflow.autonomous_pipeline.enabled', true);
+$bridgeMayDisburse = (bool) config('eduflow.autonomous_pipeline.auto_disburse', true);
 ```
 
-Never call `beginLogin()`/`completeLogin()` from a queue worker or a settlement path —
-the OTP needs a human.
+These are observations, not an `isSafeToPay()` implementation. Approval evidence,
+current funding, correct rail, stop controls, and recovery identity must still be
+validated by the existing services. The bridge can override submission configuration
+in-process and not every direct caller checks its enabled flag.
 
-## Submit and observe a transfer (agent wallet)
+## Never infer settlement from transaction visibility
+
+This predicate is insufficient and must not be used:
 
 ```php
-use Yukazakiri\Lepton\Contracts\WalletGateway;
-use Yukazakiri\Lepton\Support\Amounts;
-
-$result = app(WalletGateway::class)->transfer(
-    fromAddress: '0xTreasury',      // a Circle *agent* wallet
-    toAddress: '0xRecipient',       // validated: 0x + exactly 40 hex chars
-    amountBaseUnits: Amounts::fromDecimalString('45.00'),
-    options: ['chain' => 'ARC-TESTNET', 'idempotencyKey' => (string) Str::uuid()],
-);
-
-$result->txHash;       // a claim, not proof — verify before calling it settled
-$result->explorerUrl;
-$result->isFake;       // true only under the fake driver
+// Incorrect: an array says nothing about success or the expected movement.
+$settled = is_array($transaction) && $transaction !== [];
 ```
 
-Supported options: `chain`, `rpcUrl`, `token`, `idempotencyKey`, `estimate` (`estimate`
-validates the fee without broadcasting; `LEPTON_DRY_RUN=true` applies it globally).
-An agent-wallet transfer is asynchronous: the CLI returns a Circle transaction id first,
-so poll until COMPLETE/FAILED and then verify the hash. A timeout is `unknown`, never
-`failed` — a blind resend risks paying twice.
+Use the dedicated verifier and reconciliation path with the original expected payment
+evidence. A hash lookup, provider `COMPLETE`, or webhook delivery alone is not that match.
+Do not write a new simplified settlement shortcut around them.
 
-## A transaction hash is only a claim
+## Learn from integration tests
 
-```php
-use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
+Read these real fixtures and negative cases before adding a path:
 
-$arc = app(ArcNetworkGateway::class);
+- `tests/Feature/TuitionToVendorWorkflowTest.php`: receipt, reviewed plan, payment approval,
+  single submission, and mocked matching settlement. The ordinary path leaves the source
+  invoice pending in this test.
+- `tests/Feature/StudentTuitionConsentRecoveryTest.php`: consent and recovery behavior.
+- `tests/Feature/StudentBillPaymentProcessorTest.php`: the separate incoming bill lane.
+- `tests/Feature/CircleWebhookTest.php`: notification containment and deduplication.
 
-// Visibility check only.
-$tx = $arc->rpc('eth_getTransactionByHash', [$hash]);
+Provider and chain stubs prove application behavior under those inputs. They are not
+evidence that a live provider integration or a school rollout succeeded.
 
-// Settlement requires a successful receipt with matching token, chain, sender,
-// recipient, exact amount and finality — see ArcSettlementVerifier /
-// PaymentSettlementReconciler for the full predicate.
-$settled = is_array($tx) && $tx !== [];
-```
+## Next step
 
-Never derive `fabricated` from a null lookup — an unreadable chain is *unresolved*, not
-evidence of wrongdoing.
-
-## Testing without a chain
-
-```php
-config(['lepton.default' => 'fake']);
-
-$wallets = app(Yukazakiri\Lepton\Contracts\WalletGateway::class);
-$wallets->seedBalance('0xTreasury', 45_000000);
-
-$result = $wallets->transfer('0xTreasury', '0xRecipient', 45_000000);
-$result->isFake;  // true — never present this as settled
-
-// Exercise authenticated paths.
-app(Yukazakiri\Lepton\Gateways\FakeLeptonGateway::class)->fakeAuthenticated();
-```
-
-Bindings are `scoped`, so they are safe under Octane; register an explicit fake per test
-rather than relying on a shared instance.
-
-## Runtime gates in your own code
-
-```php
-// Never assume a lane is on — read the same flags the scheduler reads.
-$canSubmit = (bool) config('eduflow.submission.enabled')
-    && ! (bool) config('eduflow.submission.stop_switch');
-
-$canObserveTuition = (bool) config('eduflow.student_tuition.observe_enabled');
-
-$autonomy = (bool) config('eduflow.mandate.runtime_enabled')
-    && (bool) config('eduflow.mandate.allow_nonzero_allowance');
-```
-
-## An Inertia page with a Wayfinder link
-
-```tsx
-// resources/js/pages/finance/evaluations/index.tsx
-import { Head, Link } from '@inertiajs/react';
-import { show } from '@/actions/App/Http/Controllers/InstitutionPolicyEvaluationController';
-
-type Evaluation = { id: number; status: string };
-
-export default function Evaluations({ evaluations }: { evaluations: Evaluation[] }) {
-    return (
-        <>
-            <Head title="Policy evaluations" />
-            <ul>
-                {evaluations.map((evaluation) => (
-                    <li key={evaluation.id}>
-                        {/* Generated route helper with form variants — never a hardcoded URL */}
-                        <Link href={show.url({ institutionPolicyEvaluation: evaluation.id })}>
-                            {evaluation.status}
-                        </Link>
-                    </li>
-                ))}
-            </ul>
-        </>
-    );
-}
-```
-
-Render it from a controller with `Inertia::render('finance/evaluations/index', [...])`.
-Wayfinder files (`resources/js/actions`, `resources/js/routes`) are regenerated by
-`npm run build` (`wayfinder:generate --with-form`) — never edit them by hand.
-
-## A deterministic decision, with an advisory on top
-
-```php
-// 1. Deterministic first — always computed in PHP.
-$decision = app(FinancialPolicyEngine::class)->evaluate(/* vendor, budget, reserve, limits */);
-
-// 2. Optional advisory may explain or flag — never decide.
-if ((bool) config('eduflow.institution_policy.advice_enabled')) {
-    $envelope = app(AdvisoryGate::class)->evaluate($decision); // fail-closed, no amount/verdict fields
-}
-
-// 3. Route the business decision to staff.
-```
-
-If a model proposes something outside the deterministic verdict — an amount, a recipient
-or a downgrade from `escalate` — the request is dropped, and the deterministic result
-stands.
+Read [Contribute and test](../../guides/development/) and
+[Money and evidence](../../guides/core-concepts/).

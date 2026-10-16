@@ -1,5 +1,5 @@
 ---
-title: Extensibility
+title: Extend the application
 description: Add finance use cases, Filament resources, Inertia pages, AI tools and modules following existing patterns.
 ---
 
@@ -11,7 +11,7 @@ description: Add finance use cases, Filament resources, Inertia pages, AI tools 
 | A domain service (planning, verification, orchestration) | `app/Services` | `php artisan make:class` |
 | A queued worker | `app/Jobs` | `php artisan make:job` |
 | An evidence record | `app/Models` + migration | `php artisan make:model` (with factory + seeder) |
-| An Inertia page | `resources/js/pages` + controller | `php artisan make:inertia-page` / `make:controller` |
+| An Inertia page | `resources/js/pages` + controller | Follow sibling TSX pages; use `make:controller` for the backend |
 | An admin CRUD surface | `app/Filament/Resources` | `php artisan make:filament-resource` |
 | A panel dashboard widget | `app/Filament/Widgets` or `app/Filament/Finance/Widgets` | `php artisan make:filament-widget` |
 | An AI agent or tool | `app/Ai/Agents`, `app/Ai/Tools` | `php artisan make:class` |
@@ -49,8 +49,8 @@ throttling), and re-check authorisation server-side for every state-changing act
   verdict.
 - **Agents** (`app/Ai/Agents`) orchestrate tools and structured output. The deterministic
   answer is always computed first; a model may rephrase it, never replace it.
-- Everything is fail-closed: an unavailable provider degrades to the deterministic
-  engine.
+- Inspect each caller's failure behavior. A missing explanation can fall back in one
+  path while publication or evaluation needs provider readiness in another.
 
 ## Modules
 
@@ -58,7 +58,7 @@ throttling), and re-check authorisation server-side for every state-changing act
 example and is enabled through `modules_statuses.json`.
 
 ```bash
-php artisan make:module MyModule
+php artisan module:make MyModule --no-interaction
 php artisan module:enable MyModule --no-interaction
 php artisan module:migrate --force --no-interaction
 ```

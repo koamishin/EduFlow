@@ -1,19 +1,24 @@
 ---
 title: Page not found
-description: The page you were looking for does not exist on this documentation site.
+description: Find the right OpenSinop guide from the handbook home, a staff task, or search.
 template: splash
 editUrl: false
+head:
+  - tag: meta
+    attrs:
+      name: robots
+      content: noindex
+  - tag: link
+    attrs:
+      rel: canonical
+      href: https://koamishin.github.io/OpenSinop/404.html
 ---
 
-That page does not exist — it may have been renamed, or the link that brought you here
-may be out of date.
+That page may have moved, or the link may be incorrect.
 
-Try one of these instead (links are relative so they work at any deployment base):
+import { LinkCard } from '@astrojs/starlight/components';
 
-- [Overview](./) — what OpenSinop is and where to start
-- [Installation](getting-started/installation/) — deploy OpenSinop
-- [Core concepts](guides/core-concepts/) — the design rules that keep payments safe
-- [For institutions](institution/overview/) — how a school adopts OpenSinop
-- [Artisan commands](reference/commands/) — every command the application registers
+<LinkCard title="Open the handbook" description="Choose a guide for finance staff, IT operators, or developers." href={`${import.meta.env.BASE_URL.replace(/\/+$/, '')}/`} />
 
-You can also use the search box in the header, or browse the sidebar.
+Use search in the header to find a screen name, command, or problem. The navigation
+also lists each guide by the task it helps you complete.

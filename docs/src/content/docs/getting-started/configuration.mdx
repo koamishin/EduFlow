@@ -1,205 +1,178 @@
 ---
-title: Configuration
-description: Environment variables, runtime gates and config files that control OpenSinop's finance, Circle/Arc and AI behaviour.
+title: Configure your instance
+description: Set school identity, safe evaluation defaults, background connections, and optional payment and AI settings without confusing environment variables with active configuration.
 ---
 
-Configuration lives in `.env` and the PHP files under `config/`. The most important
-values are the finance runtime gates: the **submission, tuition, bill and mandate lanes
-ship disabled** and are enabled only by an explicit operator decision.
+Start with a simulated evaluation. Add provider credentials and network payment
+capabilities only after a separately approved review.
+
+For a host installation, settings usually come from `.env`. The current Docker Compose
+file loads `.env` for the app and has an explicit environment block that takes
+precedence. Review each service's effective values. Laravel's cached configuration can keep old values:
+refresh configuration and restart long-lived web/worker processes after changes.
+
+## Evaluation checklist
+
+```dotenv
+LEPTON_DRIVER=fake
+LEPTON_WEBHOOKS_ENABLED=false
+EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false
+EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false
+EDUFLOW_SUBMISSION_ENABLED=false
+EDUFLOW_SUBMISSION_STOP=true
+EDUFLOW_TUITION_SUBMISSION_ENABLED=false
+EDUFLOW_TUITION_OBSERVATION_ENABLED=false
+EDUFLOW_TUITION_AUTO_INTAKE=false
+EDUFLOW_BILL_SUBMISSION_ENABLED=false
+EDUFLOW_BILL_OBSERVATION_ENABLED=false
+EDUFLOW_BILL_AUTO_INTAKE=false
+EDUFLOW_MANDATE_ENABLED=false
+EDUFLOW_MANDATE_ALLOWANCE=false
+```
+
+Keep signing credentials out of the evaluation instance. Do not use direct bridge
+commands or **Auto-Verify & Bridge**: not every direct entry point checks the enabled
+flag. See [Current limits](../../institution/safety-readiness/).
+
+## School identity and access
+
+Use `app:install` to persist the institution name, country, locale, timezone, and
+currency. English is the supported installation locale. Repeating identical setup is
+a no-op; changing existing identity is refused rather than overwritten.
+
+The persisted institution is the normal selection. `EDUFLOW_INSTITUTION_ID` is an
+optional explicit binding for legacy setups; if present, it must match. Do not select
+an arbitrary first organization or host unrelated schools in one database.
+
+The installer disables public registration, impersonation, and advisory AI settings.
+Those settings are distinct from wallet and bridge runtime flags. School currency
+metadata also does not convert existing monetary records.
+
+## Web, database, mail, and jobs
+
+| Setting | What to decide |
+| --- | --- |
+| `APP_ENV`, `APP_DEBUG` | Use `production` and `false` on a deployed instance. |
+| `APP_URL` | Your actual application address, used in links and mail. |
+| `APP_KEY` | Generate once for a new instance. Preserve it in backups. |
+| `DB_CONNECTION` and credentials | SQLite locally; supplied Compose uses PostgreSQL. |
+| `MAIL_*` | Working email verification and recovery delivery before staff access. |
+| `QUEUE_CONNECTION` | A durable `database` or `redis` connection. `sync` is not valid for these background finance workflows. |
+| `CACHE_STORE`, `SESSION_DRIVER` | Durable, appropriately shared stores for the deployed processes. |
+
+Planning and receipt routing are currently set to `true` directly in
+`config/eduflow.php`. **`EDUFLOW_BACKGROUND_FINANCE` and
+`EDUFLOW_FINANCE_QUEUE_CONNECTION` are not read there.** Planning uses the default
+queue connection; jobs such as policy evaluation also use its default queue.
+
+See [Run background services](../../guides/operations/) for named payment queues and
+the required retry/timeout relationship.
 
 ## One exception: the Autonomous Pipeline Bridge is on by default
 
-:::caution
-`config/eduflow.php` defaults `eduflow.autonomous_pipeline.enabled` and
-`eduflow.autonomous_pipeline.auto_disburse` to **true**, with a
-`max_auto_disburse_usdc` ceiling of **50.00**, and `routes/console.php` schedules
-`eduflow:autonomous-pipeline-bridge --latest` every five minutes. When the bridge runs
-it resolves evidence, obtains the funding-window approval and — for a bill at or under
-the ceiling — **sets `eduflow.submission.enabled` to true in-process**, submits it,
-reconciles settlement and marks the invoice paid on verified movement.
+The bridge is separate from ordinary payment submission. Its current defaults are:
 
-`composer run dev` does not start the scheduler, so this does not fire in the default
-development stack. It fires wherever the scheduler runs. If you are not ready for it,
-set `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false` (and
-`EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false`), and do not start the scheduler until
-you have read [Safety & Readiness](../../institution/safety-readiness/).
-:::
-
-## Core application
-
-| Variable | Description | Default |
+| Setting | Default | Meaning |
 | --- | --- | --- |
-| `APP_NAME` | Institution name used in titles and emails | `Laravel` |
-| `APP_ENV` | `local`, `staging`, `production` | `local` |
-| `APP_KEY` | Application encryption key (`php artisan key:generate`) | — |
-| `APP_DEBUG` | **Must be `false` in production** | `true` |
-| `APP_URL` | Base URL used for assets, emails and links | `http://localhost` |
-| `DB_CONNECTION` | `sqlite` (dev) or `pgsql`/`mysql` (production) | `sqlite` |
-| `QUEUE_CONNECTION` | `database` or `redis` — a durable connection is required for background finance | `database` |
-| `CACHE_STORE` / `SESSION_DRIVER` | Cache and session backends | `database` |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED` | `true` | Enables scheduled and some automatic bridge calls. Not a universal entry-point guard. |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE` | `true` | Allows later vendor submission within the bridge's ceiling. Earlier steps can still change review/planning records when off. |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_MAX_USDC` | `50.00` | Bill ceiling, not proof of a safe cumulative spending policy. |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_MAKER_ID` | `4` | Preferred staff record; the bridge can fall back to other users. |
+| `EDUFLOW_AUTONOMOUS_PIPELINE_REVIEWER_ID` | `1` | Preferred reviewer record; selection can fall back and grant permission. |
 
-## Lepton: Circle + Arc settlement
+The bridge can generate reviewer codes and set `eduflow.submission.enabled` to `true`
+inside the process. It is not fresh independent staff approval. Do not enable it merely
+to make an empty dashboard look active.
 
-All Circle/Arc access goes through the [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent)
-gateways — application code never shells out to `circle` or `arc-canteen` directly.
+## Optional wallet connection
+
+For an approved Arc Testnet experiment, verify the actual treasury address and custody
+model before supplying credentials:
 
 ```dotenv
-# Driver selection:
-#   fake      = in-memory simulated ledger (no CLI, credentials or funds; safe for demos/tests)
-#   circle    = live rail using the Circle Agent Stack CLI + Arc network
-#   developer = pure HTTP REST API using Circle Developer-Controlled Wallets
 LEPTON_DRIVER=circle
-LEPTON_CARCLE_BIN=circle
+LEPTON_CIRCLE_BIN=circle
 LEPTON_ARC_BIN=arc-canteen
 LEPTON_CHAIN=ARC-TESTNET
 LEPTON_CHAIN_ID=5042002
-LEPTON_TREASURY_ADDRESS=0x…   # a Circle *agent* wallet — a local arc-canteen wallet cannot be signed for
-LEPTON_RPC_URL=                 # optional RPC override
-LEPTON_DRY_RUN=false
-
-# Optional: LEPTON_DRIVER=developer (REST only, zero CLI binaries)
-LEPTON_CIRCLE_API_KEY=
-LEPTON_ENTITY_SECRET=
-LEPTON_WALLET_SET_ID=
-LEPTON_CIRCLE_API_URL=https://api.circle.com/v1/w3s
+LEPTON_TREASURY_ADDRESS=
+LEPTON_RPC_URL=
 ```
 
-:::caution[Driver version boundary]
-The application targets Lepton **v3** (`composer.json` requires `^3.0@rc`; the lock file
-installs `v3.0.0-rc.1`, a prerelease). Pin the version and validate it before a school
-release. Existing Agent Stack wallets are not automatically reachable through a
-Developer-Controlled Wallets API key — the REST drivers are a separate integration
-option, not a migration.
-:::
+`circle` uses the agent-wallet integration; `developer` / `circle-rest` select a
+different custody/API integration. They are not interchangeable access to the same
+wallets. The locked package is Lepton `v3.0.0-rc.1`, a prerelease.
 
-### Verified Circle notifications (opt-in)
+`LEPTON_CIRCLE_API_KEY`, `LEPTON_ENTITY_SECRET`, and `LEPTON_WALLET_SET_ID` belong to
+the developer-wallet configuration. Do not assume adding them enables an approved
+payment rail: current developer-wallet execution in the payment transport is blocked
+pending reviewed fee controls.
 
-`POST /api/webhooks/circle` answers `404` unless **both** `LEPTON_WEBHOOKS_ENABLED=true`
-and `LEPTON_DRIVER` is `developer` or `circle-rest`.
+Run `php artisan lepton:doctor --skip-transfer` for read-only diagnostics. Do not add
+transfer or wallet-adoption options unless separately authorized.
 
-| Variable | Purpose |
+## Payment and observation switches
+
+All submission/observation switches below default off. Stop switches default false;
+set them deliberately if stopping new sends is your intent.
+
+| Purpose | Settings |
 | --- | --- |
-| `LEPTON_WEBHOOKS_ENABLED` | Master switch for the webhook endpoint |
-| `LEPTON_WEBHOOK_SUBSCRIPTIONS` | Comma-separated subscription IDs this deployment may accept |
-| `LEPTON_WEBHOOK_MAX_AGE_SECONDS` | Acceptance window for a signed timestamp (default `86400`) |
+| Reviewed vendor submissions | `EDUFLOW_SUBMISSION_ENABLED`, `EDUFLOW_SUBMISSION_STOP`, `EDUFLOW_SUBMISSION_QUEUE_CONNECTION` |
+| Student tuition | `EDUFLOW_TUITION_SUBMISSION_ENABLED`, `EDUFLOW_TUITION_OBSERVATION_ENABLED`, `EDUFLOW_TUITION_SUBMISSION_STOP`, `EDUFLOW_TUITION_QUEUE_CONNECTION` |
+| Student campus bills | `EDUFLOW_BILL_SUBMISSION_ENABLED`, `EDUFLOW_BILL_OBSERVATION_ENABLED`, `EDUFLOW_BILL_SUBMISSION_STOP`, `EDUFLOW_BILL_QUEUE_CONNECTION` |
+| Receipt intake | `EDUFLOW_TUITION_AUTO_INTAKE`, `EDUFLOW_BILL_AUTO_INTAKE`, with named intake owners |
+| Recurring mandate checks | `EDUFLOW_MANDATE_ENABLED`, `EDUFLOW_MANDATE_ALLOWANCE`, `EDUFLOW_MANDATE_QUEUE_CONNECTION` |
 
-A verified event is stored once (unique `notificationId` + payload digest) and only
-queues observation — it never creates or submits a payment, and never settles one; the
-response is `202` with `settlement_verified: false`.
+Student network sends additionally require explicit account or bill allowlists
+(`EDUFLOW_TUITION_PILOT_ACCOUNT_IDS`, `EDUFLOW_BILL_PILOT_IDS`), appropriate recovery
+owners, valid consent, and the correct rail. Setting a flag alone does not satisfy them.
 
-Ingestion is contained: the handler requires `X-Circle-Signature` and `X-Circle-Key-Id`
-(`401` without them), caps the payload at 1 MiB (`413`), verifies the raw body against
-the notification key (`401` on failure), accepts only `transactions.inbound`,
-`transactions.outbound` and `webhooks.test` (`422` otherwise), validates the chain and
-UUID-shaped transaction id (`422`), and requires a durable `database`/`redis` queue
-(`503` otherwise). See [Security](../../guides/security/#webhook-ingestion).
+Keep observation and recovery available for existing uncertain attempts when stopping
+new payments. Turning off everything or deleting pending records can hide unresolved work.
 
-## Finance runtime gates
+## Optional AI providers
 
-Every switch below defaults **off**. Turning one on is an operator decision, not a
-consequence of anything else.
+Configure providers in **Settings → AI Providers**, and review the disclosure and
+advisory switches in **Settings → AI**. API keys are encrypted using `APP_KEY` and are
+not shown back in the edit form.
 
-### Student tuition (student → college, outbound)
-
-| Variable | Effect |
-| --- | --- |
-| `EDUFLOW_TUITION_SUBMISSION_ENABLED` | Sign new consented transfers (requires a rail that can enforce the fee ceiling) |
-| `EDUFLOW_TUITION_OBSERVATION_ENABLED` | Resolve already-accepted transfers on chain |
-| `EDUFLOW_TUITION_SUBMISSION_STOP` | Stop switch — halts new submissions, keeps recovery running |
-| `EDUFLOW_TUITION_AUTO_INTAKE` | Reconcile settled movements into Collections unattended (requires immutable consent + verified proof + a named non-payer intake owner) |
-| `EDUFLOW_TUITION_INTAKE_OWNER_ID` | Verified finance account credited as receipt maker; must not be a payer |
-| `EDUFLOW_TUITION_QUEUE_CONNECTION` | Durable queue connection for the lane (default `database`) |
-
-### Student bills (inbound intake)
-
-| Variable | Effect |
-| --- | --- |
-| `EDUFLOW_BILL_SUBMISSION_ENABLED` | Gate new submissions in the bill lane |
-| `EDUFLOW_BILL_OBSERVATION_ENABLED` | Resolve transfers that already exist |
-| `EDUFLOW_BILL_SUBMISSION_STOP` | Halt new sends while leaving reconciliation and recovery running |
-| `EDUFLOW_BILL_AUTO_INTAKE` | Unattended receipt reconciliation |
-| `EDUFLOW_BILL_PILOT_IDS` | Explicit comma-separated allow-list of bill IDs; a bill absent from it is never sent |
-
-### Vendor payment submission and standing mandates
-
-| Variable | Effect |
-| --- | --- |
-| `EDUFLOW_SUBMISSION_ENABLED` | Hand durable payment submissions to a worker |
-| `EDUFLOW_SUBMISSION_STOP` | Hold new submissions without erasing evidence or releasing a hold |
-| `EDUFLOW_SUBMISSION_TRANSPORT` | `auto` treats a Circle driver as the asynchronous agent wallet it is; `synchronous` forces the older hash-returning contract |
-| `EDUFLOW_MANDATE_ENABLED` | Whether any automatic release may be recorded at all |
-| `EDUFLOW_MANDATE_ALLOWANCE` | Whether a reviewed mandate may carry a nonzero per-occurrence ceiling — until on, every mandate authorises nothing |
-
-### Institution finance and policy
-
-| Variable | Effect |
-| --- | --- |
-| `EDUFLOW_INSTITUTION_ID` | Installation institution identity; required outside local/testing |
-| `EDUFLOW_INSTITUTION_POLICY_ADVICE` | Master switch for institution policy advisory calls |
-| `EDUFLOW_POLICY_CLASSIFICATION_ENGINE` | `text` or `jev` classification engine |
-| `EDUFLOW_BACKGROUND_FINANCE` | Read-only planning runtime; enabled in `config/eduflow.php` and needs a durable queue plus a supervised scheduler to do work |
-| `EDUFLOW_DISPLAY_CURRENCY` | Local currency shown beside USDC settlement amounts (default `PHP`) |
-| `EDUFLOW_MAX_RATE_AGE_SECONDS` | Maximum age of a rate source (default `900`) |
-| `EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED` | Autonomous Pipeline Bridge (tuition receipt → JEV evaluation → vendor disbursement). **Defaults to `true`** |
-| `EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE` | Whether the bridge may submit without manual authorisation. **Defaults to `true`** |
-| `EDUFLOW_AUTONOMOUS_PIPELINE_MAX_USDC` | Auto-disburse ceiling for the bridge (default `50.00`); a bill above it is held for manual authorisation |
-| `EDUFLOW_AUTONOMOUS_PIPELINE_MAKER_ID` / `_REVIEWER_ID` | Staff IDs the bridge attributes maker and reviewer roles to (defaults `4` / `1`) — set these to your own reviewed users |
-
-:::caution[`install:features` is destructive — run it deliberately]
-`php artisan install:features` applies the chisel feature scaffolding and *consumes* it:
-it strips every `/* @chisel-* */` marker and deletes `chisel.php`, `chisel-paths.php` and
-`app/Console/Commands/InstallFeaturesCommand.php`. No app code is lost and tests still
-pass, but the feature-toggling tooling is gone — recover with
-`git checkout -- chisel.php chisel-paths.php app/Console/Commands/InstallFeaturesCommand.php`.
-
-Composer's `post-update-cmd` only publishes vendor assets (`vendor:publish
---tag=laravel-assets`), so ordinary `composer require`/`update` does **not** run it.
-:::
-
-## AI providers (optional)
-
-OpenSinop runs with none of these. Every model call is fail-closed: a missing key, an
-unreachable endpoint, malformed output or a timeout resolves to “no advisory available”,
-and the deterministic engine proceeds alone. A model outage degrades the product; it
-never blocks a payment.
+For an OpenAI-compatible endpoint, the relevant environment names are:
 
 ```dotenv
-# Default provider: local (an OpenAI-compatible endpoint such as Ollama, vLLM, LiteLLM)
 AI_PROVIDER=local
 AI_LOCAL_URL=http://localhost:11434/v1
-AI_LOCAL_MODEL=ag/gemini-3.8-flash-high
-
-# Generic OpenAI-compatible gateway
-OPENAI_COMPATIBLE_URL=https://your-gateway.example.com/v1
-OPENAI_COMPATIBLE_MODEL=llama3.1
-OPENAI_COMPATIBLE_API_KEY=…
-
-# Hosted providers
-# OPENAI_API_KEY=sk-…
-# ANTHROPIC_API_KEY=sk-…
-# GEMINI_API_KEY=…
+AI_LOCAL_MODEL=your-installed-model
+AI_LOCAL_API_KEY=
 ```
 
-Providers can also be managed from **Settings → AI Providers** in the admin panel; API
-keys are encrypted at rest with `APP_KEY` and never rendered back into the edit form.
-See [Security](../../guides/security/#ai-boundaries) for the authority boundaries.
+The generic alternative uses `OPENAI_COMPATIBLE_URL`,
+`OPENAI_COMPATIBLE_MODEL`, and `OPENAI_COMPATIBLE_API_KEY`.
+Model names depend on your provider; no particular model is required by this handbook.
 
-## Config files
+`EDUFLOW_INSTITUTION_POLICY_ADVICE` controls institution policy advice, and
+`EDUFLOW_POLICY_CLASSIFICATION_ENGINE` selects `text` or `jev`. The repository's
+`.env.example` differs from some code defaults; inspect effective configuration rather
+than assuming every AI setting is off. Publication/evaluation workflows may require a
+configured provider even though manual collections and deterministic planning do not.
 
-| File | Controls |
-| --- | --- |
-| `config/eduflow.php` | Finance runtime gates, queue wiring, display currency, rate freshness, autonomous pipeline |
-| `config/lepton.php` (package) | Chain, driver, treasury, RPC and webhook verification |
-| `config/ai.php` | Provider registry and default models |
-| `config/fortify.php` | Authentication features (2FA, email verification, profile) |
-| `config/permission.php` | Spatie Permission / Filament Shield role and permission model |
-| `config/filament-activity-log.php` | Activity log, privacy mode and risk scoring |
-| `config/multitenancy.php` | Reserved for the future multi-institution hosting model — not enabled |
+## Webhook ingestion
+
+Keep `LEPTON_WEBHOOKS_ENABLED=false` unless configuring a reviewed developer-wallet
+notification integration. The handler requires a `developer`/`circle-rest` driver,
+signature headers, allowed subscription IDs, valid event/network identity, and a durable
+queue. Set `LEPTON_WEBHOOK_SUBSCRIPTIONS` explicitly.
+
+Verification stores a notification and queues observation. It does not authorize or
+settle a payment.
 
 ## Campus quick resources
 
-Cards beneath “My Assistance Requests” on the student dashboard are configured in
-`config/eduflow.php` under `resources`. A card becomes clickable only once its `url` is
-set; entries without one render as a muted placeholder rather than a dead link. `icon`
-must be a kebab-case Lucide icon name; unknown names fall back to a generic icon on the
-client.
+Student resource cards are configured under `resources` in `config/eduflow.php`.
+Cards without a URL stay inactive. Set real library, calendar, help, and office URLs
+instead of linking placeholder buttons.
+
+## Next step
+
+Start [background services](../../guides/operations/) only after confirming the
+evaluation boundary and how each enabled runtime can affect records or funds.

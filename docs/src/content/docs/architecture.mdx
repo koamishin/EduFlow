@@ -1,99 +1,96 @@
 ---
 title: Architecture
-description: OpenSinop's system design — a Laravel monolith with an Inertia SPA, two Filament panels, and a Circle/Arc settlement layer.
+description: A developer's map of the Laravel core, staff and student interfaces, background services, and payment evidence boundaries.
 ---
 
-OpenSinop is a **monolithic Laravel application**: server-side stability with a
-client-rendered front end, and Filament panels for operations — all on one database and
-one auth system.
+OpenSinop is one Laravel application with multiple interfaces, not separate finance
+microservices. Its HTTP routes, staff panels, jobs, and commands share the same domain
+records and installation context.
 
-## High-level design
+## System at a glance
 
-```mermaid
-graph TD
-    User[Student / Staff] -->|HTTPS| App[Laravel 13 · PHP 8.5 · Octane]
-    App -->|Inertia::render| Spa[Inertia v3 SPA · React 19 · Tailwind v4]
-    App -->|Livewire| Panels[Filament v5 panels: /admin · /finance]
-    App -->|Deterministic| Engine[Policy engines · Planner · Reconciler]
-    App -->|Gateways| Lepton[lepton-agent]
-    Lepton --> Circle[Circle Agent Stack CLI / REST]
-    Lepton --> Arc[Arc network · JSON-RPC]
-    App --> DB[(PostgreSQL / SQLite · Redis · Queues)]
-    App -->|Optional advisory| AI[laravel/ai · OpenAI-compatible providers]
+```text
+Browser
+  Staff panels: Filament / Livewire
+  Student and policy pages: React / Inertia
+          |
+Laravel actions and services
+  Collection evidence · planning · reviews · payment processing
+          |
+Database and private files       Queues and scheduler
+          |
+Payment transports and Lepton gateways
+          |
+Circle provider requests and Arc Testnet observations
 ```
 
-## Layers
+The static handbook in `docs/` is a separate Astro/Starlight build. It does not run
+Laravel, connect to the database, or host a payment endpoint.
 
-| Layer | Where | Responsibility |
-| --- | --- | --- |
-| HTTP / Inertia routes | `routes/web.php`, `routes/settings.php` | Student & staff SPA pages, finance evidence endpoints, webhook route |
-| Filament panels | `app/Filament` (Resources, Pages, Clusters, Widgets) | Admin at `/admin`, Finance at `/finance` |
-| Actions | `app/Actions` | Use-case commands: capture, review, prepare, activate, authorise, reserve, release |
-| Policies (business rules) | `app/Policies` | Invoice and assistance policy evaluation |
-| Services | `app/Services` | Domain orchestration: planning, affordability, settlement verification, submission, mandates, treasury |
-| Jobs | `app/Jobs` | Queued processing: assessments, evaluations, submissions, receipt reconciliation |
-| Models & DTOs | `app/Models`, `app/DTOs`, `app/Enums` | Evidence records, exact `Money` DTO, state enums |
-| AI layer | `app/Ai` (`Advisory`, `Agents`, `Tools`, `Approvals`) | Optional advisory with fail-closed gates |
-| Settlement gateway | `yukazakiri/lepton-agent` + `app/Services/CircleAgentWalletCli` | Circle/Arc access; the app never shells out itself |
-| Modules | `Modules/Blog` (nwidart) | Optional feature module, enabled via `modules_statuses.json` |
+## Interfaces
 
-## The settlement boundary
+- `routes/web.php` serves Inertia pages and authenticated finance endpoints.
+- `AdminPanelProvider` registers `/admin` for installation/accounts and records.
+- `FinancePanelProvider` registers `/finance` for collections, supervision, payment
+  approvals, treasury, and selected resources.
+- Student pages bind the signed-in student's account rather than accepting arbitrary ownership IDs.
 
-```mermaid
-graph LR
-    Service[App service] --> GW1[WalletGateway]
-    Service --> GW2[ArcNetworkGateway]
-    Service --> GW3[AuthGateway]
-    GW1 --> Circle[Circle Agent Stack · wallets]
-    GW2 --> Arc[Arc RPC · balances, receipts]
-    GW3 --> Auth[Email OTP sessions · mainnet/testnet independent]
-```
+Menu visibility is not authorization. Actions and services perform server-side checks;
+inspect the applicable policy before changing a route or reusing an action.
 
-All gateway bindings are **scoped**, so they are safe under Laravel Octane and do not
-leak request state between requests. `CircleCliGateway::transfer()` requires a tx hash
-and throws without one — a Circle agent wallet returns a transaction *id* first, so the
-working path is quiet submit → poll → hash → verify.
+## Evidence before authority
 
-## Domain model (evidence spine)
+The ordinary finance path is organized around records that keep their reviewed content:
 
-The finance domain is organised around immutable, digest-bound evidence:
+1. `CollectionBatch` and its review record what was received and independently checked.
+2. `InvoiceVersion` and its review preserve exact source bill evidence.
+3. `BudgetSnapshot` binds a selected bill set, allocation, cash, commitments, and receipts.
+4. `FinanceWorkflowRun` stores a planning result; `FinancePlanReview` records staff judgment.
+5. `PaymentIntent`, funding evidence, and `PaymentReservation` bind an exact proposed send.
+6. `PaymentAuthorization` records the normal reviewer decision and credential evidence.
+7. Outbox and attempt records retain submission identity through provider uncertainty.
+8. Settlement reconciliation checks the expected movement before recording verified results.
 
-| Group | Models |
-| --- | --- |
-| Collections | `CollectionBatch`, `CollectionBatchReview` |
-| Bills & sources | `Invoice`, `InvoiceVersion`, `InvoiceVersionReview`, `Vendor`, `VendorDestinationVersion`, `VendorDestinationApproval` |
-| Budgets & cash | `Budget`, `BudgetSnapshot`, `FundingWindow`, `FundingWindowApproval`, `PaymentReservation`, `PaymentReservationRelease` |
-| Payments | `PaymentIntent`, `PaymentIntentChange`, `PaymentAuthorization`, `PaymentSubmissionOutbox`, `PaymentSubmissionAttempt`, `RecurringMandate`, `MandateOccurrence`, `Transaction` |
-| Policy | `FinancePolicyVersion`, `FinancePolicyActivation`, `InstitutionPolicyVersion`, `InstitutionPolicyEvaluation`, `AssistancePolicyVersion` |
-| Students | `Student`, `TuitionAccount`, `StudentWallet`, `StudentWalletFunding`, `StudentBill`, `StudentBillPayment`, `StudentTuitionPayment`, `StudentTuitionPaymentIntent`, `StudentTuitionPaymentAttempt` |
-| AI | `AiProvider`, `AgentDecision`, `ChatSession`, `ChatMessage` |
-| Audit & identity | `User`, `Organization`, `Role`, activity log, `SocialAccount` |
+Digests detect content drift. They do not independently authenticate a source document
+or prevent a database administrator from rewriting all content and fingerprints.
 
-## Runtime and deployment
+## Payment transport is asynchronous
 
-- **Octane** — the app bootstraps once and serves many requests; never store
-  request-specific state in singletons or statics.
-- **Queues** — named queues per lane: `finance-submission`, `finance-planning`,
-  `student-tuition`, `student-bills`, `finance-mandate`, `policy-assessments`,
-  `default`. Run workers on each queue you enable.
-- **Scheduler** — `routes/console.php`, every tick gated on its own flag (see
-  [Workflows](../guides/workflows/#background-runtime)).
-- **Docker** — `docker/Dockerfile` builds a multi-stage image (Composer vendor stage,
-  Bun asset stage, FrankenPHP runtime) managed by Supervisor; `Dockerfile` at the root
-  builds the same production image and `docker-compose.yml` pairs it with PostgreSQL 16
-  and Redis 7.
+`CircleAgentWalletTransport` returns a provider handle on acceptance and later resolves
+it to a transaction hash. It has an HTTP agent-wallet path and CLI fallback; do not
+describe every operation as spawning `circle`.
 
-## AI structure
+The dedicated executor accepts already bound submission work. The verifier, not the
+executor or a notification, determines whether matching movement settled. Tuition
+and campus-bill processors have their own consent, recovery, and posting paths.
 
-`app/Ai` is optional and fail-closed:
+`CircleRestGateway` is a different developer-wallet integration. Current payment
+transport execution refuses it pending reviewed payer-fee controls; an API key is not
+automatic access to existing agent wallets.
 
-- `Advisory` — `AdvisoryGate`, `AdvisoryEnvelope`, `AdvisorySanitizer`, `BriefGuard`,
-  `QnaGate`, `StudentBrief`
-- `Agents` — `InstitutionPolicyAnalyst`, `TreasuryAnalyst`, `AssistanceAssessor`,
-  `BillClassifier`, `AskEduFlowAgent`, `AdminAssistantAgent`, `SettlementOperatorFactory`
-- `Tools` — `InspectInstitutionFinance` (read-only), `DisburseAssistance` (approvable),
-  admin read-only tools
-- `Approvals` — pause/resume gates for human approval of a paused tool call
+## Background processing
 
-Institution finance inspection requires no students, aid fund or AI provider; an
-`InspectInstitutionFinance` tool is read-only and reports `can_execute=false`.
+Planning and policy evaluations use Laravel's default queue connection/queue in the
+current dispatchers. Payment jobs use configured named queues and connections. The
+scheduler dispatches/reconciles work under separate flags.
+
+The app uses Octane in the image. Do not place request-specific state in shared
+singletons or statics. Changes to cached settings or code need the appropriate
+long-lived processes restarted.
+
+## Experimental and legacy paths
+
+`AutonomousPipelineBridge` reuses finance actions but selects reviewer identities,
+may grant permissions, generates TOTP inputs, enables submission in-process, and can
+mark invoices paid. It is not equivalent to independent staff authorization.
+
+The legacy `EduFlowAgent` invoice/assistance cycle is also different from the reviewed
+vendor path. Preserve the distinction in tests, documentation, and UI claims. See
+[Current limits](../institution/safety-readiness/) for the operating boundary.
+
+## Where to read next
+
+- [Money and evidence](../guides/core-concepts/) for amount and settlement semantics.
+- [Project map](../guides/directory-structure/) for source locations.
+- `tests/Feature/TuitionToVendorWorkflowTest.php` for an ordinary reviewed flow using mocked rail evidence.
+- `app/Services/AutonomousPipelineBridge.php` for experimental behavior, not a template for production review.

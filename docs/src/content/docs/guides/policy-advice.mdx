@@ -1,0 +1,67 @@
+---
+title: Use policy advice
+description: Understand institution policies, advisory evaluations, and what a policy match does—and does not—approve.
+---
+
+OpenSinop has optional tools to explain how a collection or proposed expense relates to
+your institution's written policy. Advice helps a reviewer; it does not replace one.
+
+## Two kinds of policy
+
+**Institution policy** contains the school's clauses, categories, examples, and
+clarifications. Staff use it to ask how a source should be classified.
+
+**Finance controls** contain exact limits such as minimum reserve, daily disbursement
+limit, automatic payment limit, and maximum fee. The application checks these in code.
+
+Publishing an institution policy can activate its linked finance controls. Publication
+is a meaningful configuration decision, not just saving text, but it is still not
+approval of an individual payment.
+
+## Prepare and publish a policy
+
+In **Institution policies**, authorized staff save a revision with clauses, categories,
+examples, and exact controls. The normal publication path requires analysis of the
+saved revision, passing saved examples, resolved clarification questions, and an
+independent authorized reviewer.
+
+If the active controls change separately, the old publication is not automatically
+treated as current advice. Refresh the context before requesting another evaluation.
+
+## Request advice about a source
+
+Open **Policy evaluations**, or choose **Re-evaluate policy** from a collection.
+The application can evaluate recorded collections, transactions, or eligible USDC
+budget snapshots against the active policy.
+
+You need an active policy, a configured advisory provider when required by the chosen
+engine, and a durable queue. An evaluation request does not review the receipt, reserve
+funds, or submit a payment.
+
+## Read the result
+
+- **Match:** a suggested category or clause fit. It is not payment approval.
+- **Needs review:** uncertainty or missing evidence needs attention.
+- **Hold:** inspect the recorded reasons. Do not assume every hold is an enforced transfer stop.
+- **Exempt:** the evaluation treated the source as excluded under its rules, not exempt from every financial control.
+
+The dashboard's confidence, concurrence, and timing figures describe recorded
+evaluations and reviews. They do not certify accuracy, savings, or financial safety.
+
+:::caution[Receipt approval is a separate action]
+The Policy evaluations screen also has a receipt approval action. For tuition-linked
+collections, that action can invoke the experimental automatic bridge when enabled.
+Reading advice is not the same as clicking approval. See
+[Current limits](../../institution/safety-readiness/#experimental-automatic-bridge).
+:::
+
+## If advice is unavailable
+
+Keep using the source evidence and ordinary review process. Do not invent a policy
+match. Ask your operator to check provider settings, the active policy, queue readiness,
+and the evaluation's error or missing-evidence message.
+
+## Next step
+
+Use [Plan department spending](../planning/) for a spending proposal, or
+[Record and review collections](../collections/) for receipt evidence.

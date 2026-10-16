@@ -1,9 +1,12 @@
 ---
-title: Customization
-description: Rebrand the application, manage themes, and configure student-facing resources without forking the code.
+title: School branding
+description: Change application naming, resource links, and display currency while keeping financial identity and theme behavior distinct.
 ---
 
 ## Branding
+
+Branding changes presentation, not saved institution identity or payment authority.
+Changing `APP_NAME` does not rename an installed institution through `app:install`.
 
 - **Application name** — set `APP_NAME` in `.env` (used in browser titles, emails and
   panel branding).
@@ -57,7 +60,7 @@ breaks the build.
 settlement amounts on staff screens. It is presentation only — it never converts stored
 USDC amounts and never becomes a payment currency.
 
-## Feature toggles (chisel)
+## Feature scaffolding (developer task)
 
 Feature scaffolding is managed with chisel: marker comments in the codebase plus
 `chisel.php` / `chisel-paths.php`, and `php artisan install:features` to apply.
@@ -65,14 +68,13 @@ Feature scaffolding is managed with chisel: marker comments in the codebase plus
 :::caution
 `php artisan install:features` is one-shot: it applies the chisel markers and then
 deletes `chisel.php`, `chisel-paths.php` and `app/Console/Commands/InstallFeaturesCommand.php`
-along with the markers themselves. No app code is lost and tests still pass, but the
-feature-toggling tooling is gone — recover with
-`git checkout -- chisel.php chisel-paths.php app/Console/Commands/InstallFeaturesCommand.php`.
-Composer's `post-update-cmd` does not invoke it, so an ordinary `composer update` is safe.
+along with the markers themselves. Inspect and commit the intended result deliberately.
+Do not use it for a branding change or restore files over someone else's edits.
+Composer's `post-update-cmd` does not invoke it; that hook publishes Laravel assets.
 :::
 
 ## AI posture
 
 Advisory, provider endpoints, keys, timeouts and the disbursement-proposal switch live in
 the admin panel (**Settings → AI** and **Settings → AI Providers**); see
-[Configuration](../../getting-started/configuration/#ai-providers-optional) for the semantics.
+[Configuration](../../getting-started/configuration/#optional-ai-providers) for the semantics.

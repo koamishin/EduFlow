@@ -12,10 +12,11 @@ export default defineConfig({
     integrations: [
         starlight({
             title: 'OpenSinop',
-            description: 'Bounded departmental finance on Circle Agent Wallets + Arc',
+            description: 'A practical handbook for school finance teams, operators, and contributors.',
             favicon: '/favicon.ico',
             customCss: ['./src/styles/custom.css'],
             disable404Route: true,
+            tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
             social: [
                 {
                     icon: 'github',
@@ -25,66 +26,60 @@ export default defineConfig({
             ],
             editLink: {
                 baseUrl:
-                    'https://github.com/koamishin/OpenSinop/edit/main/docs/src/content/docs/',
+                    'https://github.com/koamishin/OpenSinop/edit/main/docs/',
             },
             sidebar: [
                 {
-                    label: 'Start Here',
+                    label: 'Start here',
                     items: [
-                        { label: 'Overview', slug: '' },
-                        {
-                            label: 'Installation',
-                            slug: 'getting-started/installation',
-                        },
-                        {
-                            label: 'Configuration',
-                            slug: 'getting-started/configuration',
-                        },
-                        {
-                            label: 'Local Development',
-                            slug: 'getting-started/local-development',
-                        },
+                        { label: 'Welcome', slug: '' },
+                        { label: 'How OpenSinop works', slug: 'guides/workflows' },
+                        { label: 'Is it right for our school?', slug: 'institution/overview' },
+                        { label: 'Current limits', slug: 'institution/safety-readiness' },
                     ],
                 },
                 {
-                    label: 'Concepts',
+                    label: 'For finance staff',
                     items: [
-                        { label: 'Core Concepts', slug: 'guides/core-concepts' },
-                        { label: 'Workflows', slug: 'guides/workflows' },
+                        { label: 'Record and review collections', slug: 'guides/collections' },
+                        { label: 'Plan department spending', slug: 'guides/planning' },
+                        { label: 'Review a payment', slug: 'guides/payment-approvals' },
+                        { label: 'Use policy advice', slug: 'guides/policy-advice' },
+                        { label: 'Student payment screens', slug: 'guides/students' },
+                        { label: 'Run a small pilot', slug: 'institution/pilot-playbook' },
+                    ],
+                },
+                {
+                    label: 'For IT operators',
+                    items: [
+                        { label: 'Install an instance', slug: 'getting-started/installation' },
+                        { label: 'Configure your instance', slug: 'getting-started/configuration' },
+                        { label: 'Run background services', slug: 'guides/operations' },
+                        { label: 'Manage access and security', slug: 'guides/security' },
+                        { label: 'School branding', slug: 'guides/customization' },
+                    ],
+                },
+                {
+                    label: 'For developers',
+                    collapsed: true,
+                    items: [
+                        { label: 'Local setup', slug: 'getting-started/local-development' },
                         { label: 'Architecture', slug: 'architecture' },
-                    ],
-                },
-                {
-                    label: 'For Institutions',
-                    items: [
-                        { label: 'Adoption Overview', slug: 'institution/overview' },
-                        { label: 'Pilot Playbook', slug: 'institution/pilot-playbook' },
-                        {
-                            label: 'Safety & Readiness',
-                            slug: 'institution/safety-readiness',
-                        },
-                    ],
-                },
-                {
-                    label: 'Guides',
-                    items: [
-                        { label: 'Security', slug: 'guides/security' },
-                        { label: 'Customization', slug: 'guides/customization' },
-                        { label: 'Extensibility', slug: 'guides/extensibility' },
-                        {
-                            label: 'Directory Structure',
-                            slug: 'guides/directory-structure',
-                        },
-                        { label: 'Development', slug: 'guides/development' },
-                        { label: 'CI/CD & Deployment', slug: 'guides/ci-cd' },
+                        { label: 'Money and evidence', slug: 'guides/core-concepts' },
+                        { label: 'Project map', slug: 'guides/directory-structure' },
+                        { label: 'Contribute and test', slug: 'guides/development' },
+                        { label: 'Extend the application', slug: 'guides/extensibility' },
+                        { label: 'Releases and docs publishing', slug: 'guides/ci-cd' },
                     ],
                 },
                 {
                     label: 'Reference',
+                    collapsed: true,
                     items: [
-                        { label: 'Artisan Commands', slug: 'reference/commands' },
+                        { label: 'Terms in plain English', slug: 'reference/glossary' },
+                        { label: 'Command reference', slug: 'reference/commands' },
                         { label: 'Troubleshooting', slug: 'reference/troubleshooting' },
-                        { label: 'Examples', slug: 'reference/examples' },
+                        { label: 'Code examples', slug: 'reference/examples' },
                     ],
                 },
             ],

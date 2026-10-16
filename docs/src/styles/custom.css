@@ -1,17 +1,60 @@
-/* Starlight theme overrides for the OpenSinop documentation site. */
-
-/* Brand accent: amber, the same primary colour used by the admin and finance
-   Filament panels. Overrides the default purple accents in both themes. */
+/* Keep Starlight's navigation and controls; give long guides a quieter reading measure. */
 :root {
-	--sl-color-accent-low: #fdf3e0;
-	--sl-color-accent: #b45309;
-	--sl-color-accent-high: #92400e;
-	--sl-color-accent-contrast: #1c1917;
+    --sl-color-accent-low: #451a03;
+    --sl-color-accent: #f59e0b;
+    --sl-color-accent-high: #fef3c7;
+    --sl-content-width: 48rem;
+    --sl-text-body: 1rem;
+    --sl-line-height: 1.75;
 }
 
-:root[data-theme='dark'] {
-	--sl-color-accent-low: #451a03;
-	--sl-color-accent: #f59e0b;
-	--sl-color-accent-high: #fbbf24;
-	--sl-color-accent-contrast: #1c1917;
+:root[data-theme='light'] {
+    --sl-color-accent-low: #fef3c7;
+    --sl-color-accent: #92400e;
+    --sl-color-accent-high: #451a03;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4),
+.hero h1 {
+    text-wrap: balance;
+}
+
+.sl-markdown-content :is(p, li) {
+    text-wrap: pretty;
+}
+
+.sl-markdown-content :is(p, li) code {
+    overflow-wrap: anywhere;
+}
+
+.sl-markdown-content table {
+    font-size: var(--sl-text-sm);
+}
+
+.sl-markdown-content a:not([class]) {
+    text-underline-offset: 0.2em;
+}
+
+.hero .tagline {
+    max-width: 40rem;
+}
+
+/* Keep the reading paths near the top, rather than below a marketing-sized hero. */
+.hero {
+    padding-block: 2rem;
+}
+
+.hero h1 {
+    max-width: 40rem;
+    font-size: 3rem;
+}
+
+.sl-markdown-content > :is(p, ul, ol) {
+    max-width: 48rem;
+}
+
+@media (max-width: 50rem) {
+    .hero h1 {
+        font-size: 2.25rem;
+    }
 }

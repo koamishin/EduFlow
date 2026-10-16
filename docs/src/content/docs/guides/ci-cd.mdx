@@ -1,108 +1,85 @@
 ---
-title: CI/CD & Deployment
-description: GitHub Actions pipelines for CI, preview and official Docker releases, plus the GitHub Pages workflow that publishes this documentation site.
+title: Releases and docs publishing
+description: How application checks and release jobs differ from the automatic GitHub Pages workflow for this handbook.
 ---
 
-## Application pipelines
+The application release and the documentation website are separate builds.
+A successful handbook deployment does not test payment readiness or release a new
+application image.
 
-| Workflow | Trigger | Purpose |
-| --- | --- | --- |
-| `.github/workflows/ci.yml` | push/PR to `main`, `develop`, `master`, `workos` | Pint, PHPStan (8.5), Rector dry-run, Pest (backend + browser groups, Node 22, Playwright Chromium), Vite-Plus frontend check |
-| `.github/workflows/auto-release.yml` | successful CI run on push to `develop`/`main` | Validates CI provenance, checks out the exact tested SHA, resolves a preview identity, builds the multi-arch FrankenPHP image and pushes a **preview** release (never `latest`) |
-| `.github/workflows/manual-official-release.yml` | manual `workflow_dispatch` on `main` | Official release: version/tag validation, refuses existing tags and rejects `latest` for drafts/prereleases, promotes the image, updates `version.json` |
-| `.github/workflows/docker-latest.yml` | manual `workflow_dispatch` | Ad hoc Docker build check only — never publishes |
+## Application checks
 
-Release safety rules encoded in these workflows:
+`.github/workflows/ci.yml` runs PHP style, static analysis, Rector checks, frontend
+linting, TypeScript, and backend/browser tests for its configured branches and PRs.
+Read the workflow for the current matrix and installed tool versions.
 
-- Only successful **same-repository push** CI may publish a preview, from the branch head
-  that CI actually tested (an obsolete run for a newer head is refused), and the CI
-  workflow path is verified against the trusted `.github/workflows/ci.yml`.
-- Preview images use `preview` and version/SHA tags; `latest` is reserved for official
-  releases from `main`.
-- Configure required reviewers on the GitHub `release` environment before official
-  publication; an environment name alone does not enforce approval.
+The preview release workflow waits for successful same-repository push CI and checks
+the tested commit's provenance. Preview image tags do not automatically replace stable
+`latest`. Manual official releases have separate version, tag, and CI checks.
 
-## Docker architecture
+Required reviewers on a GitHub environment must be configured in repository settings;
+an environment name alone does not enforce independent approval.
 
-The production image is multi-stage:
+## Container runtime is not every service
 
-1. **Vendor stage** — `composer:2.8` installs PHP dependencies with an optimised
-   classmap (no dev, no scripts).
-2. **Assets stage** — `oven/bun:1` builds the frontend via Vite (Wayfinder generation
-   included).
-3. **Runtime** — `dunglas/frankenphp` (1.9) + `laravel/octane`, managed by Supervisor:
-   FrankenPHP/Octane web server, queue worker(s), scheduler, plus optional Horizon/Pulse
-   configs (`docker/supervisord.*.conf`) when those packages are installed.
+The image includes FrankenPHP/Octane and Supervisor configurations. Default HTTP mode
+starts the web process and optional installed monitoring programs, not the general
+queue worker or scheduler. Shipping their config files is not the same as running them.
+Use [Operations](../operations/) for background setup.
 
-Related files: `docker/Dockerfile`, `docker/Dockerfile-Dev`, `docker/start-container`
-(the image entrypoint), `docker/run.sh`, `docker/healthcheck`, `docker/nginx.conf`,
-`docker/php-fpm.conf`.
+## Publish this handbook
 
-The runtime stage bakes identity defaults as build arguments — `APP_NAME=OpenSinop`,
-`APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=http://localhost:8000` — and sets
-`CONTAINER_MODE=http`, so a stock build never points at someone's production URL. Pass
-your own values (`--build-arg …` in `docker/run.sh`, or the `environment:` block in
-Compose) for a school deployment.
+`.github/workflows/docs.yml` builds Astro/Starlight in `docs/`, checks internal links,
+and publishes `docs/dist` to GitHub Pages.
 
-`docker-compose.yml` runs the published image (`ghcr.io/koamishin/opensinop`) with
-PostgreSQL 16 and Redis 7 and four named volumes (`opensinop_db`, `opensinop_storage`,
-`opensinop_cache`, `opensinop_redis`). See [Installation](../../getting-started/installation/).
+| Event | Result |
+| --- | --- |
+| PR to `main` changing `docs/**` or the workflow | Build and link validation only. |
+| Push to `main` changing those paths | Build, validate, and publish. |
+| Manual run on `main` | Build, validate, and republish. |
+| Manual run on another branch | Build only; cannot replace the published site. |
 
-## This documentation site (GitHub Pages)
+The repository's Pages source must be **GitHub Actions**, not branch publishing of raw
+MDX. This handbook is static; it needs no Laravel server, school database, or provider
+credentials in the workflow.
 
-The docs in `docs/` are an Astro + Starlight site. `.github/workflows/docs.yml` builds
-and publishes it to GitHub Pages:
+## Preview a change locally
 
-```yaml
-on:
-  push:
-    branches: [main]
-    paths: ['docs/**', '.github/workflows/docs.yml']
-  pull_request:
-    branches: [main]
-    paths: ['docs/**', '.github/workflows/docs.yml']
-  workflow_dispatch:
-```
-
-- **build** — Node 22, `npm ci` in `docs/`, `npm run build`, then upload `docs/dist` as
-  the Pages artifact. Runs on pull requests too, so docs changes are validated in CI.
-- **deploy** — runs only for pushes to `main`; publishes the artifact to the
-  `github-pages` environment via `actions/deploy-pages`.
-
-Enable it once in the repository: **Settings → Pages → Source: GitHub Actions**.
-
-### Running the docs locally
+Use the locked Node requirement (`>=22.22.0` for the current Astro version):
 
 ```bash
 cd docs
-npm install
-npm run dev       # dev server
-npm run build     # static build to docs/dist
-npm run preview   # serve the built site
+npm ci
+npm run build
+npm run check:links
+npm run preview -- --host 127.0.0.1
 ```
 
-`astro.config.mjs` sets `base: '/OpenSinop'` for the GitHub Pages project site
-(`https://koamishin.github.io/OpenSinop/`). For a custom domain or a user/organisation
-site, set `base: ''` (and update `site`). `npm run preview` then serves the site under
-`/OpenSinop`.
+Open the printed preview address under `/OpenSinop/`. The project uses that base for
+`https://koamishin.github.io/OpenSinop/`. Custom-domain moves need both site/base
+configuration and updated link-check configuration.
 
-### Writing a docs page
+## Write a useful guide
 
-Pages are MDX in `docs/src/content/docs/`, with Starlight frontmatter:
+Keep the reader's task ahead of the implementation:
 
-```mdx
----
-title: Page title
-description: One-sentence summary used for SEO and social cards.
----
+1. Say who the page is for and what they will accomplish.
+2. State prerequisites and current operating limits before any command that can change records.
+3. Use the exact screen labels or verified command options.
+4. Explain the expected result and the next step.
+5. Move model names, schemas, and deep details into developer reference.
 
-import { Aside } from '@astrojs/starlight/components';
+Pages live in `docs/src/content/docs/`. Existing URLs are kept where practical; add a
+sidebar entry for a new guide. Prefer Starlight's built-in components over a new UI
+dependency. Use sentence-case headings and short, complete explanations.
 
-<Aside type="caution">A short, prominent warning.</Aside>
-```
+## Links and verification
 
-Useful Starlight components: `Card`/`CardGrid`, `Aside`, `Tabs`/`TabItem`, `Steps`,
-`Badge`, `FileTree`, `LinkCard`, `Icon`, plus fenced code blocks and GitHub-flavoured
-Markdown. Broken internal links fail the build. The `docs/` site is independent of the
-application's `package.json` (the app pins Vite-Plus; Astro brings its own toolchain) —
-never merge the two dependency trees.
+Content links must work under `/OpenSinop/`. Starlight's sidebar uses the configured
+base, but content links are not automatically rewritten. Relative links work for
+ordinary directory pages; a custom 404 must use base-aware links because it can be
+served at an arbitrary missing URL.
+
+`npm run check:links` checks the built output. Tests also protect link resolution and
+key factual boundaries. The app's Vite-Plus check excludes `docs/**`; that separation
+does not exempt the handbook from its own build and tests.
