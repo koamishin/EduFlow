@@ -14,10 +14,10 @@ export $(grep -v '^#' .env | xargs)
 # Build the Docker image first
 echo "📦 Building optimized Docker image..."
 docker build \
-    --build-arg APP_NAME=OpenSinop \
-    --build-arg APP_ENV=production \
-    --build-arg APP_DEBUG=false \
-    --build-arg APP_URL=https://koami.koamishin.org \
+    --build-arg APP_NAME=${APP_NAME:-OpenSinop} \
+    --build-arg APP_ENV=${APP_ENV:-production} \
+    --build-arg APP_DEBUG=${APP_DEBUG:-false} \
+    --build-arg APP_URL=${APP_URL:-http://localhost:8000} \
     -t koamishin/opensinop:latest -f docker/Dockerfile .
 
 # Ask to publish
@@ -58,6 +58,6 @@ echo "📊 Horizon dashboard: http://localhost:8000/horizon"
 echo "💓 Pulse dashboard: http://localhost:8000/pulse"
 echo ""
 echo "Note: Using host networking mode. The container shares your host's network."
-echo "To view logs: docker logs -f koamistarterkit-production"
-echo "To stop: docker stop koamistarterkit-production"
-echo "To restart: docker restart koamistarterkit-production"
+echo "To view logs: docker logs -f opensinop-production"
+echo "To stop: docker stop opensinop-production"
+echo "To restart: docker restart opensinop-production"
