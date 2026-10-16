@@ -115,11 +115,12 @@ class Collections extends Page implements HasTable
             if ($record instanceof CollectionBatch) {
                 $this->bootedInteractsWithTable();
 
+                $user = Auth::user();
                 $action = request()->query('action');
                 $hasReview = CollectionBatchReview::query()->where('collection_batch_id', $record->id)->exists();
-                if ($action !== 'view' && ! $hasReview && Gate::forUser(Auth::user())->allows('review', $record)) {
+                if ($action !== 'view' && ! $hasReview && Gate::forUser($user)->allows('review', $record)) {
                     $this->mountTableAction('reviewCollectionBatch', (string) $record->getKey());
-                } elseif ($action !== 'view' && ! $hasReview && $record->tuitionPayment()->exists() && Auth::user()?->hasAnyRole(['admin', 'super_admin', 'finance_officer'])) {
+                } elseif ($action !== 'view' && ! $hasReview && $record->tuitionPayment()->exists() && $user instanceof User && $user->hasAnyRole(['admin', 'super_admin', 'finance_officer'])) {
                     $this->mountTableAction('autonomousReviewAndSettle', (string) $record->getKey());
                 } else {
                     $this->mountTableAction('viewCollectionBatch', (string) $record->getKey());

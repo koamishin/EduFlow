@@ -1741,6 +1741,30 @@ parameters:
 			path: tests/Feature/CircleWalletServiceTest.php
 
 		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::assertActionVisible().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/CollectionsPageTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::assertHasNoActionErrors().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/CollectionsPageTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable::callAction().'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/CollectionsPageTest.php
+
+		-
+			rawMessage: 'Call to an undefined method Livewire\Features\SupportTesting\Testable<Livewire\Component>::assertActionMounted().'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/CollectionsPageTest.php
+
+		-
 			rawMessage: 'Call to an undefined static method App\Models\AcademicTerm::count().'
 			identifier: staticMethod.notFound
 			count: 1
