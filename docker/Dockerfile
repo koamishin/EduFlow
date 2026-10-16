@@ -4,7 +4,7 @@ ARG COMPOSER_VERSION=2.8
 ARG APP_NAME=OpenSinop
 ARG APP_ENV=production
 ARG APP_DEBUG=false
-ARG APP_URL=https://koami.koamishin.org
+ARG APP_URL=http://localhost:8000
 
 # -----------------------------------------------------------------------------
 # Stage 1: Install PHP Dependencies
@@ -78,6 +78,17 @@ ARG GROUP_ID=1000
 ARG ROOT=/app
 ENV ROOT=/app
 ARG TZ=UTC
+
+ARG APP_NAME=OpenSinop
+ARG APP_ENV=production
+ARG APP_DEBUG=false
+ARG APP_URL=http://localhost:8000
+
+ENV APP_NAME=${APP_NAME}
+ENV APP_ENV=${APP_ENV}
+ENV APP_DEBUG=${APP_DEBUG}
+ENV APP_URL=${APP_URL}
+ENV CONTAINER_MODE=http
 
 ENV TERM=xterm-color
 ENV OCTANE_SERVER=frankenphp
