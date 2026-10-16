@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 # install.sh — interactive TUI installer for OpenSinop (macOS/Linux)
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/KoamiStarterKit/main/install.sh)
-#   curl -fsSL .../install.sh | bash
+#   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)
+#   curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash
+#   bash install.sh --update   # update an existing installation
+#   bash install.sh --yes      # non-interactive, accept every default
+
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf 'install.sh requires bash. Run it with: bash install.sh\n' >&2
+    exit 1
+fi
 
 set -Eeuo pipefail
+
+# True when the script itself is piped to bash (`curl … | bash`); stdin then
+# carries script text and must never be read for answers.
+SCRIPT_FROM_STDIN=0
+[ -n "${BASH_SOURCE[0]:-}" ] || SCRIPT_FROM_STDIN=1
 
 ROOT="$(pwd)"
 ENV_FILE="$ROOT/.env"
@@ -26,14 +38,23 @@ warn() { printf '  %s\n' "$(c "$YELLOW" "[warn] $1")"; }
 ok() { printf '  %s\n' "$(c "$GREEN" "[ok]   $1")"; }
 err() { printf '  %s\n' "$(c "$RED" "[error] $1")"; }
 
-tty_read() {  # read into var name passed as $1
-    local __var="$1"
-    if [ ! -t 0 ]; then
-        IFS= read -r "$__var" || true
-    elif exec 2>/dev/null 3</dev/tty; then
-        IFS= read -r "$__var" <&3 || true
-        exec 3<&- 2>/dev/null || true
+# Where interactive answers are read from. Empty means stdin. Callers never
+# see script text as an answer, and stderr is never redirected.
+INPUT_SOURCE=""
+
+read_line() {  # read one line from the input source into the variable named in $1
+    local __var="$1" __secret="${2:-}"
+    if [ "$__secret" = "secret" ]; then
+        if [ -n "$INPUT_SOURCE" ]; then
+            IFS= read -rs "$__var" < "$INPUT_SOURCE" || true
+        else
+            IFS= read -rs "$__var" || true
+        fi
+        printf '\n' >&2
+    elif [ -n "$INPUT_SOURCE" ]; then
+        IFS= read -r "$__var" < "$INPUT_SOURCE" || true
     else
+        # Plain fd 0: reopening /dev/stdin would reseek a redirected file on Linux.
         IFS= read -r "$__var" || true
     fi
 }
@@ -49,7 +70,7 @@ ask() {
     else
         printf '  %s: ' "$prompt" >&2
     fi
-    tty_read value
+    read_line value
     value="${value:-$default}"
     printf '%s' "$value"
 }
@@ -65,16 +86,7 @@ ask_secret() {
     else
         printf '  %s: ' "$prompt" >&2
     fi
-    if [ ! -t 0 ]; then
-        IFS= read -r value || true
-    elif exec 2>/dev/null 3</dev/tty; then
-        IFS= read -rs value <&3 || true
-        exec 3<&- 2>/dev/null || true
-        echo >&2
-    else
-        IFS= read -rs value || true
-        echo >&2
-    fi
+    read_line value secret
     value="${value:-$default}"
     printf '%s' "$value"
 }
@@ -99,7 +111,7 @@ ask_choice() {
     done
     printf '  Select: ' >&2
     local value idx
-    tty_read value
+    read_line value
     value="${value:-$default}"
     if [[ "$value" =~ ^[0-9]+$ ]] && [ "$value" -ge 1 ] 2>/dev/null && [ "$value" -le "${#choices[@]}" ]; then
         printf '%s' "${choices[$((value-1))]}"
@@ -118,7 +130,7 @@ yes_no() {
         return
     fi
     printf '  %s [%s]: ' "$prompt" "$default" >&2
-    tty_read ans
+    read_line ans
     ans="${ans:-$default}"
     case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
         y|yes|true|1) printf 'yes' ;;
@@ -131,13 +143,16 @@ cmd_exists() { command -v "$1" >/dev/null 2>&1; }
 port_in_use() {
     local p="$1"
     if cmd_exists ss; then
-        ss -tlpn 2>/dev/null | grep -E -q "[:.]${p}[[:space:]]" && return 0
+        ss -tln 2>/dev/null | grep -E -q "[:.]${p}[[:space:]]" && return 0
     elif cmd_exists netstat; then
-        netstat -tlpn 2>/dev/null | grep -E -q "[:.]${p}[[:space:]]" && return 0
+        netstat -an 2>/dev/null | grep -E 'LISTEN(ING)?' | grep -E -q "[:.]${p}[[:space:]]" && return 0
     elif cmd_exists lsof; then
         lsof -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1 && return 0
     fi
-    (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null && { exec 3<&- 3>&-; return 0; }
+    if { exec 3<>"/dev/tcp/127.0.0.1/$p"; } 2>/dev/null; then
+        exec 3<&- || true
+        return 0
+    fi
     return 1
 }
 
@@ -153,17 +168,15 @@ redis_ping() {
         fi
         printf '%s' "$out" | grep -qi pong && return 0 || return 1
     fi
-    if (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null; then
-        exec 3<>"/dev/tcp/$host/$port" 2>/dev/null || return 1
-        if [ -n "$pass" ]; then printf 'AUTH %s\r\n' "$pass" >&3; fi
-        printf 'PING\r\n' >&3
-        local line
-        IFS= read -t 3 -r line <&3 || true
-        exec 3<&- 3>&- 2>/dev/null || true
-        printf '%s' "$line" | grep -qi pong
-        return $?
+    if ! { exec 3<>"/dev/tcp/$host/$port"; } 2>/dev/null; then
+        return 2
     fi
-    return 2
+    if [ -n "$pass" ]; then printf 'AUTH %s\r\n' "$pass" >&3; fi
+    printf 'PING\r\n' >&3
+    local line
+    IFS= read -t 3 -r line <&3 || true
+    exec 3<&- || true
+    printf '%s' "$line" | grep -qi pong
 }
 
 rpc_test() {
@@ -198,25 +211,97 @@ for arg in "$@"; do
     case "$arg" in
         --update|-u) UPDATE=1 ;;
         --yes|-y|--defaults|-d|--non-interactive) NON_INTERACTIVE=1 ;;
-        --help|-h) echo "Usage: install.sh [--update] [--yes|-y]"; exit 0 ;;
+        --help|-h)
+            cat <<'EOF'
+Usage: install.sh [--update] [--yes|-y]
+
+  --update, -u   Update an existing installation (pull images and restart).
+  --yes, -y      Non-interactive: accept every default. Also NON_INTERACTIVE=1.
+EOF
+            exit 0
+            ;;
     esac
 done
 
+# Choose where answers come from. When the script is piped into bash, stdin
+# holds script text, so answers must come from the terminal instead.
+if [ "$NON_INTERACTIVE" = "0" ] && [ ! -t 0 ] && [ "$SCRIPT_FROM_STDIN" = "1" ]; then
+    if { true < /dev/tty; } 2>/dev/null; then
+        INPUT_SOURCE="/dev/tty"
+    else
+        NON_INTERACTIVE=1
+        warn "No terminal available to read answers; using defaults (like --yes)."
+    fi
+fi
+
 env_value() {
-    local key="$1"
-    [ -f "$ENV_FILE" ] || return 0
-    grep -E "^${key}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'
+    local key="$1" value=""
+    if [ -f "$ENV_FILE" ]; then
+        value="$(grep -E "^${key}=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' || true)"
+    fi
+    printf '%s' "$value"
+}
+
+require_docker() {
+    if ! cmd_exists docker; then
+        err "Docker is required but was not found."
+        info "Install Docker Engine: https://docs.docker.com/engine/install/"
+        return 1
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        err "Docker is installed, but the daemon is not reachable."
+        info "Start Docker and make sure your user can access it (add yourself to the 'docker' group or use sudo)."
+        return 1
+    fi
+    if ! docker compose version >/dev/null 2>&1; then
+        err "Docker Compose v2 is required, but 'docker compose' is not available."
+        info "Install the Compose plugin: https://docs.docker.com/compose/install/linux/"
+        return 1
+    fi
+    return 0
+}
+
+ensure_compose_file() {
+    if [ -f "$COMPOSE_FILE" ]; then
+        return 0
+    fi
+    if ! cmd_exists curl; then
+        err "docker-compose.yml is missing and curl is not installed."
+        info "Install curl, or download $COMPOSE_URL into $ROOT manually."
+        return 1
+    fi
+    info "Downloading docker-compose.yml ..."
+    if ! curl -fsSL --retry 3 --retry-delay 2 "$COMPOSE_URL" -o "$COMPOSE_FILE"; then
+        err "Could not download docker-compose.yml from $COMPOSE_URL"
+        info "Check network access (proxy, firewall), or download the file into $ROOT manually."
+        return 1
+    fi
+    ok "Downloaded docker-compose.yml"
+}
+
+validate_compose_file() {
+    if ! docker compose config -q; then
+        err "docker-compose.yml failed to validate with this Docker Compose version."
+        info "Docker Compose v2.24+ is recommended; update Docker/Compose and try again."
+        return 1
+    fi
+    return 0
 }
 
 if [ "$UPDATE" = "1" ]; then
     title "OpenSinop Update"
+    if ! require_docker; then
+        exit 1
+    fi
     if [ ! -f "$ENV_FILE" ]; then
         err "No .env found in $ROOT. Run the installer first."
         exit 1
     fi
-    if [ ! -f "$COMPOSE_FILE" ]; then
-        info "Downloading docker-compose.yml ..."
-        curl -fsSL "$COMPOSE_URL" -o "$COMPOSE_FILE" || { err "download failed"; exit 1; }
+    if ! ensure_compose_file; then
+        exit 1
+    fi
+    if ! validate_compose_file; then
+        exit 1
     fi
     DB_CONN="$(env_value DB_CONNECTION)"; DB_CONN="${DB_CONN:-pgsql}"
     if [ "$DB_CONN" = "pgsql" ]; then
@@ -249,6 +334,7 @@ if [ "$UPDATE" = "1" ]; then
     title "Pulling latest images"
     if ! docker compose pull; then
         err "docker compose pull failed."
+        info "If the application image is private, authenticate first: docker login ghcr.io (token with read:packages)."
         exit 1
     fi
     title "Starting updated containers"
@@ -280,11 +366,17 @@ info "Interactive setup for Docker-based self-hosting."
 info "Press Enter to accept a suggested default."
 echo
 
-if ! cmd_exists docker; then
-    err "Docker is required but was not found."
+if ! require_docker; then
     exit 1
 fi
 ok "Docker found."
+
+if ! ensure_compose_file; then
+    exit 1
+fi
+if ! validate_compose_file; then
+    exit 1
+fi
 
 # Existing .env backup
 if [ -f "$ENV_FILE" ]; then
@@ -307,6 +399,11 @@ if port_in_use "$DEFAULT_PORT"; then
             break
         fi
     done
+    if [ "$DEFAULT_PORT" = "8000" ]; then
+        warn "Ports 8000, 8080, 8088, 8888 and 8008 all appear to be in use."
+    else
+        info "Port 8000 is in use; suggesting $DEFAULT_PORT instead."
+    fi
 fi
 APP_PORT=$(ask "Published HTTP port" "$DEFAULT_PORT")
 APP_URL=$(ask "Public URL" "http://localhost:$APP_PORT")
@@ -414,15 +511,6 @@ if [ "$(yes_no "Write this configuration and start Docker?" "yes")" != "yes" ]; 
     exit 0
 fi
 
-if [ ! -f "$COMPOSE_FILE" ]; then
-    info "Downloading docker-compose.yml ..."
-    if ! curl -fsSL "$COMPOSE_URL" -o "$COMPOSE_FILE"; then
-        err "Could not download compose file."
-        exit 1
-    fi
-    ok "Downloaded docker-compose.yml"
-fi
-
 # Write .env
 {
     cat <<EOF
@@ -484,6 +572,18 @@ chmod 600 "$ENV_FILE" 2>/dev/null || true
 # also persist port in .env for reference
 printf 'APP_PORT="%s"\n' "$APP_PORT" >> "$ENV_FILE"
 ok "Wrote $ENV_FILE"
+
+if [ ! -f "$ROOT/Dockerfile" ]; then
+    title "Pulling application image"
+    info "No local build context found; fetching the published image."
+    if ! docker compose pull app; then
+        err "Could not pull the application image."
+        info "If the ghcr.io image is private, authenticate first: docker login ghcr.io (token with read:packages)."
+        info "Or clone the repository and run install.sh from it so Compose builds the image locally."
+        exit 1
+    fi
+    ok "Application image is ready."
+fi
 
 title "Starting containers"
 info "Running: docker compose up -d"
