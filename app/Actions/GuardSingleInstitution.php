@@ -13,8 +13,29 @@ use Spatie\LaravelSettings\Models\SettingsProperty;
 
 class GuardSingleInstitution
 {
+    public static bool $disabled = false;
+
+    /**
+     * Run a callback bypassing the single institution guard for multi-school shared database operations.
+     */
+    public static function withoutGuard(callable $callback): mixed
+    {
+        $previous = static::$disabled;
+        static::$disabled = true;
+
+        try {
+            return $callback();
+        } finally {
+            static::$disabled = $previous;
+        }
+    }
+
     public function handle(): void
     {
+        if (static::$disabled) {
+            return;
+        }
+
         if (! Schema::hasTable((new SettingsProperty)->getTable())) {
             return;
         }

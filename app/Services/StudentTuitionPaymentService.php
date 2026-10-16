@@ -81,7 +81,7 @@ final readonly class StudentTuitionPaymentService
             // what the payer was actually required to have, and the guard below
             // re-checks the same figure instead of a second, stricter one.
             'payer_debit_base_units' => $required,
-            'chain' => 'ARC-TESTNET', 'chain_id' => 5042002,
+            'chain' => (string) config('lepton.arc.chain', 'ARC-TESTNET'), 'chain_id' => (int) config('lepton.arc.chain_id', 5042),
             'simulated' => $simulated, 'quoted_at' => now()->utc()->toIso8601String(),
             'expires_at' => now()->utc()->addSeconds(max(30, min(300, (int) config('eduflow.student_tuition.quote_seconds', 120))))->toIso8601String(),
             'consent_text' => StudentTuitionPaymentIntent::CONSENT_TEXT];
@@ -191,8 +191,8 @@ final readonly class StudentTuitionPaymentService
         if ($student->user_id < 1 || $account->student_id !== $student->id || $amountBaseUnits <= 0 || $amountBaseUnits > $account->remainingAmount()) {
             throw ValidationException::withMessages(['amount_base_units' => 'A positive amount within this student account remaining balance is required.']);
         }
-        if (config('lepton.arc.chain') !== 'ARC-TESTNET' || config('lepton.arc.chain_id') !== 5042002) {
-            throw ValidationException::withMessages(['chain' => 'Tuition pilot permits Arc testnet 5042002 only.']);
+        if (config('lepton.arc.chain') !== 'ARC-TESTNET' || ! in_array((int) config('lepton.arc.chain_id'), [5042, 5042002], true)) {
+            throw ValidationException::withMessages(['chain' => 'Tuition pilot permits Arc testnet 5042 / 5042002 only.']);
         }
         $wallet = $student->wallet;
         if (! $wallet instanceof StudentWallet || $wallet->status !== 'active' || $wallet->provider !== 'circle' || $wallet->chain !== 'ARC-TESTNET'

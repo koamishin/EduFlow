@@ -3781,3 +3781,44 @@ To ensure autonomous execution without synchronous browser wait times:
    - `app:dispatch-policy-evaluations`: Runs every minute (`->everyMinute()`) to process incoming policy requests.
    - `eduflow:autonomous-pipeline-bridge --latest`: Runs every 5 minutes (`->everyFiveMinutes()`) when autonomous pipeline processing is enabled.
 
+---
+
+## 20. Multi-Institution Shared-Database Architecture, Student Web3 Wallets & Arc Mainnet
+
+### 20.1 Overview & Motivation
+Institutions need a frictionless way to self-host or join a shared-database instance hosting multiple schools simultaneously without cross-tenant interference. Students simultaneously need sovereign Web3 wallet registration on Arc (supporting both Arc Mainnet and Testnet) to receive stipends, grants, and verify tuition payment claims without requiring manual operator intervention.
+
+### 20.2 Shared Database Multi-Tenancy Resolution
+1. **Dynamic Context Resolution (`App\Services\InstallationInstitution`):**
+   - Resolves the active organization tenant across priority layers:
+     - Explicit route parameter (`institution_id`, `institution`, or slug/domain).
+     - Active session context (`session('current_organization_id')`).
+     - Authenticated user's organization (`$user->organization_id`) or linked student record (`$user->student->organization_id`).
+     - Safe fallback: In single-institution installations or initial CLI seeders, resolves the sole primary organization. When `Organization::count() > 1`, calls without an explicit tenant context fail closed (`null` / `require()` throws `RuntimeException`), preventing accidental cross-tenant data leaks.
+2. **Multi-School Schema Enhancements:**
+   - Table `organizations`: Added `slug`, `domain`, `country`, `timezone`, `currency`, `network`, `treasury_address`, `treasury_mode`, and `metadata`.
+   - Tables `users` & `students`: Added `organization_id` foreign key associations.
+   - Guard relaxation: `GuardSingleInstitution::withoutGuard()` permits tenant provisioning in multi-school installations while protecting single-tenant production deployments.
+
+### 20.3 Institution Self-Serve Onboarding (`/institutions/register`)
+- **Route:** `GET /institutions/register` & `POST /institutions/register` (`App\Http\Controllers\InstitutionRegistrationController`).
+- **UI:** Bulletin design system view (`resources/js/pages/institutions/register.tsx`).
+- **Capabilities:**
+  - School details: Name, subdomain/slug, country, timezone, accounting currency (`USDC` or `EURC`).
+  - Network rail: **Arc Mainnet** (Chain ID `5040`, `https://rpc.arc.network`) or **Arc Testnet** (Chain ID `5042`, `https://testnet-rpc.arc.network`).
+  - Treasury mode: Autonomous Circle Agent Smart Account (provisioned via Lepton Agent) or manual cold/multisig EVM address.
+  - Initial Super-Administrator account provisioning with automatic category templates and baseline financial policies.
+
+### 20.4 Student Registration & Cryptographic Wallet Linking (`/register`)
+- **Dual-Path Registration (`App\Actions\Fortify\CreateNewUser`, `resources/js/pages/auth/register.tsx`):**
+  - **1-Click Browser Wallet:** Connects via EIP-1193 provider (MetaMask, Rainbow, Phantom, Brave) with personal sign verification (`personal_sign`) to cryptographically prove key ownership.
+  - **Manual Entry Fallback:** Validates 40-character hex EVM address (`0x[a-fA-F0-9]{40}`) for smart contract accounts or cold storage.
+  - Academic metadata: Student ID number, department, and institution selection.
+  - Automatic provisioning: Creates authenticated `User` (role `student`), persists `Student` model linked to institution, and provisions initial `TuitionAccount`.
+
+### 20.5 Arc Mainnet & Testnet Treasury Rails
+- Native USDC gas token abstraction on Arc Mainnet (Chain `5040`) and Arc Testnet (Chain `5042`).
+- Seamless gateway resolution through `App\Gateways\ArcNetworkGateway` and `yukazakiri/lepton-agent`.
+- Support for dual custody models: operator-autonomous Circle Agent Wallets and externally owned / multisig cold treasury accounts.
+
+

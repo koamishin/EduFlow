@@ -69,7 +69,7 @@ class StudentTuitionPaymentIntent extends Model
 
             return ($s['schema_version'] ?? null) === 1 && ($s['purpose'] ?? null) === 'student_tuition_testnet_demo'
                 && ($s['request_key'] ?? null) === $this->request_key && Str::isUuid($this->request_key)
-                && ($s['chain'] ?? null) === 'ARC-TESTNET' && ($s['chain_id'] ?? null) === 5042002
+                && ($s['chain'] ?? null) === 'ARC-TESTNET' && in_array(($s['chain_id'] ?? null), [5042, 5042002], true)
                 && ($s['asset'] ?? null) === 'USDC' && ($s['plane'] ?? null) === 'pilot'
                 && is_bool($s['simulated'] ?? null) && ($s['consent_text'] ?? null) === self::CONSENT_TEXT
                 && $s['amount_base_units'] > 0 && is_string($s['quoted_network_fee'] ?? null)

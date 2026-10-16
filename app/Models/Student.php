@@ -46,7 +46,8 @@ class Student extends Model
     public const PAYOUT_ADDRESS_PATTERN = '/^0x[0-9a-fA-F]{40}$/';
 
     protected $fillable = [
-        'user_id', 'student_number', 'program', 'year_level',
+        'organization_id', 'user_id', 'student_number', 'student_id_number',
+        'program', 'department', 'year_level',
         'enrollment_status', 'academic_status', 'attendance_rate',
         'payout_address',
     ];
@@ -61,16 +62,44 @@ class Student extends Model
     protected function casts(): array
     {
         return [
+            'organization_id' => 'integer',
             'user_id' => 'integer',
             'year_level' => 'integer',
             'attendance_rate' => 'decimal:2',
         ];
     }
 
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function getStudentIdNumberAttribute(): ?string
+    {
+        return $this->attributes['student_id_number'] ?? $this->attributes['student_number'] ?? null;
+    }
+
+    public function setStudentIdNumberAttribute(?string $value): void
+    {
+        $this->attributes['student_id_number'] = $value;
+        if (empty($this->attributes['student_number']) && $value !== null) {
+            $this->attributes['student_number'] = $value;
+        }
+    }
+
+    public function setDepartmentAttribute(?string $value): void
+    {
+        $this->attributes['department'] = $value;
+        if (empty($this->attributes['program']) && $value !== null) {
+            $this->attributes['program'] = $value;
+        }
     }
 
     /** @return HasMany<TuitionAccount, $this> */

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Features\FeatureRegistry;
 use App\Policies\SettlementApprovalPolicy;
+use App\Services\ArcNetworkGateway;
 use App\Services\CircleAgentWalletCli;
 use App\Services\Payments\AsyncPaymentTransport;
 use App\Services\Payments\CircleAgentHttpClient;
@@ -20,9 +21,12 @@ use Laravel\Ai\Contracts\ResolvesPendingApprovals;
 use Laravel\Ai\Contracts\VerifiesConversationOwnership;
 use Laravel\Pennant\FeatureManager;
 use Nwidart\Modules\Facades\Module;
+use Yukazakiri\Lepton\Contracts\ArcNetworkGateway as ArcNetworkGatewayContract;
 use Yukazakiri\Lepton\Contracts\AuthGateway;
+use Yukazakiri\Lepton\Contracts\JsonTransport;
 use Yukazakiri\Lepton\Contracts\WalletGateway;
 use Yukazakiri\Lepton\Gateways\CircleCliGateway;
+use Yukazakiri\Lepton\Gateways\FakeLeptonGateway;
 use Yukazakiri\Lepton\Support\CliRunner;
 
 class AppServiceProvider extends ServiceProvider
@@ -39,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerApprovalPolicy();
         $this->registerCircleWalletCli();
         $this->registerCircleHttpAuthDecorator();
+        $this->registerArcNetworkGateway();
 
         // The asynchronous rail is resolved from the container so it can be
         // substituted wholesale. Nothing about settlement should depend on
@@ -211,6 +216,27 @@ class AppServiceProvider extends ServiceProvider
                     return $this->inner->isAuthenticatedFor($chainCode);
                 }
             };
+        });
+    }
+
+    protected function registerArcNetworkGateway(): void
+    {
+        $this->app->scoped(ArcNetworkGatewayContract::class, function ($app): ArcNetworkGatewayContract {
+            $driver = (string) config('lepton.default', 'circle');
+            if ($driver === 'fake') {
+                return $app->make(FakeLeptonGateway::class);
+            }
+
+            return new ArcNetworkGateway(
+                arc: null,
+                chainCode: (string) config('lepton.arc.chain', 'ARC-TESTNET'),
+                chainId: (int) config('lepton.arc.chain_id', 5042),
+                treasuryAddress: config('lepton.arc.treasury'),
+                configuredRpcUrl: config('lepton.arc.rpc_url'),
+                testnetExplorer: (string) config('lepton.explorer.testnet', 'https://testnet.arcscan.io'),
+                mainnetExplorer: (string) config('lepton.explorer.mainnet', 'https://explorer.arc.network'),
+                transport: $app->make(JsonTransport::class),
+            );
         });
     }
 

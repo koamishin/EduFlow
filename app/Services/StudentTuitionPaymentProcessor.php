@@ -441,10 +441,10 @@ final readonly class StudentTuitionPaymentProcessor
     {
         $intent = StudentTuitionPaymentIntent::query()->findOrFail($attempt->student_tuition_payment_intent_id);
         if ($this->institutions->require()->id !== $intent->organization_id || $this->payments->isSimulated()
-            || config('lepton.arc.chain') !== 'ARC-TESTNET' || config('lepton.arc.chain_id') !== 5042002
-            || $this->arc->chainCode() !== 'ARC-TESTNET' || $this->arc->chainId() !== 5042002
-            || strtolower((string) $this->arc->rpc('eth_chainId')) !== '0x4cef52'
-            || $attempt->chain !== 'ARC-TESTNET' || $attempt->chain_id !== 5042002
+            || config('lepton.arc.chain') !== 'ARC-TESTNET' || ! in_array((int) config('lepton.arc.chain_id'), [5042, 5042002], true)
+            || $this->arc->chainCode() !== 'ARC-TESTNET' || ! in_array((int) $this->arc->chainId(), [5042, 5042002], true)
+            || ! in_array(strtolower((string) $this->arc->rpc('eth_chainId')), ['0x13b2', '0x4cef52'], true)
+            || $attempt->chain !== 'ARC-TESTNET' || ! in_array((int) $attempt->chain_id, [5042, 5042002], true)
             || (! $observation && $attempt->recipient_address !== $this->payments->recipientAddress())) {
             throw ValidationException::withMessages(['rail' => 'Original institution and real Arc testnet rail required; no mainnet or fake fallback.']);
         }

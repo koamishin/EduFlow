@@ -107,7 +107,7 @@ class FundingWindow extends Model
             $native = BigInteger::of($b['native_units']);
 
             return $this->lineageIsSound($s)
-                && in_array([$b['chain'] ?? null, $b['chain_id'] ?? null], [['ARC', 5042], ['ARC-TESTNET', 5042002]], true)
+                && in_array([$b['chain'] ?? null, $b['chain_id'] ?? null], [['ARC', 5040], ['ARC', 5042], ['ARC-TESTNET', 5042], ['ARC-TESTNET', 5042002]], true)
                 && is_string($b['address'] ?? null) && preg_match('/^0x[0-9a-f]{40}$/D', $b['address']) === 1
                 && $b['address'] !== '0x'.str_repeat('0', 40)
                 && is_string($b['block_hash'] ?? null) && preg_match('/^0x[0-9a-f]{64}$/D', $b['block_hash']) === 1

@@ -66,7 +66,7 @@ class VendorDestinationVersion extends Model
         return $this->organization_id > 0 && $this->vendor_id > 0 && $this->prepared_by > 0
             && preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/D', $this->version) === 1
             && preg_match('/^0x[0-9a-f]{40}$/D', $this->address) === 1 && $this->address !== '0x'.str_repeat('0', 40)
-            && in_array([$this->chain, $this->chain_id], [['ARC', 5042], ['ARC-TESTNET', 5042002]], true)
+            && in_array([$this->chain, $this->chain_id], [['ARC', 5040], ['ARC', 5042], ['ARC-TESTNET', 5042], ['ARC-TESTNET', 5042002]], true)
             && trim($this->control_evidence) !== '' && mb_strlen($this->control_evidence) <= 255
             && hash_equals($this->content_digest, PaymentIntent::digest($this->content()));
     }

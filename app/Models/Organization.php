@@ -36,8 +36,17 @@ class Organization extends Model
         static::creating(fn (Organization $organization) => app(GuardSingleInstitution::class)->handle());
     }
 
+    public static function withoutSingleInstitutionGuard(callable $callback): mixed
+    {
+        return GuardSingleInstitution::withoutGuard($callback);
+    }
+
     protected $fillable = [
         'name',
+        'slug',
+        'domain',
+        'country',
+        'timezone',
         'type',
         'currency',
         'minimum_reserve',
@@ -55,6 +64,18 @@ class Organization extends Model
             'max_daily_disbursement' => 'float',
             'human_approval_threshold' => 'float',
         ];
+    }
+
+    /** @return HasMany<User, $this> */
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
+
+    /** @return HasMany<Student, $this> */
+    public function students(): HasMany
+    {
+        return $this->hasMany(Student::class);
     }
 
     /** @return HasMany<Wallet, $this> */

@@ -13,6 +13,7 @@ use App\Http\Controllers\FinanceApprovalController;
 use App\Http\Controllers\FundingWindowController;
 use App\Http\Controllers\InstitutionPolicyController;
 use App\Http\Controllers\InstitutionPolicyEvaluationController;
+use App\Http\Controllers\InstitutionRegistrationController;
 use App\Http\Controllers\InvoiceVersionController;
 use App\Http\Controllers\JevAnalyticsController;
 use App\Http\Controllers\NotificationController;
@@ -39,6 +40,9 @@ Route::get('/', fn () => Inertia::render('welcome', [
 Route::get('/skills/design', fn () => Inertia::render('skills/design', [
     'canRegister' => Features::enabled(Features::registration()),
 ]))->name('skills.design');
+
+Route::get('institutions/register', [InstitutionRegistrationController::class, 'create'])->name('institutions.register');
+Route::post('institutions/register', [InstitutionRegistrationController::class, 'store'])->name('institutions.register.store');
 
 Route::post('api/webhooks/circle', [CircleWebhookController::class, 'handle'])->middleware('throttle:120,1')->name('api.webhooks.circle');
 

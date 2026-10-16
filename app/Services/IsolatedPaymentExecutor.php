@@ -213,8 +213,8 @@ final readonly class IsolatedPaymentExecutor
         $chain = $entry->snapshot['chain'] ?? null;
         $chainId = $entry->snapshot['chain_id'] ?? null;
 
-        if ($chain !== config('lepton.arc.chain') || $chainId !== config('lepton.arc.chain_id')
-            || $chain !== 'ARC-TESTNET' || $chainId !== 5042002) {
+        if ($chain !== config('lepton.arc.chain') || ! in_array($chainId, [5042, 5042002], true)
+            || $chain !== 'ARC-TESTNET') {
             throw ValidationException::withMessages(['payment' => 'Only explicitly configured Arc testnet execution is permitted; mainnet remains blocked.']);
         }
 

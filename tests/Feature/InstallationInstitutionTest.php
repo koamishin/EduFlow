@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\InstallationInstitution;
 use App\Services\LeptonTreasuryService;
 use Filament\Facades\Filament;
+use Illuminate\Http\Request;
 use Spatie\LaravelSettings\Models\SettingsProperty;
 use Spatie\Permission\Models\Role;
 
@@ -28,6 +29,14 @@ test('production institution selection requires an explicit persisted ID', funct
     expect(app(InstallationInstitution::class)->require()->id)->toBe($institution->id);
 })->with(['production', 'staging']);
 
+test('configured ID cannot authorize a database with multiple institutions', function (): void {
+    $institution = Organization::factory()->create();
+    Organization::factory()->create();
+    config(['eduflow.institution_id' => $institution->id]);
+
+    expect(app(InstallationInstitution::class)->current())->toBeNull();
+});
+
 test('demo institution selection permits a single institution but never chooses between two', function (): void {
     $institution = Organization::factory()->create();
     $resolver = app(InstallationInstitution::class);
@@ -39,6 +48,34 @@ test('demo institution selection permits a single institution but never chooses 
     expect($resolver->current())->toBeNull();
 });
 
+test('session current_organization_id dynamically resolves the active institution', function (): void {
+    Organization::factory()->create();
+    $second = Organization::factory()->create();
+    session(['current_organization_id' => $second->id]);
+
+    expect(app(InstallationInstitution::class)->current()?->id)->toBe($second->id);
+});
+
+test('authenticated user dynamically resolves the active institution', function (): void {
+    Organization::factory()->create();
+    $second = Organization::factory()->create();
+    $user = User::factory()->create(['organization_id' => $second->id]);
+
+    $this->actingAs($user);
+
+    expect(app(InstallationInstitution::class)->current()?->id)->toBe($second->id);
+});
+
+test('route parameter dynamically resolves the active institution', function (): void {
+    Organization::factory()->create(['slug' => 'school-alpha']);
+    $second = Organization::factory()->create(['slug' => 'school-beta']);
+
+    $request = Request::create('/test?institution='.$second->slug);
+    app()->instance('request', $request);
+
+    expect(app(InstallationInstitution::class)->current()?->id)->toBe($second->id);
+});
+
 test('configured institution selection refuses missing invalid and ambiguous context', function (mixed $id): void {
     Organization::factory()->create();
     config(['eduflow.institution_id' => $id]);
@@ -46,14 +83,6 @@ test('configured institution selection refuses missing invalid and ambiguous con
     expect(app(InstallationInstitution::class)->current())->toBeNull()
         ->and(fn () => app(InstallationInstitution::class)->require())->toThrow(RuntimeException::class);
 })->with([0, -1, 'not-an-id', '1.5', '999999999999999999999', 9999]);
-
-test('configured ID cannot authorize a database with multiple institutions', function (): void {
-    $institution = Organization::factory()->create();
-    Organization::factory()->create();
-    config(['eduflow.institution_id' => $institution->id]);
-
-    expect(app(InstallationInstitution::class)->current())->toBeNull();
-});
 
 test('missing institution blocks wallet diagnostics before external calls', function (): void {
     app()->instance('env', 'production');

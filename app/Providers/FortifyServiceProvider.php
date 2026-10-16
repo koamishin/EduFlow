@@ -7,6 +7,8 @@ namespace App\Providers;
 use App\Actions\Fortify\CreateNewUser;
 /* @end-chisel-registration */
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\Organization;
+use App\Services\InstallationInstitution;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -79,9 +81,24 @@ class FortifyServiceProvider extends ServiceProvider
         /* @end-chisel-email-verification */
 
         /* @chisel-registration */
-        Fortify::registerView(fn () => Inertia::render('auth/register', [
-            'passwordRules' => Password::defaults()->toPasswordRulesString(),
-        ]));
+        Fortify::registerView(function (Request $request) {
+            $institutions = Organization::query()
+                ->select(['id', 'name', 'slug', 'domain'])
+                ->orderBy('name')
+                ->get();
+
+            $current = app(InstallationInstitution::class)->current();
+
+            return Inertia::render('auth/register', [
+                'passwordRules' => Password::defaults()->toPasswordRulesString(),
+                'institutions' => $institutions,
+                'currentInstitution' => $current ? [
+                    'id' => $current->id,
+                    'name' => $current->name,
+                    'slug' => $current->slug,
+                ] : null,
+            ]);
+        });
         /* @end-chisel-registration */
 
         /* @chisel-2fa */

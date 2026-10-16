@@ -149,16 +149,31 @@ Choose a setup path based on your goal:
 
 | Goal | Start here |
 |---|---|
+| Register a new institution (Multi-School SaaS) | [Institution onboarding](#institution-onboarding--multi-school-saas) (`/institutions/register`) |
+| Register student with Web3 wallet | [Student registration](#student-registration--web3-wallet-linking) (`/register`) |
 | Evaluate the application locally | [Development setup](#development-setup-local), with `LEPTON_DRIVER=fake` |
 | Deploy on your own infrastructure | [Docker deployment](#option-a--docker-deployment-recommended) or [bare-metal setup](#option-b--bare-metal-production-setup) |
 | Upgrade an existing deployment | [Docker updates](#3-updating-an-existing-docker-deployment), from the original installation directory |
 | Connect a wallet | [Wallet configuration](#lepton-agent-package-circle--arc) |
 | Understand evidence and payment boundaries | [Technical reference](#technical-reference) and [project roadmap](PLAN.md) |
 
-The application includes institutional collections, departmental planning, staff
+The application includes multi-school shared-database hosting, institutional collections, departmental planning, staff
 reviews, student finance screens, and payment evidence workflows. Individual
 features have separate authorization and runtime gates; a dashboard or installed
 wallet driver does not grant permission to send funds.
+
+### Institution Onboarding & Multi-School SaaS
+
+OpenSinop supports hosting multiple educational institutions on a single shared database:
+- **Registration wizard (`/institutions/register`):** Any school can register their organization, country, timezone, accounting currency (`USDC`/`EURC`), and Arc treasury address or autonomous Circle Agent wallet.
+- **Arc Network Rails:** Choose between **Arc Mainnet** (Chain ID `5040`) and **Arc Testnet** (Chain ID `5042`).
+- **Isolation:** Dynamic multi-tenancy resolution via session, route, and authenticated context ensures complete data isolation between institutions.
+
+### Student Registration & Web3 Wallet Linking
+
+Students can enroll and link their Web3 wallet at `/register`:
+- **Dual-Path Registration:** 1-Click Connect Browser Wallet (MetaMask, Rainbow, Phantom, EIP-1193) with cryptographic signature verification (`personal_sign`) proving key ownership, or manual 40-hex character address entry fallback.
+- **Automatic Provisioning:** Enrolls the student under their institution, creates their profile, assigns academic department and student ID, and initializes their tuition account.
 
 <details>
 <summary><strong>Pilot scope, boundaries, and development history</strong></summary>
