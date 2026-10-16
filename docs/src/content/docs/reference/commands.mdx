@@ -13,7 +13,7 @@ installation institution fail-closed; `sync` is refused where a durable queue is
 | `app:install` | Create the single institution identity, roles/permissions, zero autonomous thresholds; disables registration/impersonation/AI. `--institution= --country= --timezone=UTC --locale=en --currency=USDC --adopt-institution=` (alias `eduflow:install`) |
 | `app:bootstrap-admin` | Create the first super-admin interactively (hidden password prompt). `--name= --email=` (alias `eduflow:bootstrap-admin`) |
 | `setup:starter-kit` | Scaffold/rename the starter-kit identity (icons, authors, Docker toggle) |
-| `install:features` | Apply chisel feature markers (`chisel.php`) — see the composer `--no-scripts` warning |
+| `install:features` | Apply chisel feature markers (`chisel.php`) — one-shot: it consumes the scaffolding and deletes its own files |
 
 `app:install` never migrates, resets data, seeds demo records, generates keys, creates
 wallets or calls external providers. Repeating identical setup is a no-op; changed

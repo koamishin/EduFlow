@@ -63,10 +63,12 @@ Feature scaffolding is managed with chisel: marker comments in the codebase plus
 `chisel.php` / `chisel-paths.php`, and `php artisan install:features` to apply.
 
 :::caution
-`composer require`/`update` without `--no-scripts` runs `post-update-cmd`, which
-executes `install:features` and consumes the chisel scaffolding (markers stripped,
-files deleted). No app code is lost and tests still pass, but the tooling is gone.
-Recover with `git checkout -- <files>`.
+`php artisan install:features` is one-shot: it applies the chisel markers and then
+deletes `chisel.php`, `chisel-paths.php` and `app/Console/Commands/InstallFeaturesCommand.php`
+along with the markers themselves. No app code is lost and tests still pass, but the
+feature-toggling tooling is gone — recover with
+`git checkout -- chisel.php chisel-paths.php app/Console/Commands/InstallFeaturesCommand.php`.
+Composer's `post-update-cmd` does not invoke it, so an ordinary `composer update` is safe.
 :::
 
 ## AI posture
