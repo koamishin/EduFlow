@@ -1,0 +1,117 @@
+---
+title: Security
+description: Authentication, authorisation, payment-review MFA, webhook containment, AI boundaries, and operational secrets.
+---
+
+## Authentication
+
+Handled by **Fortify** (headless) with **Filament** panel auth: email + password, email
+verification, two-factor authentication (TOTP), recoverable app authentication, email
+authentication factors, and passkeys (`robertboes/filament-passkeys`). Never implement
+login controllers by hand.
+
+:::caution[First administrator]
+`app:bootstrap-admin` asks for the password through hidden prompts; there is no password
+CLI option, it refuses existing users or a second super-admin, and email verification
+stays pending until you verify it. Configure SMTP for verification/reset flows first,
+then verify the email and enable staff MFA before opening school access.
+:::
+
+## Authorisation
+
+**Spatie Permission + Filament Shield** define roles and permissions. Generation is part
+of setup (`shield:generate --panel=1 --all`). Role inheritance or reseeding alone is
+never sufficient for a sensitive action — see payment reviewers below.
+
+Use policy checks rather than role names:
+
+- In Filament: `Gate::allows('viewAny', Model::class)` for navigation visibility, and
+  resource policies for actions.
+- In Inertia pages: share permission flags via `HandleInertiaRequests` and check them in
+  the UI; the server re-checks every action regardless.
+
+**Impersonation** (`lab404/laravel-impersonate`) is restricted to `super_admin` within the
+User resource; the session exposes `impersonating` state through `HandleInertiaRequests`
+so the frontend can render a banner. The installer disables impersonation by default.
+
+## Payment-review MFA (separate human authorities)
+
+Approving a payment is a distinct act from accepting a plan or reviewing a receipt:
+
+- A reviewer needs a **directly assigned** `AuthorizePayment:PaymentIntent` permission,
+  a verified email and a finance/admin role.
+- A different verified admin must first **pin** that reviewer's authenticator through
+  **Enroll payment reviewer** (or `finance.payment-reviewers.enroll`), using their own
+  fresh password/TOTP and an independent verification reference. Checker and reviewer
+  cannot share an authenticator secret.
+- A payment review binds the displayed draft/reservation digests, exact amount/fee and
+  destination, and requires a fresh password plus an unused six-digit TOTP. Approval
+  expires within 5 minutes and cannot outlive funding.
+- Passwords, OTPs and factor fingerprints are excluded from exported review evidence,
+  notifications and activity logs; validation never flashes `mfa_code`.
+- Account MFA replacement or disablement invalidates payment eligibility.
+
+## Webhook ingestion
+
+The Circle webhook endpoint (`POST /api/webhooks/circle`) is opt-in and contained. It
+answers `404` unless `LEPTON_WEBHOOKS_ENABLED=true` **and** the driver is
+`developer`/`circle-rest`, then:
+
+1. Requires `X-Circle-Signature` and `X-Circle-Key-Id` headers → `401` without them.
+2. Rejects payloads over 1 MiB → `413`.
+3. Verifies the **raw** request body against the notification key for the key id
+   (allow-listed subscriptions) → `401` on failure.
+4. Accepts only `transactions.inbound`, `transactions.outbound` and `webhooks.test` →
+   `422` otherwise.
+5. Validates the notification chain matches `lepton.arc.chain` and the transaction id is
+   a UUID → `422` otherwise.
+6. Requires a durable `database`/`redis` queue connection → `503` otherwise.
+
+A verified event is stored once — unique `notificationId` + payload digest — and only
+queues observation: it never creates or submits a payment, never settles one, and
+responds `202` with `settlement_verified: false`. Duplicate notifications are deduped by
+the unique constraint, not by best effort. Notification logging is still not settlement
+verification — see [Safety & Readiness](/institution/safety-readiness/).
+
+## AI boundaries
+
+Financial authority lives in deterministic PHP, never in the model:
+
+- Advisory envelopes have no amount, verdict or recipient fields — unknown keys are
+  dropped before construction (prompt injection has nowhere to land).
+- `DisburseAssistance` is approvable: `needsApproval()` runs the real policy evaluation
+  and `handle()` re-evaluates at resume time.
+- `ApprovalResumeGate` performs six checks before a paused `true` becomes a transfer
+  (role via the gate, conversation ownership, pending-set subset, tool allowlist, target
+  from the stored pause, `mayProposeSettlements()` still on). `decisions` accepts **only**
+  `id => bool` — there is no field for an amount or a recipient.
+- `BriefGuard` extracts every numeric token from a student-chat answer and discards the
+  whole answer if any number is absent from the deterministic brief. Figures are compared
+  as digit strings, not floats.
+- Provider keys are encrypted at rest with `APP_KEY` and stripped before the edit form is
+  filled, so panel access cannot read a secret from the DOM.
+
+## Data and secrets
+
+- Keep identities and sensitive documents off-chain; get separate permission for external
+  AI processing, testnet execution, staff recording and public use of the college name,
+  logo or quotes.
+- Never commit credentials, wallet secrets, student records or private institutional
+  documents. Use fake gateways in automated tests.
+- Activity logging must never record passwords, tokens, API keys, secrets or private
+  keys; the panel redacts configured sensitive fields as a safety layer, not a licence to
+  store them.
+- Restrict shell access: CLI staff IDs provide operator attribution, not proof of personal
+  authentication or MFA.
+- `migrate:fresh --seed` deletes AI providers and their encrypted keys; use
+  `migrate:refresh` for demos or re-enter the key afterwards.
+
+## Operational boundaries
+
+- One institution per installation; the resolver fails closed when the context is
+  missing or ambiguous.
+- Restrict the Circle webhook route, the scheduler and queue workers to operator
+  infrastructure; the app must not be exposed with execution gates on unless every
+  hardening gate has passed.
+- On Arc, USDC is the gas token; a Circle agent-wallet transfer is relayed (Circle
+  sponsors the gas). Budget for that: the payer's debit is the principal only.

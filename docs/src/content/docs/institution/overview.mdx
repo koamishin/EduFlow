@@ -1,0 +1,134 @@
+---
+title: Adoption Overview
+description: How a school adopts OpenSinop — the single-institution boundary, what the institution owns, onboarding steps, and what the software does not do.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+OpenSinop is designed for **one institution per installation**. Any school (or college)
+can run it on its own infrastructure and keep its own data, credentials and wallet
+sessions. This page explains the boundary, the responsibilities and the steps to get
+from a fresh server to a usable, review-only deployment.
+
+## What a school gets
+
+OpenSinop supplements an existing accounting/SIS system — it is not an ERP, payroll
+engine or statutory general ledger. It accepts payable documents *from* those systems
+rather than rebuilding tax, payroll or procurement:
+
+- Review the student fees the school has already collected (staff-verified aggregate
+  receipts, no student-by-student accounting required to start).
+- Plan their permitted use inside a department's approved budget, with deterministic
+  policy checks and human review.
+- Link each eligible, authorised bill to a verified USDC payment on Arc (testnet first)
+  through a Circle Agent Wallet, with document-linked audit evidence.
+- Optional student-facing screens for tuition payment, bill payment and wallet balances.
+- Optional advisory AI that explains decisions — never makes them.
+
+## What the institution owns
+
+| Asset | Owner | Notes |
+| --- | --- | --- |
+| Server, database, storage, backups | The institution | One installation, one institution |
+| Circle account, agent wallets, sessions | The institution | The app stores no Circle credentials; the CLI owns the session |
+| Encryption key (`APP_KEY`) | The institution | Regenerating it destroys stored ciphertext |
+| Finance policy, limits, reviewers, fees | The institution's finance owner | Configured without forking the code |
+| Treasury address | The institution | A Circle *agent* wallet the institution controls |
+| Local bank/cash process | The institution | OpenSinop never debits a bank account |
+
+:::caution
+Two schools run two instances — even when one IT provider manages both — and must never
+share provider credentials or wallet sessions. The installation fails closed when the
+institution context is missing or ambiguous.
+:::
+
+## Onboarding steps
+
+<Steps>
+
+1. **Deploy the instance.** Follow [Installation](/getting-started/installation/)
+   (Docker Compose or bare metal). Keep the original Compose project name — it prefixes
+   the volume names.
+
+2. **Register the institution identity** (idempotent; repeats are a no-op):
+
+   ```bash
+   php artisan migrate --force --no-interaction
+   php artisan app:install --institution="Pilot School" --country=PH --timezone=Asia/Manila --currency=PHP --no-interaction
+   ```
+
+   This persists the institution (`organizations.id`), country/locale/timezone/currency,
+   roles and permissions with **zero autonomous thresholds**, and disables public
+   registration, impersonation and AI. Country is validated as a two-letter code format —
+   jurisdiction eligibility is not certified. English is the current supported locale.
+   School currency metadata does not convert legacy USDC tuition or payment records.
+
+3. **Create the first administrator** interactively, then verify their email and enable
+   MFA before opening access:
+
+   ```bash
+   php artisan app:bootstrap-admin --name="School Operator" --email="operator@school.example"
+   ```
+
+4. **Configure operators** (Settings in the admin panel): school name/logo, contact and
+   privacy owner, social login, security policy, and AI posture (advisory off by
+   default). Grant staff roles via Filament Shield — never enable public registration
+   for staff accounts.
+
+5. **Bind the treasury and rail** (only when you want to read or test a rail):
+   point `LEPTON_TREASURY_ADDRESS` at a Circle **agent** wallet, keep
+   `LEPTON_CHAIN=ARC-TESTNET`, and run `php artisan lepton:doctor` to confirm binaries,
+   session, treasury, chain reads and ledger parity agree.
+
+6. **Draft and activate the finance policy** with two separate people
+   (`app:prepare-finance-policy` → `app:activate-finance-policy`) — reserve, auto limit,
+   daily limit and fee ceiling in exact USDC.
+
+7. **Capture evidence and plan** — collections batches, invoice versions, budget
+   snapshots — all reviewed by a second person. Then run
+   `php artisan app:finance-preview` for a read-only treasury/cashflow view.
+
+8. **Enable runtime gates deliberately.** Read [Safety & Readiness](/institution/safety-readiness/)
+   first. Every execution gate ships off.
+
+</Steps>
+
+## Configuration without forking
+
+Everything a school normally wants to change is a setting, not a code change:
+
+- Name/logo, country, locale, timezone, default and display currencies, contact and
+  privacy owner (`Organization`, `ApplicationDetailsSettings`)
+- Treasury network/account model, operational USDC limits, restricted funds,
+  departmental budgets, counterparty verification, maker/checker routing, fee and
+  reserve limits (`FinancePolicyVersion`, `Budget`, `VendorDestinationVersion`)
+- Onboarding gates — registration, impersonation (`ApplicationFeaturesSettings`)
+- AI posture — advisory, provider endpoints, keys (`AiSettings`, `AiProvider`)
+
+Academic calendar, student ID format, tuition categories and attendance/eligibility
+belong to the enabled student-aid module — they are not installation prerequisites.
+
+## Cost and responsibility
+
+- The MIT license lets a school use, modify, redistribute or sell its version while
+  retaining required notices. There is **no** license server, per-student unlock,
+  mandatory telemetry or maintainer login.
+- The school owns its Circle account/session and pays applicable external service,
+  network and ramp fees. Self-hosting OpenSinop does not make Circle's hosted
+  infrastructure self-hosted, free or available in every jurisdiction.
+- MIT carries no warranty or support SLA; separate any commercial agreement from
+  community support.
+
+## Not in scope (yet)
+
+| Capability | Status |
+| --- | --- |
+| Shared hosted multi-tenancy | Not initial scope — needs memberships, tenant-bound queries, private file paths, queue/cache separation, negative cross-institution tests |
+| Grades, attendance, SIS/bank integration | Deferred; existing student-aid modules are reused, never startup prerequisites |
+| Payroll execution, student employment | Deferred |
+| FX off-ramp, escrow, Gateway/x402/Earn/Borrow | Not automatic finance capabilities — each needs provider/legal/security approval |
+| Regional onramps and crosschain collections | Referenced USDC collections only |
+
+Deepen the relationship with your college by starting with one department's approved
+budget and bills due over the next couple of weeks — see the
+[Pilot Playbook](/institution/pilot-playbook/).

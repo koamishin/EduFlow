@@ -1,0 +1,76 @@
+---
+title: Customization
+description: Rebrand the application, manage themes, and configure student-facing resources without forking the code.
+---
+
+## Branding
+
+- **Application name** — set `APP_NAME` in `.env` (used in browser titles, emails and
+  panel branding).
+- **Logo and favicon** — the frontend logo components live in
+  `resources/js/components/app-logo.tsx` and `app-logo-icon.tsx`; replace the SVG and the
+  wordmark there. The docs site in `docs/` uses the app's favicon via
+  `docs/public/favicon.ico` and the same amber accent as the panels.
+
+## Theming (shadcn + Tailwind CSS v4)
+
+Themes are CSS files in `resources/css/themes/` compatible with the
+[shadcn](https://ui.shadcn.com) / [TweakCN](https://tweakcn.com) format, registered in
+`resources/js/conf/themes.ts` and switchable at runtime from the appearance settings.
+Rebranding for a school is therefore a theme + logo + `APP_NAME` change, not a fork.
+
+The admin and finance panels have their own Vite theme entrypoints:
+
+- `resources/css/filament/admin/theme.css` (primary: `Color::Amber`)
+- `resources/css/filament/finance/theme.css`
+
+UI components are copied into the project (shadcn-style) under
+`resources/js/components/ui/` (primitives) and `resources/js/components/reui/`
+(`Alert`, `Badge`, `Frame`, `IconTile`, `Stepper`, `Timeline`) — follow the existing
+components and semantic tokens (`--success`, `--info`, `--warning`, `--destructive`) and
+the house motion rules rather than restyling shipped components.
+
+## Student quick resources
+
+The cards beneath “My Assistance Requests” on the student dashboard are configuration,
+not code — see [`config/eduflow.php`](../getting-started/configuration/#campus-quick-resources):
+
+```php
+'resources' => [
+    [
+        'title' => 'Academic Library',
+        'description' => 'Access research journals, past exams, and e-books.',
+        'url' => null,
+        'icon' => 'book-open',
+    ],
+],
+```
+
+A resource becomes clickable only once its `url` is set; entries without one render as a
+muted placeholder rather than a dead link. `icon` must be a kebab-case Lucide icon name;
+unknown names fall back to a generic icon on the client, so adding a resource never
+breaks the build.
+
+## Display currency
+
+`EDUFLOW_DISPLAY_CURRENCY` (default `PHP`) sets the local currency shown beside USDC
+settlement amounts on staff screens. It is presentation only — it never converts stored
+USDC amounts and never becomes a payment currency.
+
+## Feature toggles (chisel)
+
+Feature scaffolding is managed with chisel: marker comments in the codebase plus
+`chisel.php` / `chisel-paths.php`, and `php artisan install:features` to apply.
+
+:::caution
+`composer require`/`update` without `--no-scripts` runs `post-update-cmd`, which
+executes `install:features` and consumes the chisel scaffolding (markers stripped,
+files deleted). No app code is lost and tests still pass, but the tooling is gone.
+Recover with `git checkout -- <files>`.
+:::
+
+## AI posture
+
+Advisory, provider endpoints, keys, timeouts and the disbursement-proposal switch live in
+the admin panel (**Settings → AI** and **Settings → AI Providers**); see
+[Configuration](/getting-started/configuration/#ai-providers-optional) for the semantics.

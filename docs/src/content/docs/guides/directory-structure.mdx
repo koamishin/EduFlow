@@ -1,0 +1,59 @@
+---
+title: Directory Structure
+description: How the repository is organised — application code, panels, frontend, modules, and the documentation site.
+---
+
+```text
+.
+├── app/
+│   ├── Actions/            # use-case commands (capture, review, authorise, reserve, release)
+│   ├── Ai/                 # Advisory, Agents, Tools, Approvals (optional AI layer)
+│   ├── Console/Commands/   # artisan commands (app:*, lepton:*, student:*, eduflow:*)
+│   ├── DTOs/               # Money, PolicyEvaluationResult, BillPolicyContext, …
+│   ├── Enums/              # states and categories (StudentTuitionPaymentState, CurrencyCode, …)
+│   ├── Features/           # FeatureRegistry (chisel feature toggles)
+│   ├── Filament/           # Panels: Resources, Pages, Clusters, Widgets (admin + finance)
+│   ├── Http/Controllers/   # Inertia page controllers + finance evidence endpoints
+│   ├── Jobs/               # queued processing (evaluations, submissions, receipts)
+│   ├── Models/             # Eloquent evidence records (~65 models)
+│   ├── Notifications/      # role-scoped review/approval alerts
+│   ├── Policies/           # invoice + assistance policy evaluation
+│   ├── Providers/          # App, Fortify, Filament panels (admin, finance)
+│   ├── Services/           # domain services (planning, affordability, settlement, mandates)
+│   └── Settings/           # settings models (Ai, Application*, Installation, SocialLogin)
+├── config/                 # eduflow.php, ai.php, fortify, permission, modules, …
+├── database/
+│   ├── migrations/         # ~75 migrations, additive finance-evidence migrations
+│   └── seeders/            # roles/permissions, local demo accounts
+├── docs/                   # THIS documentation site (Astro + Starlight, GitHub Pages)
+│   ├── astro.config.mjs
+│   └── src/content/docs/   # the pages you are reading
+├── Modules/                # nwidart modules (Blog ships enabled)
+├── resources/
+│   ├── css/                # Tailwind v4 themes + Filament panel themes
+│   ├── js/
+│   │   ├── components/     # ui/ (shadcn primitives), reui/, app shell, ask-eduflow, …
+│   │   ├── layouts/        # app, auth, settings layouts
+│   │   ├── pages/          # Inertia pages (student, finance, assistance, auth, settings)
+│   │   ├── routes/         # Wayfinder route helpers (generated)
+│   │   └── app.tsx         # frontend entry
+│   └── views/              # Blade (filament theme, emails)
+├── routes/                 # web.php, settings.php, console.php (scheduler)
+├── tests/                  # Pest suites (Feature, Unit, Browser)
+├── .ai/rules/              # area rules every agent must read (index.md)
+├── .github/workflows/      # CI, auto-release, docker-latest, manual-official-release, docs
+├── Dockerfile              # production image (multi-stage)
+├── docker/                 # Dockerfile, supervisord.*, nginx, php-fpm, run.sh, start-container
+├── docker-compose.yml      # app + postgres 16 + redis 7
+├── install.sh / install.ps1# interactive TUI installers
+└── composer.json / package.json
+```
+
+## Reading order for a new contributor
+
+1. `README.md` — project scope, pilot contract and release safety.
+2. `PLAN.md` — the authoritative roadmap and safety gates (sections 8–10 govern release).
+3. `.ai/rules/index.md` — area rules (they encode non-obvious traps; read the rule file
+   matching the path you are about to touch).
+4. `docs/` — this site: [Core concepts](/guides/core-concepts/) and
+   [Workflows](/guides/workflows/).
