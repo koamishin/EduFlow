@@ -143,22 +143,26 @@ return [
 
         'openai-compatible' => [
             'driver' => 'openai-compatible',
-            'url' => env('OPENAI_COMPATIBLE_URL'),
+            'url' => env('OPENAI_COMPATIBLE_URL', 'http://localhost:11434/v1'),
             'key' => env('OPENAI_COMPATIBLE_API_KEY'),
+            'models' => [
+                'text' => [
+                    'default' => env('OPENAI_COMPATIBLE_MODEL', 'ag/gemini-3.8-flash-high'),
+                ],
+            ],
         ],
 
         /*
-        | An OpenAI-compatible endpoint on localhost, so a demo needs no paid
-        | API key. Ollama's default address is assumed; override for LM Studio,
-        | vLLM or any other compatible gateway.
+        | An OpenAI-compatible endpoint for agents and models. Point this to any
+        | OpenAI-compatible API gateway (Ollama, vLLM, LiteLLM, or custom proxy).
         */
         'local' => [
             'driver' => 'openai-compatible',
-            'url' => env('AI_LOCAL_URL', 'http://127.0.0.1:11434/v1'),
+            'url' => env('AI_LOCAL_URL', 'http://localhost:11434/v1'),
             'key' => env('AI_LOCAL_API_KEY'),
             'models' => [
                 'text' => [
-                    'default' => env('AI_LOCAL_MODEL', 'llama3.1'),
+                    'default' => env('AI_LOCAL_MODEL', 'ag/gemini-3.8-flash-high'),
                 ],
             ],
         ],

@@ -556,7 +556,7 @@ slow provider can still delay the caller. Moving advisory work to a durable queu
 commit is an OSS release gate, not an already-satisfied invariant. Prior live gateway
 checks are development observations, not reproducible release evidence.
 
-Verified live against 9Router, which shaped two design decisions. It ignores
+Verified live against an OpenAI-compatible gateway proxy, which shaped two design decisions. It ignores
 `response_format: json_schema`, so agents also request the JSON shape in their
 instructions and the gate decodes a string response. And `AiProviderResolver` must return a
 built `Provider` instance rather than the driver name, because a bare name resolves against
@@ -3711,3 +3711,73 @@ prevent.
    reviewed mandate with a named owner, not a configuration toggle.
 4. Confirm that retrospective agreement (§18.6) is acceptable evidence for a hackathon
    audience, and that it will always be labelled retrospective.
+
+---
+
+## 19. JEV Advisory Decision Analytics, Human Concurrence Tracking, and Background AI Agent Execution
+
+### 19.1 Purpose and Architectural Grounding
+
+Institutional deployment requires granular governance telemetry over agent decisions. Section 19 specifies the analytics engine, telemetry pipelines, and background execution runtime for JEV (Junior Evaluation & Verification) advisory actions and human supervisor decisions.
+
+The design enforces strict boundaries:
+- **JEV decisions are advisory:** The model never releases funds or commits irreversible state changes.
+- **Human authority is authoritative:** Approvals, holds, rejections, and manual overrides remain durable audit records with verifiable user IDs and timestamps.
+- **Background autonomy:** Policy evaluation pipelines and scheduled sweeps run asynchronously in background workers without blocking browser requests.
+
+### 19.2 Telemetry Metrics & Decision Taxonomy
+
+The analytics service (`App\Services\JevAnalyticsService`) aggregates two core dimensions:
+
+1. **JEV Advisory Decisions**:
+   - `match`: Policy rules and category classification matched with required confidence; ready for staff concurrence.
+   - `needs_review`: Ambiguous policy conditions, high risk, or edge case requiring human review before proceeding.
+   - `hold`: Policy controls violated, budget constraints reached, or verification anomaly detected; transaction placed on administrative hold.
+   - `exempt`: Standard exempted transaction type or rule exclusion.
+   - `in_progress` / `queued`: Evaluation queued or running in background.
+   - Category distribution: Tracking matched policy categories (e.g., `teaching-materials`, `capital-equipment`) with item counts and average confidence scores.
+
+2. **Staff Concurrence & Review Efficiency**:
+   - `approval_rate`: Fraction of reviewed decisions where staff issued approval (`total_approved ÷ total_reviewed`).
+   - `concurrence_rate`: Rate at which human reviewers concurred with JEV's recommendation vs overriding it (`concurrence_count ÷ total_reviewed`).
+   - `override_rate`: Rate of manual staff intervention countermanding the agent's recommendation (`override_count ÷ total_reviewed`).
+   - `time_to_approval`: Measurement of latency between policy evaluation completion and staff review resolution:
+     - `avg_time_to_approval_seconds` & human-readable formatting (`Xm Ys` or `Xh Ym`).
+     - `fastest_approval_seconds` and `slowest_approval_seconds`.
+
+3. **Time-Series Trends**:
+   - 14-day daily bucketed time series aggregating daily totals, matches, needs_review, holds, exempts, approvals, and overrides for visual charting.
+
+### 19.3 Dual Interface Implementation
+
+1. **Filament Finance Panel**:
+   - Page: `App\Filament\Pages\JevAnalyticsDashboard` accessible to authorized finance officers and admins.
+   - Widgets:
+     - `JevDecisionSummaryWidget`: Stat tiles displaying total evaluations, active holds, policy matches, approval rate, staff concurrence rate, and average approval time.
+     - `JevDecisionBreakdownChart`: Doughnut chart visualizing the split between Match, Needs Review, Hold, and Exempt.
+     - `JevApprovalConcurrenceChart`: Bar chart contrasting Staff Concurred, Manual Overrides, Rejections, and Pending Review.
+     - `JevDecisionsTrendChart`: Stacked bar chart tracking 14-day volume of evaluations, holds, and approvals.
+     - `JevCategoryDistributionChart`: Horizontal bar chart detailing matched policy categories and model confidence.
+     - Interactive recent audit table with status pills, expandable metadata, and search filters.
+
+2. **Inertia / React SPA Dashboard**:
+   - Controller: `App\Http\Controllers\JevAnalyticsController` at `GET /finance/jev-analytics`.
+   - Component: `resources/js/pages/finance/analytics.tsx` offering interactive period filtering (`all`, `today`, `7_days`, `14_days`, `30_days`), source filtering (`all`, `collection`, `transaction`, `budget_snapshot`), SVG trend graphs, category confidence progress bars, and modal inspection dialogs.
+
+### 19.4 AI Provider & Model Configuration (OpenAI-Compatible)
+
+The AI gateway is fully configurable for any OpenAI-compatible API endpoint (e.g. Ollama, vLLM, LiteLLM, or custom proxies) and modern LLM models (e.g. `ag/gemini-3.8-flash-high`, `llama3.1`, `gpt-4o-mini`):
+- **Base URL:** Configured via `OPENAI_COMPATIBLE_URL` or `AI_LOCAL_URL` (e.g. `http://localhost:11434/v1` or custom gateway)
+- **Default Model:** Configured via `OPENAI_COMPATIBLE_MODEL` or `AI_LOCAL_MODEL` (e.g. `ag/gemini-3.8-flash-high`)
+- **Open-Source (OSS) Deployment Note:** No proprietary or hardcoded endpoints are enforced. Operators configure their own endpoint and API key in `.env`.
+- **Configuration files:** `config/ai.php`, `app/Models/AiProvider.php`, and `.env.example`.
+
+### 19.5 Background Agent Execution & Queue Scheduling
+
+To ensure autonomous execution without synchronous browser wait times:
+1. **Queued Evaluation Job:** `App\Jobs\EvaluateInstitutionPolicy` executes policy evaluations asynchronously with exponential retry backoff.
+2. **Background Dispatch Command:** `App\Console\Commands\DispatchPolicyEvaluations` (`app:dispatch-policy-evaluations`) sweeps queued evaluations and dispatches jobs onto the queue worker.
+3. **Scheduler Integration:** `routes/console.php` schedules:
+   - `app:dispatch-policy-evaluations`: Runs every minute (`->everyMinute()`) to process incoming policy requests.
+   - `eduflow:autonomous-pipeline-bridge --latest`: Runs every 5 minutes (`->everyFiveMinutes()`) when autonomous pipeline processing is enabled.
+

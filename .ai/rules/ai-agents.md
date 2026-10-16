@@ -78,7 +78,7 @@ default because it cannot block a payout.
 ## `migrate:fresh` destroys admin-configured providers and their keys
 `ai_providers` lives in the application database, so `php artisan migrate:fresh --seed`
 wipes every provider and its encrypted key. This has already destroyed a hand-configured
-9Router provider once. The encrypted column protects a *dump* of the table; it does nothing
+custom provider once. The encrypted column protects a *dump* of the table; it does nothing
 once the row is deleted.
 
 Before running `migrate:fresh`, check `ai_providers` and expect to re-enter any key by
@@ -86,7 +86,7 @@ hand afterwards. Prefer `migrate:refresh` for a demo, or re-seed the provider fr
 admin panel afterwards. Never assume a previously configured provider survived.
 
 ## Not every OpenAI-compatible gateway honours `response_format: json_schema`
-9Router accepts the parameter and silently ignores it, returning the object as text, so
+Certain OpenAI-compatible gateways accept the parameter and silently ignore it, returning the object as text, so
 `HasStructuredOutput` hands back a string. Two consequences, both load-bearing:
 
 - Agents ask for the JSON shape in their instructions as well, and enumerate the allowed

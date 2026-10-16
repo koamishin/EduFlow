@@ -83,7 +83,7 @@ class AiProviderResource extends Resource
                             })
                             ->helperText(fn (Get $get): string => match ($get('driver')) {
                                 'openai' => 'Optional. Defaults to https://api.openai.com/v1.',
-                                'openai-compatible' => 'e.g. http://127.0.0.1:11434/v1 for Ollama, or https://api.example.com/v1 for a gateway.',
+                                'openai-compatible' => 'e.g. http://127.0.0.1:11434/v1 for Ollama, or your custom OpenAI-compatible API gateway URL.',
                                 default => 'Leave blank to use the driver default endpoint.',
                             })
                             ->columnSpanFull(),
@@ -95,9 +95,10 @@ class AiProviderResource extends Resource
                             ->placeholder(fn (Get $get): string => match ($get('driver')) {
                                 'openai' => 'gpt-4o-mini',
                                 'anthropic' => 'claude-3-5-haiku-20241022',
-                                default => 'llama3.1',
+                                'openai-compatible' => 'ag/gemini-3.8-flash-high',
+                                default => 'ag/gemini-3.8-flash-high',
                             })
-                            ->default('gpt-4o-mini')
+                            ->default('ag/gemini-3.8-flash-high')
                             ->helperText('Used as the default model for this provider, e.g. gpt-4o-mini, gpt-4o, o3-mini, or llama3.1.'),
 
                         KeyValue::make('headers')

@@ -124,6 +124,8 @@ class AiProvider extends Model
 
         if (filled($this->base_url)) {
             $config['url'] = $this->base_url;
+        } elseif ($this->driver === 'openai-compatible') {
+            $config['url'] = config('ai.providers.openai-compatible.url', 'http://localhost:11434/v1');
         } elseif ($this->driver === 'openai') {
             $config['url'] = 'https://api.openai.com/v1';
         }
@@ -149,6 +151,10 @@ class AiProvider extends Model
         if (filled($this->model)) {
             $config['models'] = [
                 'text' => ['default' => $this->model],
+            ];
+        } elseif ($this->driver === 'openai-compatible') {
+            $config['models'] = [
+                'text' => ['default' => config('ai.providers.openai-compatible.models.text.default', 'ag/gemini-3.8-flash-high')],
             ];
         } elseif ($this->driver === 'openai') {
             $config['models'] = [

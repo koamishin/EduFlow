@@ -20,6 +20,7 @@ use App\Filament\Finance\Widgets\WorkflowRunWidget;
 use App\Filament\Pages\Collections;
 use App\Filament\Pages\FinanceDashboard;
 use App\Filament\Pages\FinanceSupervisor;
+use App\Filament\Pages\JevAnalyticsDashboard;
 use App\Filament\Pages\PaymentReviews;
 use App\Filament\Pages\TreasuryWallet;
 use App\Filament\Resources\AssistanceRequests\AssistanceRequestResource;
@@ -28,6 +29,7 @@ use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\TuitionAccounts\TuitionAccountResource;
 use App\Models\InstitutionPolicyEvaluation;
 use App\Models\InstitutionPolicyVersion;
+use App\Models\User;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Auth\MultiFactor\Email\EmailAuthentication;
 use Filament\Http\Middleware\Authenticate;
@@ -80,6 +82,9 @@ class FinancePanelProvider extends PanelProvider
                 NavigationItem::make('Policy evaluations')->group('Financial Operations')->icon('heroicon-o-sparkles')
                     ->url(fn (): string => route('finance.policy-evaluations.index'))->sort(5)
                     ->visible(fn (): bool => Auth::check() && Gate::allows('viewAny', InstitutionPolicyEvaluation::class)),
+                NavigationItem::make('JEV Decision Analytics')->group('Financial Operations')->icon('heroicon-o-chart-bar-square')
+                    ->url(fn (): string => route('finance.jev-analytics'))->sort(6)
+                    ->visible(fn (): bool => Auth::check() && (Gate::allows('viewAny', InstitutionPolicyEvaluation::class) || (Auth::user() instanceof User && Auth::user()->hasAnyRole(['admin', 'super_admin', 'finance_officer', 'finance_supervisor'])))),
             ])
             ->pages([
                 FinanceDashboard::class,
@@ -87,6 +92,7 @@ class FinancePanelProvider extends PanelProvider
                 Collections::class,
                 PaymentReviews::class,
                 TreasuryWallet::class,
+                JevAnalyticsDashboard::class,
             ])
             ->widgets([
                 FinanceAffordabilityWidget::class,

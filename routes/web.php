@@ -14,6 +14,7 @@ use App\Http\Controllers\FundingWindowController;
 use App\Http\Controllers\InstitutionPolicyController;
 use App\Http\Controllers\InstitutionPolicyEvaluationController;
 use App\Http\Controllers\InvoiceVersionController;
+use App\Http\Controllers\JevAnalyticsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentAuthorizationController;
 use App\Http\Controllers\PaymentIntentChangeController;
@@ -45,6 +46,7 @@ Route::get('dashboard', [StudentDashboardController::class, 'index'])->middlewar
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('finance/policy-evaluations', [InstitutionPolicyEvaluationController::class, 'index'])->name('finance.policy-evaluations.index');
+    Route::get('finance/jev-analytics', [JevAnalyticsController::class, 'index'])->name('finance.jev-analytics');
     Route::post('finance/policy-evaluations', [InstitutionPolicyEvaluationController::class, 'store'])->middleware('throttle:5,1')->name('finance.policy-evaluations.store');
     Route::post('finance/policy-evaluations/approve-receipt', [InstitutionPolicyEvaluationController::class, 'approveReceipt'])->name('finance.policy-evaluations.approve-receipt');
     Route::get('finance/policy-evaluations/{institutionPolicyEvaluation}', [InstitutionPolicyEvaluationController::class, 'show'])

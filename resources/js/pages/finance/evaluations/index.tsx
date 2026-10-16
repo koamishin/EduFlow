@@ -343,6 +343,20 @@ export default function PolicyEvaluations({
                         >
                             <a href={collectionsUrl}>Collections ledger</a>
                         </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            asChild
+                        >
+                            <a
+                                href="/finance/jev-analytics"
+                                className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400"
+                            >
+                                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                JEV Decision Analytics
+                            </a>
+                        </Button>
                     </div>
                 </header>
 
