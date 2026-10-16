@@ -24,6 +24,8 @@ use Throwable;
  * @property int $mfa_timestep
  * @property array<string, mixed> $snapshot
  * @property string $snapshot_digest
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class PaymentAuthorization extends Model
 {

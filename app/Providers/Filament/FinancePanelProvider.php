@@ -29,6 +29,7 @@ use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\TuitionAccounts\TuitionAccountResource;
 use App\Models\InstitutionPolicyEvaluation;
 use App\Models\InstitutionPolicyVersion;
+use App\Models\User;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Auth\MultiFactor\Email\EmailAuthentication;
 use Filament\Http\Middleware\Authenticate;

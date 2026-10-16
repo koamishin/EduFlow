@@ -2617,6 +2617,12 @@ parameters:
 			path: tests/Feature/InvoiceSettlementProofTest.php
 
 		-
+			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$id.'
+			identifier: property.notFound
+			count: 32
+			path: tests/Feature/JevAnalyticsTest.php
+
+		-
 			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
 			identifier: staticMethod.notFound
 			count: 3

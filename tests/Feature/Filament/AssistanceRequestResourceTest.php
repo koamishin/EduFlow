@@ -19,6 +19,7 @@ use App\Filament\Finance\Widgets\WorkflowRunWidget;
 use App\Filament\Pages\Collections;
 use App\Filament\Pages\FinanceDashboard;
 use App\Filament\Pages\FinanceSupervisor;
+use App\Filament\Pages\JevAnalyticsDashboard;
 use App\Filament\Pages\PaymentReviews;
 use App\Filament\Pages\TreasuryWallet;
 use App\Filament\Resources\AssistanceRequests\AssistanceRequestResource;
@@ -89,7 +90,7 @@ test('finance panel exposes the supervisor dashboard, workflow pages and no plug
     $panel = Filament::getPanel('finance');
 
     expect($panel->getResources())->toBe([StudentResource::class, TuitionAccountResource::class, AssistanceRequestResource::class, PaymentSubmissionResource::class])
-        ->and($panel->getPages())->toBe([FinanceDashboard::class, FinanceSupervisor::class, Collections::class, PaymentReviews::class, TreasuryWallet::class])
+        ->and($panel->getPages())->toBe([FinanceDashboard::class, FinanceSupervisor::class, Collections::class, PaymentReviews::class, TreasuryWallet::class, JevAnalyticsDashboard::class])
         ->and($panel->getClusters())->toBeEmpty()
         ->and($panel->getWidgets())->toEqualCanonicalizing([
             FinanceAffordabilityWidget::class,

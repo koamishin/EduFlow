@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 use LogicException;
 
 /**
@@ -20,6 +21,8 @@ use LogicException;
  * @property string $reason
  * @property string $batch_digest
  * @property string $review_digest
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  * @property-read CollectionBatch|null $batch
  */
 class CollectionBatchReview extends Model

@@ -56,8 +56,11 @@ class JevAnalyticsDashboard extends Page implements HasTable
             return false;
         }
 
-        return Gate::forUser($user)->allows('viewAny', InstitutionPolicyEvaluation::class)
-            || $user->hasAnyRole(['admin', 'super_admin', 'finance_officer', 'finance_supervisor']);
+        if (Gate::forUser($user)->allows('viewAny', InstitutionPolicyEvaluation::class)) {
+            return true;
+        }
+
+        return $user->hasAnyRole(['admin', 'super_admin', 'finance_officer', 'finance_supervisor']);
     }
 
     #[\Override]

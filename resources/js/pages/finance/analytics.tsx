@@ -3,19 +3,15 @@ import {
     Activity,
     AlertCircle,
     ArrowLeft,
-    ArrowUpRight,
     Award,
     BarChart3,
     CheckCircle2,
     Clock,
     FileSpreadsheet,
     Filter,
-    HelpCircle,
-    Info,
     RefreshCw,
     Scale,
     Search,
-    Shield,
     ShieldAlert,
     ShieldCheck,
     Sparkles,
@@ -23,7 +19,6 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert';
 import { Badge } from '@/components/reui/badge';
 import {
     Frame,
@@ -145,17 +140,21 @@ export default function JevAnalyticsPage({
     const [searchTerm, setSearchTerm] = useState('');
     const [decisionFilter, setDecisionFilter] = useState('all');
 
-    const handleFilterChange = (key: 'period' | 'source_type', value: string) => {
+    const handleFilterChange = (
+        key: 'period' | 'source_type',
+        value: string,
+    ) => {
         router.get(
             window.location.pathname,
             {
                 period: key === 'period' ? value : filters.period,
-                source_type: key === 'source_type' ? value : filters.source_type,
+                source_type:
+                    key === 'source_type' ? value : filters.source_type,
             },
             {
                 preserveState: true,
                 preserveScroll: true,
-            }
+            },
         );
     };
 
@@ -166,11 +165,18 @@ export default function JevAnalyticsPage({
                 searchTerm === '' ||
                 item.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (item.category_name && item.category_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (item.reviewer_name && item.reviewer_name.toLowerCase().includes(searchTerm.toLowerCase()));
+                (item.category_name &&
+                    item.category_name
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase())) ||
+                (item.reviewer_name &&
+                    item.reviewer_name
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase()));
 
             const matchesDecision =
-                decisionFilter === 'all' || item.jev_decision === decisionFilter;
+                decisionFilter === 'all' ||
+                item.jev_decision === decisionFilter;
 
             return matchesSearch && matchesDecision;
         });
@@ -202,7 +208,9 @@ export default function JevAnalyticsPage({
                                 <ArrowLeft className="h-3.5 w-3.5" />
                                 Policy Evaluations
                             </Link>
-                            <span className="text-slate-300 dark:text-slate-700">/</span>
+                            <span className="text-slate-300 dark:text-slate-700">
+                                /
+                            </span>
                             <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                                 Autonomous Lane Telemetry
                             </span>
@@ -214,7 +222,11 @@ export default function JevAnalyticsPage({
                             JEV Advisory & Admin Approval Analytics
                         </h1>
                         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl">
-                            {institution.name} · Empirical breakdown of how often JEV decides on matches, holds, or review escalations, and how frequently human finance officers concur vs override under dual-custody governance.
+                            {institution.name} · Empirical breakdown of how
+                            often JEV decides on matches, holds, or review
+                            escalations, and how frequently human finance
+                            officers concur vs override under dual-custody
+                            governance.
                         </p>
                     </div>
 
@@ -259,38 +271,62 @@ export default function JevAnalyticsPage({
 
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 dark:text-slate-400">Time Window:</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                Time Window:
+                            </span>
                             <Select
                                 value={filters.period}
-                                onValueChange={(val) => handleFilterChange('period', val)}
+                                onValueChange={(val) =>
+                                    handleFilterChange('period', val)
+                                }
                             >
                                 <SelectTrigger className="h-8 w-36 text-xs">
                                     <SelectValue placeholder="Select period" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Time</SelectItem>
+                                    <SelectItem value="all">
+                                        All Time
+                                    </SelectItem>
                                     <SelectItem value="today">Today</SelectItem>
-                                    <SelectItem value="7_days">Last 7 Days</SelectItem>
-                                    <SelectItem value="14_days">Last 14 Days</SelectItem>
-                                    <SelectItem value="30_days">Last 30 Days</SelectItem>
+                                    <SelectItem value="7_days">
+                                        Last 7 Days
+                                    </SelectItem>
+                                    <SelectItem value="14_days">
+                                        Last 14 Days
+                                    </SelectItem>
+                                    <SelectItem value="30_days">
+                                        Last 30 Days
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 dark:text-slate-400">Evidence Source:</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                Evidence Source:
+                            </span>
                             <Select
                                 value={filters.source_type}
-                                onValueChange={(val) => handleFilterChange('source_type', val)}
+                                onValueChange={(val) =>
+                                    handleFilterChange('source_type', val)
+                                }
                             >
                                 <SelectTrigger className="h-8 w-44 text-xs">
                                     <SelectValue placeholder="Select source" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Evidence Types</SelectItem>
-                                    <SelectItem value="collection">Collection Batches</SelectItem>
-                                    <SelectItem value="transaction">Ledger Transactions</SelectItem>
-                                    <SelectItem value="budget_snapshot">Budget Snapshots</SelectItem>
+                                    <SelectItem value="all">
+                                        All Evidence Types
+                                    </SelectItem>
+                                    <SelectItem value="collection">
+                                        Collection Batches
+                                    </SelectItem>
+                                    <SelectItem value="transaction">
+                                        Ledger Transactions
+                                    </SelectItem>
+                                    <SelectItem value="budget_snapshot">
+                                        Budget Snapshots
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -302,7 +338,9 @@ export default function JevAnalyticsPage({
                     {/* Card 1: Total Evaluations */}
                     <div className="rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-2">
                         <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="text-xs font-medium">Total Evaluations</span>
+                            <span className="text-xs font-medium">
+                                Total Evaluations
+                            </span>
                             <Sparkles className="h-4 w-4 text-amber-500" />
                         </div>
                         <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -318,11 +356,16 @@ export default function JevAnalyticsPage({
                     {/* Card 2: Matches */}
                     <div className="rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-2">
                         <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="text-xs font-medium">Policy Matches</span>
+                            <span className="text-xs font-medium">
+                                Policy Matches
+                            </span>
                             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                            {breakdown.match} <span className="text-sm font-normal text-slate-500">({breakdown.match_rate}%)</span>
+                            {breakdown.match}{' '}
+                            <span className="text-sm font-normal text-slate-500">
+                                ({breakdown.match_rate}%)
+                            </span>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
                             Avg confidence: {breakdown.avg_confidence}%
@@ -332,52 +375,72 @@ export default function JevAnalyticsPage({
                     {/* Card 3: Needs Review & Holds */}
                     <div className="rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-2">
                         <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="text-xs font-medium">Needs Review / Holds</span>
+                            <span className="text-xs font-medium">
+                                Needs Review / Holds
+                            </span>
                             <ShieldAlert className="h-4 w-4 text-amber-500" />
                         </div>
                         <div className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
                             {breakdown.needs_review + breakdown.hold}{' '}
                             <span className="text-sm font-normal text-slate-500">
-                                ({breakdown.total > 0 ? Math.round(((breakdown.needs_review + breakdown.hold) / breakdown.total) * 100) : 0}%)
+                                (
+                                {breakdown.total > 0
+                                    ? Math.round(
+                                          ((breakdown.needs_review +
+                                              breakdown.hold) /
+                                              breakdown.total) *
+                                              100,
+                                      )
+                                    : 0}
+                                %)
                             </span>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {breakdown.hold} holds · {breakdown.needs_review} ambiguous
+                            {breakdown.hold} holds · {breakdown.needs_review}{' '}
+                            ambiguous
                         </p>
                     </div>
 
                     {/* Card 4: Staff Approval Rate */}
                     <div className="rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-2">
                         <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="text-xs font-medium">Staff Approval Rate</span>
+                            <span className="text-xs font-medium">
+                                Staff Approval Rate
+                            </span>
                             <UserCheck className="h-4 w-4 text-indigo-500" />
                         </div>
                         <div className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
                             {approvals.approval_rate}%
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {approvals.total_approved} of {approvals.total_reviewed} approved
+                            {approvals.total_approved} of{' '}
+                            {approvals.total_reviewed} approved
                         </p>
                     </div>
 
                     {/* Card 5: Concurrence Rate */}
                     <div className="rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-2">
                         <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="text-xs font-medium">Staff Concurrence</span>
+                            <span className="text-xs font-medium">
+                                Staff Concurrence
+                            </span>
                             <Scale className="h-4 w-4 text-emerald-500" />
                         </div>
                         <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                             {approvals.concurrence_rate}%
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {approvals.concurrence_count} agreed · {approvals.override_count} overrides
+                            {approvals.concurrence_count} agreed ·{' '}
+                            {approvals.override_count} overrides
                         </p>
                     </div>
 
                     {/* Card 6: Avg Time to Approval */}
                     <div className="rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-2">
                         <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="text-xs font-medium">Avg Review Latency</span>
+                            <span className="text-xs font-medium">
+                                Avg Review Latency
+                            </span>
                             <Clock className="h-4 w-4 text-sky-500" />
                         </div>
                         <div className="text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400">
@@ -401,7 +464,8 @@ export default function JevAnalyticsPage({
                                         Complete JEV Decision Breakdown
                                     </FrameTitle>
                                     <FrameDescription>
-                                        How many times JEV decided on match, needs_review, safety hold, or exempt.
+                                        How many times JEV decided on match,
+                                        needs_review, safety hold, or exempt.
                                     </FrameDescription>
                                 </div>
                                 <Badge variant="outline" className="text-xs">
@@ -414,22 +478,30 @@ export default function JevAnalyticsPage({
                             <div className="space-y-1.5">
                                 <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                                     <div
-                                        style={{ width: `${breakdown.match_rate}%` }}
+                                        style={{
+                                            width: `${breakdown.match_rate}%`,
+                                        }}
                                         className="bg-emerald-500 transition-all duration-500"
                                         title={`Match: ${breakdown.match} (${breakdown.match_rate}%)`}
                                     />
                                     <div
-                                        style={{ width: `${breakdown.needs_review_rate}%` }}
+                                        style={{
+                                            width: `${breakdown.needs_review_rate}%`,
+                                        }}
                                         className="bg-amber-500 transition-all duration-500"
                                         title={`Needs Review: ${breakdown.needs_review} (${breakdown.needs_review_rate}%)`}
                                     />
                                     <div
-                                        style={{ width: `${breakdown.hold_rate}%` }}
+                                        style={{
+                                            width: `${breakdown.hold_rate}%`,
+                                        }}
                                         className="bg-rose-500 transition-all duration-500"
                                         title={`Hold: ${breakdown.hold} (${breakdown.hold_rate}%)`}
                                     />
                                     <div
-                                        style={{ width: `${breakdown.exempt_rate}%` }}
+                                        style={{
+                                            width: `${breakdown.exempt_rate}%`,
+                                        }}
                                         className="bg-indigo-500 transition-all duration-500"
                                         title={`Exempt: ${breakdown.exempt} (${breakdown.exempt_rate}%)`}
                                     />
@@ -455,7 +527,8 @@ export default function JevAnalyticsPage({
                                         </span>
                                     </div>
                                     <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400">
-                                        Matched published category (&ge;80% confidence with verbatim policy quotes).
+                                        Matched published category (&ge;80%
+                                        confidence with verbatim policy quotes).
                                     </p>
                                     <div className="mt-2 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
                                         {breakdown.match_rate}% of total runs
@@ -475,10 +548,12 @@ export default function JevAnalyticsPage({
                                         </span>
                                     </div>
                                     <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
-                                        Ambiguous evidence or questions flagged by policy parser.
+                                        Ambiguous evidence or questions flagged
+                                        by policy parser.
                                     </p>
                                     <div className="mt-2 text-[10px] font-medium text-amber-800 dark:text-amber-300">
-                                        {breakdown.needs_review_rate}% of total runs
+                                        {breakdown.needs_review_rate}% of total
+                                        runs
                                     </div>
                                 </div>
 
@@ -495,7 +570,8 @@ export default function JevAnalyticsPage({
                                         </span>
                                     </div>
                                     <p className="mt-1 text-[11px] text-rose-700 dark:text-rose-400">
-                                        Below 80% threshold or conflicting policy categories detected.
+                                        Below 80% threshold or conflicting
+                                        policy categories detected.
                                     </p>
                                     <div className="mt-2 text-[10px] font-medium text-rose-800 dark:text-rose-300">
                                         {breakdown.hold_rate}% of total runs
@@ -515,7 +591,8 @@ export default function JevAnalyticsPage({
                                         </span>
                                     </div>
                                     <p className="mt-1 text-[11px] text-indigo-700 dark:text-indigo-400">
-                                        Excluded criteria or zero-headroom budget line allocations.
+                                        Excluded criteria or zero-headroom
+                                        budget line allocations.
                                     </p>
                                     <div className="mt-2 text-[10px] font-medium text-indigo-800 dark:text-indigo-300">
                                         {breakdown.exempt_rate}% of total runs
@@ -535,7 +612,8 @@ export default function JevAnalyticsPage({
                                         Admin Approval & Concurrence Analytics
                                     </FrameTitle>
                                     <FrameDescription>
-                                        How frequently human officers approve JEV decisions vs manual overrides.
+                                        How frequently human officers approve
+                                        JEV decisions vs manual overrides.
                                     </FrameDescription>
                                 </div>
                                 <Badge variant="outline" className="text-xs">
@@ -548,19 +626,29 @@ export default function JevAnalyticsPage({
                             <div className="space-y-1.5">
                                 <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                                     <div
-                                        style={{ width: `${approvals.concurrence_rate}%` }}
+                                        style={{
+                                            width: `${approvals.concurrence_rate}%`,
+                                        }}
                                         className="bg-emerald-500 transition-all duration-500"
                                         title={`Staff Concurred: ${approvals.concurrence_count} (${approvals.concurrence_rate}%)`}
                                     />
                                     <div
-                                        style={{ width: `${approvals.override_rate}%` }}
+                                        style={{
+                                            width: `${approvals.override_rate}%`,
+                                        }}
                                         className="bg-amber-500 transition-all duration-500"
                                         title={`Manual Override: ${approvals.override_count} (${approvals.override_rate}%)`}
                                     />
                                 </div>
                                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                                    <span>Concurred with JEV ({approvals.concurrence_rate}%)</span>
-                                    <span>Manual Overrides ({approvals.override_rate}%)</span>
+                                    <span>
+                                        Concurred with JEV (
+                                        {approvals.concurrence_rate}%)
+                                    </span>
+                                    <span>
+                                        Manual Overrides (
+                                        {approvals.override_rate}%)
+                                    </span>
                                 </div>
                             </div>
 
@@ -607,7 +695,19 @@ export default function JevAnalyticsPage({
                             <div className="rounded-lg border border-indigo-200/70 bg-indigo-50/50 p-3.5 text-xs text-indigo-950 dark:border-indigo-950 dark:bg-indigo-950/20 dark:text-indigo-200 flex items-start gap-2.5">
                                 <Award className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                                 <div>
-                                    <span className="font-semibold">Separation of Duties Verification:</span> JEV proposes advisory classifications and allocation bounds; no payment is ever released until a certified human officer independently signs off. Time to approval averages <span className="font-semibold text-indigo-700 dark:text-indigo-300">{approvals.avg_time_to_approval_human}</span> across all processed collections and budget plans.
+                                    <span className="font-semibold">
+                                        Separation of Duties Verification:
+                                    </span>{' '}
+                                    JEV proposes advisory classifications and
+                                    allocation bounds; no payment is ever
+                                    released until a certified human officer
+                                    independently signs off. Time to approval
+                                    averages{' '}
+                                    <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                                        {approvals.avg_time_to_approval_human}
+                                    </span>{' '}
+                                    across all processed collections and budget
+                                    plans.
                                 </div>
                             </div>
                         </FramePanel>
@@ -624,21 +724,26 @@ export default function JevAnalyticsPage({
                                     14-Day Daily Evaluation & Approval Trends
                                 </FrameTitle>
                                 <FrameDescription>
-                                    Daily evaluation volume by decision state and human staff approvals.
+                                    Daily evaluation volume by decision state
+                                    and human staff approvals.
                                 </FrameDescription>
                             </div>
                             <div className="flex items-center gap-3 text-xs text-slate-500">
                                 <span className="flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> Match
+                                    <span className="h-2 w-2 rounded-full bg-emerald-500" />{' '}
+                                    Match
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-amber-500" /> Needs Review
+                                    <span className="h-2 w-2 rounded-full bg-amber-500" />{' '}
+                                    Needs Review
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-rose-500" /> Safety Hold
+                                    <span className="h-2 w-2 rounded-full bg-rose-500" />{' '}
+                                    Safety Hold
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-sky-500" /> Approved
+                                    <span className="h-2 w-2 rounded-full bg-sky-500" />{' '}
+                                    Approved
                                 </span>
                             </div>
                         </div>
@@ -646,15 +751,19 @@ export default function JevAnalyticsPage({
                     <FramePanel>
                         {trends.length === 0 ? (
                             <div className="py-12 text-center text-sm text-slate-500">
-                                No trend data available for the selected interval.
+                                No trend data available for the selected
+                                interval.
                             </div>
                         ) : (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-14 gap-1.5 sm:gap-2 h-44 items-end pt-4">
                                     {trends.map((point) => {
                                         const heightPercent = Math.max(
-                                            Math.round((point.total / maxTrendTotal) * 100),
-                                            point.total > 0 ? 12 : 2
+                                            Math.round(
+                                                (point.total / maxTrendTotal) *
+                                                    100,
+                                            ),
+                                            point.total > 0 ? 12 : 2,
                                         );
 
                                         return (
@@ -664,13 +773,23 @@ export default function JevAnalyticsPage({
                                             >
                                                 {/* Hover Tooltip */}
                                                 <div className="absolute -top-12 z-20 hidden rounded-md bg-slate-900 px-2 py-1 text-[10px] text-white shadow-lg group-hover:block dark:bg-slate-800 whitespace-nowrap">
-                                                    <div>{point.label}: {point.total} evaluations</div>
-                                                    <div className="text-emerald-400">{point.matches} matches · {point.approved} approved</div>
+                                                    <div>
+                                                        {point.label}:{' '}
+                                                        {point.total}{' '}
+                                                        evaluations
+                                                    </div>
+                                                    <div className="text-emerald-400">
+                                                        {point.matches} matches
+                                                        · {point.approved}{' '}
+                                                        approved
+                                                    </div>
                                                 </div>
 
                                                 {/* Stacked bar */}
                                                 <div
-                                                    style={{ height: `${heightPercent}%` }}
+                                                    style={{
+                                                        height: `${heightPercent}%`,
+                                                    }}
                                                     className="w-full max-w-[28px] rounded-t-md overflow-hidden flex flex-col justify-end bg-slate-100 dark:bg-slate-800 transition-all duration-300"
                                                 >
                                                     {point.matches > 0 && (
@@ -720,15 +839,22 @@ export default function JevAnalyticsPage({
                                 Top Policy Categories Classified by JEV
                             </FrameTitle>
                             <FrameDescription>
-                                Exact distribution of published institution policy categories matched with verified citations.
+                                Exact distribution of published institution
+                                policy categories matched with verified
+                                citations.
                             </FrameDescription>
                         </FrameHeader>
                         <FramePanel>
                             <div className="space-y-3">
                                 {categoriesList.map((cat) => {
-                                    const percent = breakdown.match > 0
-                                        ? Math.round((cat.count / breakdown.match) * 100)
-                                        : 0;
+                                    const percent =
+                                        breakdown.match > 0
+                                            ? Math.round(
+                                                  (cat.count /
+                                                      breakdown.match) *
+                                                      100,
+                                              )
+                                            : 0;
 
                                     return (
                                         <div key={cat.id} className="space-y-1">
@@ -737,15 +863,24 @@ export default function JevAnalyticsPage({
                                                     {cat.name}
                                                 </span>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-slate-500">{cat.count} runs ({percent}%)</span>
-                                                    <Badge variant="outline" className="text-[10px] py-0">
-                                                        {cat.avg_confidence}% confidence
+                                                    <span className="text-slate-500">
+                                                        {cat.count} runs (
+                                                        {percent}%)
+                                                    </span>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="text-[10px] py-0"
+                                                    >
+                                                        {cat.avg_confidence}%
+                                                        confidence
                                                     </Badge>
                                                 </div>
                                             </div>
                                             <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800">
                                                 <div
-                                                    style={{ width: `${percent}%` }}
+                                                    style={{
+                                                        width: `${percent}%`,
+                                                    }}
                                                     className="h-full bg-indigo-600 rounded-full transition-all duration-300"
                                                 />
                                             </div>
@@ -767,7 +902,9 @@ export default function JevAnalyticsPage({
                                     Recent JEV Evaluations & Staff Audit Trail
                                 </FrameTitle>
                                 <FrameDescription>
-                                    Inspect decision history, verbatim citations, staff reviews, and concurrence records.
+                                    Inspect decision history, verbatim
+                                    citations, staff reviews, and concurrence
+                                    records.
                                 </FrameDescription>
                             </div>
 
@@ -777,21 +914,36 @@ export default function JevAnalyticsPage({
                                     <Input
                                         placeholder="Search evaluations..."
                                         value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onChange={(e) =>
+                                            setSearchTerm(e.target.value)
+                                        }
                                         className="h-8 pl-8 text-xs"
                                     />
                                 </div>
 
-                                <Select value={decisionFilter} onValueChange={setDecisionFilter}>
+                                <Select
+                                    value={decisionFilter}
+                                    onValueChange={setDecisionFilter}
+                                >
                                     <SelectTrigger className="h-8 w-32 text-xs">
                                         <SelectValue placeholder="Decision" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All Decisions</SelectItem>
-                                        <SelectItem value="match">Match</SelectItem>
-                                        <SelectItem value="needs_review">Needs Review</SelectItem>
-                                        <SelectItem value="hold">Safety Hold</SelectItem>
-                                        <SelectItem value="exempt">Exempt</SelectItem>
+                                        <SelectItem value="all">
+                                            All Decisions
+                                        </SelectItem>
+                                        <SelectItem value="match">
+                                            Match
+                                        </SelectItem>
+                                        <SelectItem value="needs_review">
+                                            Needs Review
+                                        </SelectItem>
+                                        <SelectItem value="hold">
+                                            Safety Hold
+                                        </SelectItem>
+                                        <SelectItem value="exempt">
+                                            Exempt
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -803,20 +955,36 @@ export default function JevAnalyticsPage({
                                 <thead>
                                     <tr className="border-b border-slate-200 bg-slate-50/75 dark:border-slate-800 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                                         <th className="py-3 px-4">#ID</th>
-                                        <th className="py-3 px-4">Evidence Source</th>
-                                        <th className="py-3 px-4">JEV Decision</th>
-                                        <th className="py-3 px-4">Category / Confidence</th>
-                                        <th className="py-3 px-4">Admin Status</th>
-                                        <th className="py-3 px-4">Concurrence</th>
+                                        <th className="py-3 px-4">
+                                            Evidence Source
+                                        </th>
+                                        <th className="py-3 px-4">
+                                            JEV Decision
+                                        </th>
+                                        <th className="py-3 px-4">
+                                            Category / Confidence
+                                        </th>
+                                        <th className="py-3 px-4">
+                                            Admin Status
+                                        </th>
+                                        <th className="py-3 px-4">
+                                            Concurrence
+                                        </th>
                                         <th className="py-3 px-4">Latency</th>
-                                        <th className="py-3 px-4">Evaluated At</th>
+                                        <th className="py-3 px-4">
+                                            Evaluated At
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                     {filteredAudit.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="py-8 text-center text-slate-500">
-                                                No policy evaluation records found matching your filter.
+                                            <td
+                                                colSpan={8}
+                                                className="py-8 text-center text-slate-500"
+                                            >
+                                                No policy evaluation records
+                                                found matching your filter.
                                             </td>
                                         </tr>
                                     ) : (
@@ -837,31 +1005,51 @@ export default function JevAnalyticsPage({
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    {item.jev_decision === 'match' && (
-                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                                    {item.jev_decision ===
+                                                        'match' && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                                        >
                                                             <CheckCircle2 className="mr-1 h-3 w-3 text-emerald-600" />
                                                             Match
                                                         </Badge>
                                                     )}
-                                                    {item.jev_decision === 'needs_review' && (
-                                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300">
+                                                    {item.jev_decision ===
+                                                        'needs_review' && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300"
+                                                        >
                                                             <AlertCircle className="mr-1 h-3 w-3 text-amber-600" />
                                                             Needs Review
                                                         </Badge>
                                                     )}
-                                                    {item.jev_decision === 'hold' && (
-                                                        <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300">
+                                                    {item.jev_decision ===
+                                                        'hold' && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300"
+                                                        >
                                                             <ShieldAlert className="mr-1 h-3 w-3 text-rose-600" />
                                                             Safety Hold
                                                         </Badge>
                                                     )}
-                                                    {item.jev_decision === 'exempt' && (
-                                                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                                    {item.jev_decision ===
+                                                        'exempt' && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                                        >
                                                             Exempt
                                                         </Badge>
                                                     )}
-                                                    {item.jev_decision === 'in_progress' && (
-                                                        <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                                                    {item.jev_decision ===
+                                                        'in_progress' && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="bg-slate-50 text-slate-700 border-slate-200"
+                                                        >
                                                             <RefreshCw className="mr-1 h-3 w-3 animate-spin text-slate-500" />
                                                             Running
                                                         </Badge>
@@ -871,38 +1059,52 @@ export default function JevAnalyticsPage({
                                                     {item.category_name ? (
                                                         <div>
                                                             <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                                                {item.category_name}
+                                                                {
+                                                                    item.category_name
+                                                                }
                                                             </span>
-                                                            {item.confidence_percent !== null && (
+                                                            {item.confidence_percent !==
+                                                                null && (
                                                                 <span className="ml-1.5 text-[11px] text-slate-500 font-mono">
-                                                                    ({item.confidence_percent}%)
+                                                                    (
+                                                                    {
+                                                                        item.confidence_percent
+                                                                    }
+                                                                    %)
                                                                 </span>
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <span className="text-slate-400 italic">Held for human review</span>
+                                                        <span className="text-slate-400 italic">
+                                                            Held for human
+                                                            review
+                                                        </span>
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    {item.staff_status === 'approved' && (
+                                                    {item.staff_status ===
+                                                        'approved' && (
                                                         <span className="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                                                             <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                                                             Approved
                                                         </span>
                                                     )}
-                                                    {item.staff_status === 'held' && (
+                                                    {item.staff_status ===
+                                                        'held' && (
                                                         <span className="inline-flex items-center text-xs font-semibold text-amber-600 dark:text-amber-400">
                                                             <ShieldAlert className="mr-1 h-3.5 w-3.5" />
                                                             Held by Staff
                                                         </span>
                                                     )}
-                                                    {item.staff_status === 'rejected' && (
+                                                    {item.staff_status ===
+                                                        'rejected' && (
                                                         <span className="inline-flex items-center text-xs font-semibold text-rose-600 dark:text-rose-400">
                                                             <XCircle className="mr-1 h-3.5 w-3.5" />
                                                             Rejected
                                                         </span>
                                                     )}
-                                                    {item.staff_status === 'pending_review' && (
+                                                    {item.staff_status ===
+                                                        'pending_review' && (
                                                         <span className="inline-flex items-center text-xs text-slate-400 italic">
                                                             <Clock className="mr-1 h-3.5 w-3.5" />
                                                             Awaiting Review
@@ -910,30 +1112,47 @@ export default function JevAnalyticsPage({
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    {item.concurrence === true && (
-                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] py-0">
+                                                    {item.concurrence ===
+                                                        true && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] py-0"
+                                                        >
                                                             Concurred
                                                         </Badge>
                                                     )}
-                                                    {item.concurrence === false && (
-                                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] py-0">
+                                                    {item.concurrence ===
+                                                        false && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] py-0"
+                                                        >
                                                             Override
                                                         </Badge>
                                                     )}
-                                                    {item.concurrence === null && (
-                                                        <span className="text-slate-400 text-[11px]">—</span>
+                                                    {item.concurrence ===
+                                                        null && (
+                                                        <span className="text-slate-400 text-[11px]">
+                                                            —
+                                                        </span>
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
-                                                    {item.time_to_approval ?? '—'}
+                                                    {item.time_to_approval ??
+                                                        '—'}
                                                 </td>
                                                 <td className="py-3 px-4 text-slate-500 text-[11px] whitespace-nowrap">
-                                                    {new Date(item.created_at).toLocaleString(undefined, {
-                                                        month: 'short',
-                                                        day: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}
+                                                    {new Date(
+                                                        item.created_at,
+                                                    ).toLocaleString(
+                                                        undefined,
+                                                        {
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                        },
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))

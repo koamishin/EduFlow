@@ -546,7 +546,7 @@ final readonly class JevAnalyticsService
      *     time_to_approval: string|null,
      *     concurrence: bool|null,
      *     is_override: bool,
-     *     created_at: CarbonInterface
+     *     created_at: CarbonInterface|null
      * }>
      */
     public function recentAuditLog(?int $organizationId = null, int $limit = 20): Collection
@@ -609,15 +609,13 @@ final readonly class JevAnalyticsService
             $query->where('source_type', $sourceType);
         }
 
-        $query = match ($period) {
+        return match ($period) {
             'today' => $query->where('created_at', '>=', now()->startOfDay()),
             '7_days' => $query->where('created_at', '>=', now()->subDays(7)->startOfDay()),
             '14_days' => $query->where('created_at', '>=', now()->subDays(14)->startOfDay()),
             '30_days' => $query->where('created_at', '>=', now()->subDays(30)->startOfDay()),
             default => $query,
         };
-
-        return $query;
     }
 
     private function formatDuration(int $seconds, int $count): string

@@ -263,7 +263,7 @@ test('finance officer and admin can access jev analytics dashboard with valid in
     $this->actingAs($this->financeOfficer)
         ->get(route('finance.jev-analytics'))
         ->assertSuccessful()
-        ->assertInertia(fn (AssertableInertia $page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('finance/analytics')
             ->has('institution')
             ->has('filters')
@@ -277,7 +277,7 @@ test('finance officer and admin can access jev analytics dashboard with valid in
     $this->actingAs($this->admin)
         ->get(route('finance.jev-analytics', ['period' => '7_days', 'source_type' => 'collection']))
         ->assertSuccessful()
-        ->assertInertia(fn (AssertableInertia $page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('finance/analytics')
             ->where('filters.period', '7_days')
             ->where('filters.source_type', 'collection')

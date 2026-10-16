@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\EvaluateInstitutionPolicy;
 use App\Models\InstitutionPolicyEvaluation;
+use App\Models\Organization;
 use App\Services\InstallationInstitution;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Bus;
@@ -32,7 +33,7 @@ final class DispatchPolicyEvaluations extends Command
     public function handle(InstallationInstitution $institutions): int
     {
         $institution = $institutions->current();
-        if ($institution === null) {
+        if (! $institution instanceof Organization) {
             $this->warn('No active institution context found.');
 
             return self::SUCCESS;

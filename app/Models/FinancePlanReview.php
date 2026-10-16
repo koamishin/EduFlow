@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use LogicException;
 
 /**
@@ -16,6 +17,8 @@ use LogicException;
  * @property string $reason
  * @property string $plan_digest
  * @property string $review_digest
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class FinancePlanReview extends Model
 {
