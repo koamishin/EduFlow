@@ -8,6 +8,7 @@ use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Enums\RoleEnums;
 use App\Models\AcademicTerm;
+use App\Models\Organization;
 use App\Models\Student;
 use App\Models\StudentWallet;
 use App\Models\TuitionAccount;
@@ -15,6 +16,7 @@ use App\Models\User;
 use App\Services\InstallationInstitution;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 use Spatie\Permission\Models\Role;
 
@@ -29,6 +31,12 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
+        if (Organization::query()->count() === 0) {
+            throw ValidationException::withMessages([
+                'institution' => 'No educational institution is registered yet. Please register your institution first.',
+            ]);
+        }
+
         $isStudent = ! empty($input['student_id_number'])
             || ! empty($input['student_number'])
             || ! empty($input['department'])
@@ -66,6 +74,12 @@ class CreateNewUser implements CreatesNewUsers
         $resolvedOrgId = $input['institution_id']
             ?? $input['organization_id']
             ?? app(InstallationInstitution::class)->current()?->id;
+
+        if (empty($resolvedOrgId)) {
+            throw ValidationException::withMessages([
+                'institution_id' => 'Please select an educational institution to enroll.',
+            ]);
+        }
 
         Validator::make($input, [
             ...$this->profileRules(),

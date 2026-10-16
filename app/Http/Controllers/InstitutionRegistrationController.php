@@ -169,6 +169,6 @@ class InstitutionRegistrationController extends Controller
             report($e);
         }
 
-        return redirect()->to('/finance');
+        return redirect()->route('institutions.setup');
     }
 }

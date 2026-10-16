@@ -1,7 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
+use App\Models\Organization;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
+
+beforeEach(function (): void {
+    Organization::withoutSingleInstitutionGuard(function () {
+        return Organization::create([
+            'name' => 'General Academy',
+            'type' => 'school',
+            'currency' => 'USDC',
+            'is_setup_completed' => true,
+        ]);
+    });
+});
 
 test('registration screen can be rendered', function (): void {
     $response = $this->get(route('register'));

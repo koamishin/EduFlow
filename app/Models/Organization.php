@@ -47,6 +47,7 @@ class Organization extends Model
         'domain',
         'country',
         'timezone',
+        'is_setup_completed',
         'type',
         'currency',
         'minimum_reserve',
@@ -59,6 +60,7 @@ class Organization extends Model
     protected function casts(): array
     {
         return [
+            'is_setup_completed' => 'boolean',
             'minimum_reserve' => 'float',
             'max_auto_payment' => 'float',
             'max_daily_disbursement' => 'float',

@@ -2,10 +2,15 @@ import { useEffect, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ArrowRight,
+    Building2,
     Check,
     CheckCircle2,
     ChevronDown,
     ExternalLink,
+    GraduationCap,
+    ShieldCheck,
+    Sparkles,
+    Wallet as WalletIcon,
 } from 'lucide-react';
 
 import { dashboard, login } from '@/routes';
@@ -14,8 +19,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
+interface InstitutionItem {
+    id: number;
+    name: string;
+    slug: string;
+    domain?: string;
+}
+
 interface WelcomeProps {
     canRegister?: boolean;
+    hasInstitutions?: boolean;
+    institutionCount?: number;
+    institutions?: InstitutionItem[];
 }
 
 interface IntakeItem {
@@ -205,7 +220,12 @@ const FAQS: FaqItem[] = [
     },
 ];
 
-export default function Welcome({ canRegister = false }: WelcomeProps) {
+export default function Welcome({
+    canRegister = false,
+    hasInstitutions = true,
+    institutionCount = 0,
+    institutions = [],
+}: WelcomeProps) {
     const { auth } = usePage().props;
     const [selectedStudentId, setSelectedStudentId] = useState<string>('s-1');
     const [pendingApproval, setPendingApproval] = useState<
@@ -292,6 +312,26 @@ export default function Welcome({ canRegister = false }: WelcomeProps) {
                                     <ArrowRight className="size-3.5 ml-1" />
                                 </Button>
                             </Link>
+                        ) : !hasInstitutions ? (
+                            <>
+                                <Link href="/institutions/register">
+                                    <Button
+                                        size="sm"
+                                        className="rounded-full text-xs font-semibold px-4 h-8.5 bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] shadow-xs"
+                                    >
+                                        Setup School
+                                    </Button>
+                                </Link>
+                                <a href="/console">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="rounded-full text-xs font-semibold px-4 h-8.5 border-stone-300 text-stone-800 hover:bg-stone-100"
+                                    >
+                                        Open Console
+                                    </Button>
+                                </a>
+                            </>
                         ) : (
                             <>
                                 <Link href={login()}>
@@ -303,7 +343,16 @@ export default function Welcome({ canRegister = false }: WelcomeProps) {
                                         Sign in
                                     </Button>
                                 </Link>
-                                <a href="/finance">
+                                <Link href="/institutions/register">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="rounded-full text-xs font-medium h-8.5 px-3 border-stone-300 text-stone-700 hover:bg-stone-100"
+                                    >
+                                        Add School
+                                    </Button>
+                                </Link>
+                                <a href="/console">
                                     <Button
                                         size="sm"
                                         className="rounded-full text-xs font-semibold px-4 h-8.5 bg-[#1C1917] text-white hover:bg-stone-800 shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
@@ -321,15 +370,22 @@ export default function Welcome({ canRegister = false }: WelcomeProps) {
                 {/* 1. HERO HOOK SECTION (FANCY LIGHT MODE) */}
                 <section className="mx-auto flex max-w-4xl flex-col items-center px-4 sm:px-6 text-center">
                     {/* Eyebrow Pill */}
-                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-stone-200/80 bg-white px-3.5 py-1 text-xs font-mono text-stone-600 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-                        <span className="relative flex size-2">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-                        </span>
-                        <span>
-                            FOR COLLEGES, ACADEMIES, INSTITUTES AND SCHOOLS
-                        </span>
-                    </div>
+                    {!hasInstitutions ? (
+                        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-1.5 text-xs font-mono text-amber-900 shadow-sm">
+                            <Sparkles className="size-3.5 text-amber-600 animate-pulse" />
+                            <span>FRESH INSTALLATION · SETUP FIRST INSTITUTION TO ENABLE STUDENT ENROLLMENT</span>
+                        </div>
+                    ) : (
+                        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-stone-200/80 bg-white px-3.5 py-1 text-xs font-mono text-stone-600 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+                            <span className="relative flex size-2">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                            </span>
+                            <span>
+                                MULTI-SCHOOL SAAS PLATFORM · {institutionCount} {institutionCount === 1 ? 'INSTITUTION' : 'INSTITUTIONS'} ACTIVE
+                            </span>
+                        </div>
+                    )}
 
                     <h1
                         style={{ textWrap: 'balance' }}
@@ -353,24 +409,59 @@ export default function Welcome({ canRegister = false }: WelcomeProps) {
                     </p>
 
                     <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
-                        <a href="/finance">
-                            <Button
-                                size="lg"
-                                className="rounded-full px-7 py-3 text-sm font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.12)] bg-[#1C1917] text-white hover:bg-stone-800 transition-all hover:-translate-y-0.5"
-                            >
-                                Launch treasury mission
-                                <ArrowRight className="size-4 ml-1.5" />
-                            </Button>
-                        </a>
-                        <a href="#product">
-                            <Button
-                                variant="outline"
-                                size="lg"
-                                className="rounded-full px-6 py-3 text-sm font-semibold border-stone-300 bg-white text-stone-800 hover:bg-stone-50 shadow-xs"
-                            >
-                                See what it does
-                            </Button>
-                        </a>
+                        {!hasInstitutions ? (
+                            <>
+                                <Link href="/institutions/register">
+                                    <Button
+                                        size="lg"
+                                        className="rounded-full px-7 py-3 text-sm font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.12)] bg-[#1C1917] text-white hover:bg-stone-800 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                                    >
+                                        Register Your Institution
+                                        <ArrowRight className="size-4" />
+                                    </Button>
+                                </Link>
+                                <a href="/console">
+                                    <Button
+                                        variant="outline"
+                                        size="lg"
+                                        className="rounded-full px-6 py-3 text-sm font-semibold border-stone-300 bg-white text-stone-800 hover:bg-stone-50 shadow-xs"
+                                    >
+                                        Open Console
+                                    </Button>
+                                </a>
+                            </>
+                        ) : (
+                            <>
+                                <a href="/console">
+                                    <Button
+                                        size="lg"
+                                        className="rounded-full px-7 py-3 text-sm font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.12)] bg-[#1C1917] text-white hover:bg-stone-800 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                                    >
+                                        Open Finance Console
+                                        <ArrowRight className="size-4" />
+                                    </Button>
+                                </a>
+                                <Link href={login()}>
+                                    <Button
+                                        variant="outline"
+                                        size="lg"
+                                        className="rounded-full px-6 py-3 text-sm font-semibold border-stone-300 bg-white text-stone-800 hover:bg-stone-50 shadow-xs flex items-center gap-1.5"
+                                    >
+                                        <GraduationCap className="size-4 text-stone-600" />
+                                        Student Portal
+                                    </Button>
+                                </Link>
+                                <Link href="/institutions/register">
+                                    <Button
+                                        variant="ghost"
+                                        size="lg"
+                                        className="rounded-full px-5 py-3 text-sm font-medium text-stone-600 hover:text-stone-900"
+                                    >
+                                        + Register Another School
+                                    </Button>
+                                </Link>
+                            </>
+                        )}
                     </div>
 
                     {/* FANCY COCKPIT TERMINAL SIMULATOR */}
@@ -1303,7 +1394,7 @@ export default function Welcome({ canRegister = false }: WelcomeProps) {
                                 />
                             </div>
                             <a
-                                href="/finance"
+                                href="/console"
                                 className="w-full sm:w-auto shrink-0"
                             >
                                 <Button
@@ -1352,11 +1443,17 @@ export default function Welcome({ canRegister = false }: WelcomeProps) {
                         >
                             Skills Studio
                         </Link>
-                        <a
-                            href="/finance"
+                        <Link
+                            href="/institutions/register"
                             className="hover:text-stone-900 transition-colors"
                         >
-                            Finance Panel
+                            Register School
+                        </Link>
+                        <a
+                            href="/console"
+                            className="hover:text-stone-900 transition-colors"
+                        >
+                            Finance Console
                         </a>
                         <span>MIT License</span>
                     </div>

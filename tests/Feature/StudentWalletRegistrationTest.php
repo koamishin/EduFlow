@@ -12,6 +12,19 @@ use Spatie\Permission\Models\Role;
 beforeEach(function (): void {
     Role::firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);
+
+    $this->org = Organization::withoutSingleInstitutionGuard(function () {
+        return Organization::create([
+            'name' => 'Continental University of Technology',
+            'slug' => 'continental-tech',
+            'domain' => 'continental.edu',
+            'country' => 'Kenya',
+            'timezone' => 'Africa/Nairobi',
+            'currency' => 'USDC',
+            'type' => 'school',
+            'is_setup_completed' => true,
+        ]);
+    });
 });
 
 test('student registration screen renders successfully', function (): void {
@@ -21,18 +34,6 @@ test('student registration screen renders successfully', function (): void {
 });
 
 test('a new student can register with institution, academic details, and web3 wallet', function (): void {
-    $org = Organization::withoutSingleInstitutionGuard(function () {
-        return Organization::create([
-            'name' => 'Continental University of Technology',
-            'slug' => 'continental-tech',
-            'domain' => 'continental.edu',
-            'country' => 'Kenya',
-            'timezone' => 'Africa/Nairobi',
-            'currency' => 'USDC',
-            'type' => 'school',
-        ]);
-    });
-
     $validArcWallet = '0x1234567890abcdef1234567890abcdef12345678';
 
     $response = $this->post(route('register.store'), [
@@ -40,7 +41,7 @@ test('a new student can register with institution, academic details, and web3 wa
         'email' => 'marcus@student.continental.edu',
         'password' => 'SecurePass123!@#',
         'password_confirmation' => 'SecurePass123!@#',
-        'institution_id' => $org->id,
+        'institution_id' => $this->org->id,
         'student_id_number' => 'CUT-2026-9901',
         'department' => 'Software Engineering',
         'wallet_address' => $validArcWallet,
@@ -53,14 +54,14 @@ test('a new student can register with institution, academic details, and web3 wa
     $user = User::where('email', 'marcus@student.continental.edu')->first();
     expect($user)->not->toBeNull()
         ->and($user->name)->toBe('Marcus Doe')
-        ->and($user->organization_id)->toBe($org->id)
+        ->and($user->organization_id)->toBe($this->org->id)
         ->and($user->wallet_address)->toBe($validArcWallet)
         ->and($user->hasRole('student'))->toBeTrue();
 
     // Verify Student Model
     $student = Student::where('user_id', $user->id)->first();
     expect($student)->not->toBeNull()
-        ->and($student->organization_id)->toBe($org->id)
+        ->and($student->organization_id)->toBe($this->org->id)
         ->and($student->student_id_number)->toBe('CUT-2026-9901')
         ->and($student->student_number)->toBe('CUT-2026-9901')
         ->and($student->department)->toBe('Software Engineering')
@@ -89,6 +90,7 @@ test('student registration rejects invalid arc wallet addresses', function (): v
         'email' => 'badwallet@student.edu',
         'password' => 'SecurePass123!@#',
         'password_confirmation' => 'SecurePass123!@#',
+        'institution_id' => $this->org->id,
         'student_id_number' => 'STU-100',
         'department' => 'Arts',
         'wallet_address' => '0xinvalidwalletnot40chars',

@@ -33,7 +33,7 @@ test('an institution can be registered with autonomous circle agent wallet', fun
         'admin_password_confirmation' => 'SecureApexPassword123!',
     ]);
 
-    $response->assertRedirect('/finance');
+    $response->assertRedirect(route('institutions.setup'));
 
     $org = Organization::where('slug', 'apex-academy')->first();
     expect($org)->not->toBeNull()
@@ -79,7 +79,7 @@ test('an institution can be registered with a manual arc treasury address', func
         'admin_password_confirmation' => 'SecureMetroPassword123!',
     ]);
 
-    $response->assertRedirect('/finance');
+    $response->assertRedirect(route('institutions.setup'));
 
     $org = Organization::where('name', 'Metro Polytechnic Institute')->first();
     expect($org)->not->toBeNull();
@@ -101,7 +101,7 @@ test('multiple institutions can register on the shared database without single i
         'admin_email' => 'admin@alpha.edu',
         'admin_password' => 'AlphaAdminPass123!',
         'admin_password_confirmation' => 'AlphaAdminPass123!',
-    ])->assertRedirect('/finance');
+    ])->assertRedirect(route('institutions.setup'));
 
     // Register School 2
     $this->post(route('institutions.register.store'), [
@@ -113,7 +113,7 @@ test('multiple institutions can register on the shared database without single i
         'admin_email' => 'admin@beta.edu',
         'admin_password' => 'BetaAdminPass123!',
         'admin_password_confirmation' => 'BetaAdminPass123!',
-    ])->assertRedirect('/finance');
+    ])->assertRedirect(route('institutions.setup'));
 
     expect(Organization::where('name', 'Alpha Institute')->exists())->toBeTrue()
         ->and(Organization::where('name', 'Beta University')->exists())->toBeTrue();

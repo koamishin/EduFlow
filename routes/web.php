@@ -9,11 +9,13 @@ use App\Http\Controllers\BudgetSnapshotController;
 use App\Http\Controllers\ChatHistoryController;
 use App\Http\Controllers\CircleWebhookController;
 use App\Http\Controllers\CollectionBatchController;
+use App\Http\Controllers\ConsoleRedirectController;
 use App\Http\Controllers\FinanceApprovalController;
 use App\Http\Controllers\FundingWindowController;
 use App\Http\Controllers\InstitutionPolicyController;
 use App\Http\Controllers\InstitutionPolicyEvaluationController;
 use App\Http\Controllers\InstitutionRegistrationController;
+use App\Http\Controllers\InstitutionSetupController;
 use App\Http\Controllers\InvoiceVersionController;
 use App\Http\Controllers\JevAnalyticsController;
 use App\Http\Controllers\NotificationController;
@@ -29,20 +31,37 @@ use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\StudentTuitionPaymentController;
 use App\Http\Controllers\StudentWalletController;
 use App\Http\Controllers\VendorDestinationController;
+use App\Models\Organization;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
-Route::get('/', fn () => Inertia::render('welcome', [
-    'canRegister' => Features::enabled(Features::registration()),
-]))->name('home');
+Route::get('/', function () {
+    $hasInstitutions = Organization::query()->exists();
+    $institutionCount = Organization::query()->count();
+    $institutions = $hasInstitutions
+        ? Organization::query()->select(['id', 'name', 'slug', 'domain'])->limit(10)->get()
+        : collect();
+
+    return Inertia::render('welcome', [
+        'canRegister' => Features::enabled(Features::registration()),
+        'hasInstitutions' => $hasInstitutions,
+        'institutionCount' => $institutionCount,
+        'institutions' => $institutions,
+    ]);
+})->name('home');
 
 Route::get('/skills/design', fn () => Inertia::render('skills/design', [
     'canRegister' => Features::enabled(Features::registration()),
 ]))->name('skills.design');
 
+Route::get('console', ConsoleRedirectController::class)->name('console');
+
 Route::get('institutions/register', [InstitutionRegistrationController::class, 'create'])->name('institutions.register');
 Route::post('institutions/register', [InstitutionRegistrationController::class, 'store'])->name('institutions.register.store');
+
+Route::get('institutions/setup', [InstitutionSetupController::class, 'show'])->middleware(['auth', 'verified'])->name('institutions.setup');
+Route::post('institutions/setup/complete', [InstitutionSetupController::class, 'complete'])->middleware(['auth', 'verified'])->name('institutions.setup.complete');
 
 Route::post('api/webhooks/circle', [CircleWebhookController::class, 'handle'])->middleware('throttle:120,1')->name('api.webhooks.circle');
 

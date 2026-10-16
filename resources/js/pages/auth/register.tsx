@@ -1,5 +1,6 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, Link } from '@inertiajs/react';
 import {
+    AlertCircle,
     Building2,
     CheckCircle2,
     GraduationCap,
@@ -32,14 +33,17 @@ interface Institution {
 type Props = {
     passwordRules: string;
     institutions?: Institution[];
+    hasInstitutions?: boolean;
     currentInstitution?: Institution | null;
 };
 
 export default function Register({
     passwordRules,
     institutions = [],
+    hasInstitutions,
     currentInstitution = null,
 }: Props) {
+    const isInstitutionAvailable = hasInstitutions ?? (institutions.length > 0 || currentInstitution !== null);
     const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>(
         currentInstitution?.id ? String(currentInstitution.id) : (institutions[0]?.id ? String(institutions[0].id) : '')
     );
@@ -98,6 +102,42 @@ export default function Register({
             setConnectingWallet(false);
         }
     };
+
+    if (!isInstitutionAvailable) {
+        return (
+            <>
+                <Head title="Student Registration Unavailable" />
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 sm:p-8 text-center space-y-5">
+                    <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-sm">
+                        <Building2 className="size-7" />
+                    </div>
+                    <div className="space-y-2">
+                        <h2 className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                            Student Registration Unavailable
+                        </h2>
+                        <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+                            No educational institutions have been registered or configured on this OpenSinop deployment yet. Students cannot enroll or register Web3 payout wallets until an institution administrator sets up the school treasury.
+                        </p>
+                    </div>
+
+                    <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+                        <Link href="/institutions/register" className="w-full sm:w-auto">
+                            <Button className="w-full sm:w-auto bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] font-semibold text-xs px-6 py-2.5">
+                                Register Educational Institution
+                            </Button>
+                        </Link>
+                    </div>
+
+                    <div className="pt-4 border-t border-border/60 text-xs text-muted-foreground">
+                        Already an administrator?{' '}
+                        <TextLink href={login()} className="font-semibold text-foreground hover:underline">
+                            Log In to Console
+                        </TextLink>
+                    </div>
+                </div>
+            </>
+        );
+    }
 
     return (
         <>

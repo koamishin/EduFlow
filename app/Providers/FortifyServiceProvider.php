@@ -62,6 +62,7 @@ class FortifyServiceProvider extends ServiceProvider
             'canRegister' => Features::enabled(Features::registration()),
             /* @end-chisel-registration */
             'status' => $request->session()->get('status'),
+            'hasInstitutions' => Organization::query()->exists(),
         ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/reset-password', [
@@ -92,6 +93,7 @@ class FortifyServiceProvider extends ServiceProvider
             return Inertia::render('auth/register', [
                 'passwordRules' => Password::defaults()->toPasswordRulesString(),
                 'institutions' => $institutions,
+                'hasInstitutions' => $institutions->isNotEmpty(),
                 'currentInstitution' => $current ? [
                     'id' => $current->id,
                     'name' => $current->name,
