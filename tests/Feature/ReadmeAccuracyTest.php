@@ -118,15 +118,25 @@ it('never claims a fake-driver run settles real money', function (): void {
         ->and($readme)->toMatch('/not a simulation|never mistake a fake run/i');
 });
 
-it('documents production integration blockers separately from completed features', function (): void {
+it('documents what shipped separately from the gates that are still open', function (): void {
     $readme = (string) file_get_contents(base_path('README.md'));
 
     expect($readme)->toContain('[Production readiness](#production-readiness)')
-        ->and($readme)->toContain('hardening is not yet implemented')
+        // Shipped protections, stated as facts about this repository.
         ->and($readme)->toContain('GET /v2/notifications/publicKey/{keyId}')
         ->and($readme)->toContain('ECDSA_SHA_256')
-        ->and($readme)->toContain('unique `notificationId`')
-        ->and($readme)->toContain('Persist submission identity')
+        ->and($readme)->toContain('`notificationId`')
+        ->and($readme)->toContain('settlement_verified: false')
+        ->and($readme)->toContain('v3.0.0-rc.1')
+        // Gates that remain, so the section cannot drift into a green tick.
+        ->and($readme)->toContain('have not been exercised')
         ->and($readme)->toContain('backup restoration')
         ->and($readme)->toContain('No mainnet payment or custody migration is implicit.');
+});
+
+it('never tells a reader that an unresolved receipt was fabricated', function (): void {
+    $readme = (string) file_get_contents(base_path('README.md'));
+
+    expect($readme)->not->toContain('need hardening')
+        ->and($readme)->toContain('a missing RPC result alone does not prove fabrication');
 });

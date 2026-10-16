@@ -235,13 +235,7 @@ class AskEduFlow
      */
     private function mentions(string $question, string ...$keywords): bool
     {
-        foreach ($keywords as $keyword) {
-            if (preg_match('/\b'.preg_quote($keyword, '/').'\b/i', $question) === 1) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($keywords, fn (string $keyword): bool => preg_match('/\b'.preg_quote($keyword, '/').'\b/i', $question) === 1);
     }
 
     /**
@@ -256,13 +250,7 @@ class AskEduFlow
      */
     private function mentionsStem(string $question, string ...$stems): bool
     {
-        foreach ($stems as $stem) {
-            if (preg_match('/\b'.preg_quote($stem, '/').'\w*/i', $question) === 1) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($stems, fn (string $stem): bool => preg_match('/\b'.preg_quote($stem, '/').'\w*/i', $question) === 1);
     }
 
     /**

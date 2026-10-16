@@ -58,16 +58,14 @@ final readonly class JevPolicyClassifier
         // Identify top non-review candidate for transparent decision process
         $sortedProbs = $answer->probabilities;
         arsort($sortedProbs);
-        $topNonReviewKey = null;
-        foreach ($sortedProbs as $candKey => $candProb) {
-            if ($candKey !== 'needs_review') {
-                $topNonReviewKey = $candKey;
-                break;
-            }
-        }
+        $topNonReviewKey = array_find_key($sortedProbs, fn ($candProb, $candKey): bool => $candKey !== 'needs_review');
         $topCategory = $category ?? ($topNonReviewKey ? collect($policy->content['categories'])->firstWhere('id', $topNonReviewKey) : null);
         $confidencePercent = (int) round($probability * 100);
-        $topProbPercent = $topNonReviewKey && isset($sortedProbs[$topNonReviewKey]) ? (int) round($sortedProbs[$topNonReviewKey] * 100) : $confidencePercent;
+        // The key, when there is one, is a member of $sortedProbs by construction, so
+        // this reads its probability directly instead of re-checking for it.
+        $topProbPercent = $topNonReviewKey !== null
+            ? (int) round($sortedProbs[$topNonReviewKey] * 100)
+            : $confidencePercent;
 
         if ($review) {
             if ($conflict) {

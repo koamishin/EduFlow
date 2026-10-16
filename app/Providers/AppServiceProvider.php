@@ -22,7 +22,7 @@ use Laravel\Pennant\FeatureManager;
 use Nwidart\Modules\Facades\Module;
 use Yukazakiri\Lepton\Contracts\AuthGateway;
 use Yukazakiri\Lepton\Contracts\WalletGateway;
-use Yukazakiri\Lepton\Drivers\Circle\CircleCliGateway;
+use Yukazakiri\Lepton\Gateways\CircleCliGateway;
 use Yukazakiri\Lepton\Support\CliRunner;
 
 class AppServiceProvider extends ServiceProvider

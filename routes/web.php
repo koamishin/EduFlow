@@ -39,7 +39,7 @@ Route::get('/skills/design', fn () => Inertia::render('skills/design', [
     'canRegister' => Features::enabled(Features::registration()),
 ]))->name('skills.design');
 
-Route::post('api/webhooks/circle', [CircleWebhookController::class, 'handle'])->name('api.webhooks.circle');
+Route::post('api/webhooks/circle', [CircleWebhookController::class, 'handle'])->middleware('throttle:120,1')->name('api.webhooks.circle');
 
 Route::get('dashboard', [StudentDashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 

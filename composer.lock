@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5d9232eb7311b892464a588c7b0a560a",
+    "content-hash": "381e4cacd0b11f49e26493a697181ee7",
     "packages": [
         {
             "name": "alizharb/filament-activity-log",
@@ -14606,22 +14606,24 @@
         },
         {
             "name": "yukazakiri/lepton-agent",
-            "version": "v2.11.0",
+            "version": "v3.0.0-rc.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/yukazakiri/lepton-agent.git",
-                "reference": "59e04a65105338abcc45aec158a788b23b5172e0"
+                "reference": "141e3b7dde7e8fef1231962c80937eae8149fdff"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/yukazakiri/lepton-agent/zipball/59e04a65105338abcc45aec158a788b23b5172e0",
-                "reference": "59e04a65105338abcc45aec158a788b23b5172e0",
+                "url": "https://api.github.com/repos/yukazakiri/lepton-agent/zipball/141e3b7dde7e8fef1231962c80937eae8149fdff",
+                "reference": "141e3b7dde7e8fef1231962c80937eae8149fdff",
                 "shasum": ""
             },
             "require": {
+                "ext-curl": "*",
+                "ext-openssl": "*",
                 "illuminate/contracts": "^13.0",
                 "illuminate/support": "^13.0",
-                "php": "^8.3",
+                "php": "^8.5",
                 "symfony/process": "^7.0|^8.0"
             },
             "require-dev": {
@@ -14655,7 +14657,7 @@
                     "email": "marianolouis18@gmail.com"
                 }
             ],
-            "description": "Laravel bridge for Lepton Agents (Circle Agent Stack + Arc). No hardcoded CLI strings in app code.",
+            "description": "Community-maintained Laravel-first PHP SDK for Circle wallets and Arc: typed gateways, HTTP/CLI transports, verified notifications, and testing fakes.",
             "homepage": "https://github.com/yukazakiri/lepton-agent",
             "keywords": [
                 "USDC",
@@ -14667,9 +14669,9 @@
             ],
             "support": {
                 "issues": "https://github.com/yukazakiri/lepton-agent/issues",
-                "source": "https://github.com/yukazakiri/lepton-agent/tree/v2.11.0"
+                "source": "https://github.com/yukazakiri/lepton-agent/tree/v3.0.0-rc.1"
             },
-            "time": "2026-10-15T11:57:54+00:00"
+            "time": "2026-10-16T08:17:15+00:00"
         },
         {
             "name": "yukazakiri/shadcthemes-tools",
@@ -17153,11 +17155,13 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "yukazakiri/lepton-agent": 5
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.3"
+        "php": "^8.5"
     },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"

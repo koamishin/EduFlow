@@ -279,7 +279,11 @@ test('a student can open the dedicated crypto wallet transfer page', function ()
         );
 });
 
-test('circle webhook records candidate txHash on matching tuition attempt without forging settlement', function (): void {
+test('an unsigned circle webhook cannot record a candidate txHash or advance a tuition attempt', function (): void {
+    // Webhooks enabled, but the CLI/agent driver is selected: Developer-Controlled
+    // Wallet notifications do not exist on this rail, so the route must not exist
+    // at all rather than accept a payload it cannot authenticate.
+    config(['lepton.webhooks.enabled' => true]);
     [$student, $account] = payEndpointStudent();
     $this->actingAs($student->user->assignRole('student'));
 
@@ -320,11 +324,11 @@ test('circle webhook records candidate txHash on matching tuition attempt withou
         ],
     ]);
 
-    $webhook->assertOk()
-        ->assertJsonPath('received', true)
-        ->assertJsonPath('reconciled.tuition_attempt', $attempt->id);
+    $webhook->assertNotFound();
 
-    expect($attempt->fresh()->provider_reference)->toBe($candidateHash)
-        // Without a real on-chain receipt verified by ArcSettlementVerifier, the webhook alone never posts credit
+    // No txHash, no state change, no credit. A notification that cannot be
+    // authenticated leaves the attempt exactly where the rail left it.
+    expect($attempt->fresh()->provider_reference)->toBeNull()
+        ->and($attempt->fresh()->state)->toBe('accepted')
         ->and($attempt->fresh()->posted_at)->toBeNull();
 });
