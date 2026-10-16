@@ -183,7 +183,7 @@ class InstitutionPolicyEvaluationController extends Controller
             'success' => true,
             'message' => 'Receipt approved and verified. Policy evaluation completed.',
             'collection_id' => $batch->id,
-            'evaluation' => $newEvaluation !== null ? $this->data($newEvaluation) : null,
+            'evaluation' => $newEvaluation instanceof InstitutionPolicyEvaluation ? $this->data($newEvaluation) : null,
         ]);
     }
 

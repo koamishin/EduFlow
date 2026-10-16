@@ -80,8 +80,8 @@ class StudentTuitionPaymentController extends Controller
         if ($account instanceof TuitionAccount) {
             $totalBase = (int) $account->total_amount;
             $paidBase = (int) $account->paid_amount;
-            $heldBase = (int) $account->heldAmount();
-            $effectiveRemainingBase = (int) $account->effectiveRemainingAmount();
+            $heldBase = $account->heldAmount();
+            $effectiveRemainingBase = $account->effectiveRemainingAmount();
 
             $tuitionAccountData = [
                 'id' => $account->getKey(),
@@ -110,7 +110,7 @@ class StudentTuitionPaymentController extends Controller
         }
 
         $treasuryExplorerUrl = null;
-        if (is_string($treasuryAddress) && $treasuryAddress !== '') {
+        if ($treasuryAddress !== '') {
             try {
                 $treasuryExplorerUrl = app(ArcNetworkGateway::class)->addressExplorerUrl($treasuryAddress);
             } catch (Throwable) {
@@ -119,7 +119,7 @@ class StudentTuitionPaymentController extends Controller
         }
 
         $treasuryQr = null;
-        if (is_string($treasuryAddress) && $treasuryAddress !== '') {
+        if ($treasuryAddress !== '') {
             try {
                 $treasuryQr = (new QRCode)->render($treasuryAddress);
             } catch (Throwable) {
