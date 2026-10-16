@@ -64,7 +64,7 @@ class ArcSettlementWidget extends BaseWidget
     #[\Override]
     public function getDescription(): ?string
     {
-return 'Chain facts about the institution wallet, not receipts and not an approved balance. Arc native USDC is 18-decimal gas.';
+        return 'Chain facts about the institution wallet, not receipts and not an approved balance. Arc native USDC is 18-decimal gas.';
     }
 
     #[\Override]
@@ -100,7 +100,7 @@ return 'Chain facts about the institution wallet, not receipts and not an approv
         )
             ->description($observedAt !== null
                 ? sprintf('Block %s · observed %s UTC', (string) ($balance['block_number'] ?? '—'), $observedAt)
-: 'No reviewed funding window has observed this wallet yet')
+                : ($observation['error'] ?? 'Live Arc balance unavailable'))
             ->color($isFake === true ? 'warning' : ($balance !== [] ? 'success' : 'gray'));
 
         if ($isFake === true) {
@@ -111,7 +111,7 @@ return 'Chain facts about the institution wallet, not receipts and not an approv
             'Native Arc balance (gas)',
             isset($balance['native_units']) ? new HtmlString('<span class="block min-w-0 break-all">'.e($this->formatNative($balance['native_units'])).'</span>') : 'Not observed',
         )
-->description('Arc gas is USDC, so an empty wallet cannot send')
+            ->description('Arc gas is USDC; transfers use sponsored gas')
             ->color('gray');
 
         $status = app(LeptonTreasuryService::class)->status($institution->primaryWallet());
@@ -121,7 +121,7 @@ return 'Chain facts about the institution wallet, not receipts and not an approv
             ->description($observation['available']
                 ? sprintf('Chain id %s · block %s', (string) $observation['chain_id'], (string) $observation['block_number'])
                 : 'Live chain reads unavailable')
-->color($status['live_available'] ? ($chain === 'ARC' ? 'danger' : 'success') : 'gray');
+            ->color($status['live_available'] ? ($chain === 'ARC' ? 'danger' : 'success') : 'gray');
 
         if ($status['address_url'] !== null) {
             $chainStat->url($status['address_url'], shouldOpenInNewTab: true)

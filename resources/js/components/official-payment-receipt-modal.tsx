@@ -112,67 +112,45 @@ export function OfficialPaymentReceiptModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto border border-[var(--clay-border)] bg-[var(--clay-surface)] p-0 text-[var(--clay-text)] shadow-2xl sm:rounded-3xl">
+            <DialogContent
+                className="bulletin flex max-h-[90vh] max-w-xl flex-col overflow-hidden rounded-2xl border border-[var(--clay-border,#2e2924)] bg-[#141210] p-0 text-[var(--clay-text,#f5f1e8)] shadow-2xl sm:rounded-3xl"
+                style={{ backgroundColor: 'var(--clay-surface, #141210)' }}
+            >
                 {/* Top Official Header Banner */}
-                <div className="border-b border-[var(--clay-border)] bg-gradient-to-br from-emerald-500/15 via-[var(--clay-surface-soft)] to-[var(--clay-surface)] px-6 py-5">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/15 text-emerald-400">
-                                <ReceiptText className="size-5" />
-                            </div>
-                            <div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-mono text-[11px] font-bold tracking-wider text-emerald-400 uppercase">
-                                        Official e-Receipt
-                                    </span>
-                                    <Badge
-                                        variant="outline"
-                                        className="border-emerald-500/40 bg-emerald-500/15 text-[10px] font-semibold text-emerald-300"
-                                    >
-                                        <CheckCircle2 className="mr-1 size-3" />
-                                        {receipt.verified_status ?? 'On-Chain Verified'}
-                                    </Badge>
-                                </div>
-                                <DialogHeader className="mt-1 p-0 text-left">
-                                    <DialogTitle className="font-mono text-base font-bold tracking-tight text-[var(--clay-text)] sm:text-lg">
-                                        {receipt.receipt_number}
-                                    </DialogTitle>
-                                    <DialogDescription className="text-xs text-[var(--clay-text-muted)]">
-                                        Issued {receipt.issued_at} &middot;{' '}
-                                        {receipt.chain} (Chain ID{' '}
-                                        {receipt.chain_id})
-                                    </DialogDescription>
-                                </DialogHeader>
-                            </div>
+                <div className="shrink-0 border-b border-[var(--clay-border,#2e2924)] bg-gradient-to-br from-emerald-500/15 via-[var(--clay-surface-soft,#1a1715)] to-[var(--clay-surface,#141210)] px-6 py-5 pr-14">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/15 text-emerald-400">
+                            <ReceiptText className="size-5" />
                         </div>
-
-                        <div className="flex items-center gap-1.5 print:hidden">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={handleDownload}
-                                className="h-8 gap-1.5 rounded-full border-[var(--clay-border)] bg-[var(--clay-surface)] px-3 text-xs font-semibold"
-                                title="Download text summary"
-                            >
-                                <Download className="size-3.5" />
-                                <span className="hidden sm:inline">Download</span>
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={handlePrint}
-                                className="h-8 gap-1.5 rounded-full border-[var(--clay-border)] bg-[var(--clay-surface)] px-3 text-xs font-semibold"
-                            >
-                                <Printer className="size-3.5" />
-                                <span className="hidden sm:inline">Print / Save PDF</span>
-                            </Button>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono text-[11px] font-bold tracking-wider text-emerald-400 uppercase">
+                                    Official e-Receipt
+                                </span>
+                                <Badge
+                                    variant="outline"
+                                    className="border-emerald-500/40 bg-emerald-500/15 text-[10px] font-semibold text-emerald-300"
+                                >
+                                    <CheckCircle2 className="mr-1 size-3" />
+                                    {receipt.verified_status ?? 'On-Chain Verified'}
+                                </Badge>
+                            </div>
+                            <DialogHeader className="mt-1 p-0 text-left">
+                                <DialogTitle className="whitespace-nowrap font-mono text-base font-bold tracking-tight text-[var(--clay-text,#f5f1e8)] sm:text-lg">
+                                    {receipt.receipt_number}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-[var(--clay-text-muted,#9e9589)]">
+                                    Issued {receipt.issued_at} &middot;{' '}
+                                    {receipt.chain} (Chain ID{' '}
+                                    {receipt.chain_id})
+                                </DialogDescription>
+                            </DialogHeader>
                         </div>
                     </div>
                 </div>
 
-                <div className="space-y-5 px-6 py-5">
+                {/* Scrollable Receipt Body */}
+                <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
                     {/* Hero Amount Credited */}
                     <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-center">
                         <p className="text-[11px] font-semibold tracking-wider text-emerald-300/90 uppercase">
@@ -211,40 +189,40 @@ export function OfficialPaymentReceiptModal({
                     </div>
 
                     {/* Student & Account Information */}
-                    <div className="rounded-2xl border border-[var(--clay-border)] bg-[var(--clay-surface-soft)]/50 p-4">
-                        <p className="text-[11px] font-bold tracking-wider text-[var(--clay-text-muted)] uppercase">
+                    <div className="rounded-2xl border border-[var(--clay-border,#2e2924)] bg-[var(--clay-surface-soft,#1a1715)] p-4">
+                        <p className="text-[11px] font-bold tracking-wider text-[var(--clay-text-muted,#9e9589)] uppercase">
                             Student &amp; Ledger Details
                         </p>
                         <dl className="mt-3 grid grid-cols-1 gap-2.5 text-xs sm:grid-cols-2">
                             <div>
-                                <dt className="text-[var(--clay-text-muted)]">
+                                <dt className="text-[var(--clay-text-muted,#9e9589)]">
                                     Student Name
                                 </dt>
-                                <dd className="mt-0.5 font-semibold text-[var(--clay-text)]">
+                                <dd className="mt-0.5 font-semibold text-[var(--clay-text,#f5f1e8)]">
                                     {receipt.student_name}
                                 </dd>
                             </div>
                             <div>
-                                <dt className="text-[var(--clay-text-muted)]">
+                                <dt className="text-[var(--clay-text-muted,#9e9589)]">
                                     Student Number
                                 </dt>
-                                <dd className="mt-0.5 font-mono font-semibold text-[var(--clay-text)]">
+                                <dd className="mt-0.5 font-mono font-semibold text-[var(--clay-text,#f5f1e8)]">
                                     {receipt.student_number}
                                 </dd>
                             </div>
                             <div>
-                                <dt className="text-[var(--clay-text-muted)]">
+                                <dt className="text-[var(--clay-text-muted,#9e9589)]">
                                     Program
                                 </dt>
-                                <dd className="mt-0.5 font-medium text-[var(--clay-text)]">
+                                <dd className="mt-0.5 font-medium text-[var(--clay-text,#f5f1e8)]">
                                     {receipt.program || 'Undergraduate'}
                                 </dd>
                             </div>
                             <div>
-                                <dt className="text-[var(--clay-text-muted)]">
+                                <dt className="text-[var(--clay-text-muted,#9e9589)]">
                                     Academic Term / Category
                                 </dt>
-                                <dd className="mt-0.5 font-semibold text-[var(--clay-text)]">
+                                <dd className="mt-0.5 font-semibold text-[var(--clay-text,#f5f1e8)]">
                                     {receipt.term}
                                 </dd>
                             </div>
@@ -252,21 +230,21 @@ export function OfficialPaymentReceiptModal({
                     </div>
 
                     {/* Financial Breakdown */}
-                    <div className="rounded-2xl border border-[var(--clay-border)] bg-[var(--clay-surface-soft)]/50 p-4">
-                        <p className="text-[11px] font-bold tracking-wider text-[var(--clay-text-muted)] uppercase">
+                    <div className="rounded-2xl border border-[var(--clay-border,#2e2924)] bg-[var(--clay-surface-soft,#1a1715)] p-4">
+                        <p className="text-[11px] font-bold tracking-wider text-[var(--clay-text-muted,#9e9589)] uppercase">
                             Settlement &amp; Allocation Breakdown
                         </p>
                         <div className="mt-3 space-y-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-[var(--clay-text-muted)]">
+                                <span className="text-[var(--clay-text-muted,#9e9589)]">
                                     Principal Transferred
                                 </span>
-                                <span className="font-mono font-semibold text-[var(--clay-text)]">
+                                <span className="font-mono font-semibold text-[var(--clay-text,#f5f1e8)]">
                                     {formatUsdc(receipt.amount_base_units)}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-[var(--clay-text-muted)]">
+                                <span className="text-[var(--clay-text-muted,#9e9589)]">
                                     Credited to Student Account
                                 </span>
                                 <span className="font-mono font-semibold text-emerald-400">
@@ -276,7 +254,7 @@ export function OfficialPaymentReceiptModal({
                             {BigInt(receipt.overpayment_base_units || '0') >
                                 0n && (
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[var(--clay-text-muted)]">
+                                    <span className="text-[var(--clay-text-muted,#9e9589)]">
                                         Overpayment Credit Held
                                     </span>
                                     <span className="font-mono font-semibold text-amber-300">
@@ -289,11 +267,11 @@ export function OfficialPaymentReceiptModal({
                             {receipt.total_tuition_base_units &&
                                 BigInt(receipt.total_tuition_base_units) >
                                     0n && (
-                                    <div className="flex items-center justify-between border-t border-[var(--clay-border)] pt-2">
-                                        <span className="text-[var(--clay-text-muted)]">
+                                    <div className="flex items-center justify-between border-t border-[var(--clay-border,#2e2924)] pt-2">
+                                        <span className="text-[var(--clay-text-muted,#9e9589)]">
                                             Cumulative Term Paid / Total
                                         </span>
-                                        <span className="font-mono text-[var(--clay-text)]">
+                                        <span className="font-mono text-[var(--clay-text,#f5f1e8)]">
                                             {formatUsdc(
                                                 receipt.paid_tuition_base_units ??
                                                     receipt.applied_base_units,
@@ -306,17 +284,17 @@ export function OfficialPaymentReceiptModal({
                                     </div>
                                 )}
                             <div className="flex items-center justify-between">
-                                <span className="text-[var(--clay-text-muted)]">
+                                <span className="text-[var(--clay-text-muted,#9e9589)]">
                                     Remaining Account Balance
                                 </span>
-                                <span className="font-mono font-bold text-[var(--clay-text)]">
+                                <span className="font-mono font-bold text-[var(--clay-text,#f5f1e8)]">
                                     {formatUsdc(
                                         receipt.remaining_balance_base_units,
                                     )}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between border-t border-[var(--clay-border)] pt-2">
-                                <span className="text-[var(--clay-text-muted)]">
+                            <div className="flex items-center justify-between border-t border-[var(--clay-border,#2e2924)] pt-2">
+                                <span className="text-[var(--clay-text-muted,#9e9589)]">
                                     Arc Network Gas Fee
                                 </span>
                                 <span className="inline-flex items-center gap-1.5 font-mono text-emerald-400">
@@ -329,10 +307,10 @@ export function OfficialPaymentReceiptModal({
                     </div>
 
                     {/* Cryptographic & On-Chain Proof */}
-                    <div className="rounded-2xl border border-[var(--clay-border)] bg-[var(--clay-surface-soft)]/50 p-4">
+                    <div className="rounded-2xl border border-[var(--clay-border,#2e2924)] bg-[var(--clay-surface-soft,#1a1715)] p-4">
                         <div className="flex items-center justify-between">
-                            <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[var(--clay-text-muted)] uppercase">
-                                <Fingerprint className="size-3.5 text-[var(--clay-primary-bright)]" />
+                            <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[var(--clay-text-muted,#9e9589)] uppercase">
+                                <Fingerprint className="size-3.5 text-[var(--clay-primary-bright,#f48d48)]" />
                                 Cryptographic On-Chain Proof
                             </p>
                             {receipt.explorer_url && (
@@ -340,7 +318,7 @@ export function OfficialPaymentReceiptModal({
                                     href={receipt.explorer_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--clay-primary-bright)] hover:underline"
+                                    className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--clay-primary-bright,#f48d48)] hover:underline"
                                 >
                                     Verify on Arcscan
                                     <ExternalLink className="size-3" />
@@ -350,7 +328,7 @@ export function OfficialPaymentReceiptModal({
 
                         <div className="mt-3 space-y-2.5 text-xs">
                             <div className="flex items-center justify-between gap-2">
-                                <span className="text-[var(--clay-text-muted)]">
+                                <span className="text-[var(--clay-text-muted,#9e9589)]">
                                     Payer Wallet (Student)
                                 </span>
                                 <button
@@ -361,7 +339,7 @@ export function OfficialPaymentReceiptModal({
                                             'Payer wallet address',
                                         )
                                     }
-                                    className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--clay-text)] hover:text-[var(--clay-primary-bright)]"
+                                    className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--clay-text,#f5f1e8)] hover:text-[var(--clay-primary-bright,#f48d48)]"
                                 >
                                     {shortAddress(receipt.payer_address)}
                                     {copiedField === 'Payer wallet address' ? (
@@ -373,7 +351,7 @@ export function OfficialPaymentReceiptModal({
                             </div>
 
                             <div className="flex items-center justify-between gap-2">
-                                <span className="text-[var(--clay-text-muted)]">
+                                <span className="text-[var(--clay-text-muted,#9e9589)]">
                                     Recipient (Institution Treasury)
                                 </span>
                                 <button
@@ -384,7 +362,7 @@ export function OfficialPaymentReceiptModal({
                                             'Treasury wallet address',
                                         )
                                     }
-                                    className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--clay-text)] hover:text-[var(--clay-primary-bright)]"
+                                    className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--clay-text,#f5f1e8)] hover:text-[var(--clay-primary-bright,#f48d48)]"
                                 >
                                     {shortAddress(receipt.recipient_address)}
                                     {copiedField ===
@@ -398,7 +376,7 @@ export function OfficialPaymentReceiptModal({
 
                             {receipt.block_number && (
                                 <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[var(--clay-text-muted)]">
+                                    <span className="text-[var(--clay-text-muted,#9e9589)]">
                                         Arc Block Number
                                     </span>
                                     <span className="font-mono text-[11px] font-semibold text-emerald-400">
@@ -409,7 +387,7 @@ export function OfficialPaymentReceiptModal({
 
                             {receipt.tx_hash && (
                                 <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[var(--clay-text-muted)]">
+                                    <span className="text-[var(--clay-text-muted,#9e9589)]">
                                         Arc Transaction Hash
                                     </span>
                                     <button
@@ -434,7 +412,7 @@ export function OfficialPaymentReceiptModal({
 
                             {receipt.settlement_digest && (
                                 <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[var(--clay-text-muted)]">
+                                    <span className="text-[var(--clay-text-muted,#9e9589)]">
                                         Settlement Evidence SHA-256
                                     </span>
                                     <button
@@ -445,7 +423,7 @@ export function OfficialPaymentReceiptModal({
                                                 'Settlement SHA-256 digest',
                                             )
                                         }
-                                        className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--clay-text)] hover:text-[var(--clay-primary-bright)]"
+                                        className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[var(--clay-text,#f5f1e8)] hover:text-[var(--clay-primary-bright,#f48d48)]"
                                     >
                                         {shortAddress(
                                             receipt.settlement_digest,
@@ -461,43 +439,43 @@ export function OfficialPaymentReceiptModal({
                             )}
                         </div>
                     </div>
+                </div>
 
-                    {/* Footer Actions */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--clay-border)] pt-3 print:hidden">
-                        <p className="text-[11px] text-[var(--clay-text-muted)]">
-                            Immutable Arc Testnet settlement receipt &middot;
-                            OpenSinop Finance
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={handleDownload}
-                                className="h-9 gap-1.5 rounded-full border-[var(--clay-border)] bg-transparent px-4 text-xs font-semibold"
-                            >
-                                <Download className="size-3.5" />
-                                Download .txt
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={handlePrint}
-                                className="h-9 gap-1.5 rounded-full border-[var(--clay-border)] bg-transparent px-4 text-xs font-semibold"
-                            >
-                                <Printer className="size-3.5" />
-                                Print e-Receipt
-                            </Button>
-                            <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => onOpenChange(false)}
-                                className="h-9 rounded-full bg-[var(--clay-primary)] px-5 text-xs font-semibold text-[var(--clay-primary-foreground)] hover:bg-[var(--clay-primary-bright)]"
-                            >
-                                Done
-                            </Button>
-                        </div>
+                {/* Fixed Bottom Footer Actions */}
+                <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--clay-border,#2e2924)] bg-[#141210] px-6 py-4 print:hidden">
+                    <p className="text-[11px] text-[var(--clay-text-muted,#9e9589)]">
+                        Immutable Arc Testnet settlement receipt &middot;
+                        OpenSinop Finance
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownload}
+                            className="h-9 gap-1.5 rounded-full border-[var(--clay-border,#2e2924)] bg-transparent px-4 text-xs font-semibold text-[#f5f1e8] hover:bg-[#1a1715]"
+                        >
+                            <Download className="size-3.5" />
+                            Download .txt
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handlePrint}
+                            className="h-9 gap-1.5 rounded-full border-[var(--clay-border,#2e2924)] bg-transparent px-4 text-xs font-semibold text-[#f5f1e8] hover:bg-[#1a1715]"
+                        >
+                            <Printer className="size-3.5" />
+                            Print / Save PDF
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => onOpenChange(false)}
+                            className="h-9 rounded-full bg-[var(--clay-primary,#e57b32)] px-5 text-xs font-semibold text-black hover:bg-[var(--clay-primary-bright,#f48d48)]"
+                        >
+                            Done
+                        </Button>
                     </div>
                 </div>
             </DialogContent>
