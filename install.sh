@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # install.sh — interactive TUI installer for OpenSinop (macOS/Linux)
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)
-#   curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash
+#   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)   # bash / zsh
+#   curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash    # any shell, incl. fish
 #   bash install.sh --update   # update an existing installation
 #   bash install.sh --yes      # non-interactive, accept every default
 

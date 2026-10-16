@@ -14,9 +14,10 @@ bash tests/shell/install.test.sh
 
 Covered flows: fresh install with `--yes` (image-pull and local-build
 variants), interactive input under a pty for both `bash install.sh` and
-`curl … | bash`, piped answers, `curl … | bash` with no terminal, `--update`,
-daemon-unreachable, compose-download failure, and `--help`.
+`curl … | bash`, piped answers, `curl … | bash` with no terminal, the fish
+shell pipe form, `--update`, daemon-unreachable, compose-download failure,
+and `--help`.
 
 Tests needing util-linux `script`/`setsid`, or `timeout`/`gtimeout`, skip
 themselves when those tools are missing (macOS without `gtimeout`, for
-example).
+example). Likewise the fish test skips when `fish` is not installed.

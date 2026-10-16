@@ -153,6 +153,18 @@ check_contains "T4 consumes piped answer for institution" "$D4/.env" '^EDUFLOW_I
 check_contains "T4 completes" "$WORK/t4.log" 'Installation complete'
 check_not_contains "T4 no hidden errors" "$WORK/t4.log" '\[error\]'
 
+echo "=== T4b: fish shell pipe form (fish has no process substitution) ==="
+if command -v fish >/dev/null 2>&1; then
+    D4B="$(make_fresh_dir t4b)"
+    : > "$WORK/docker.log"
+    ( cd "$D4B" && env PATH="$WORK/bin-ok:$PATH" DOCKER_STUB_LOG="$WORK/docker.log" $TIMEOUT_CMD fish -c 'cat install.sh | bash -s -- --yes' ) > "$WORK/t4b.log" 2>&1
+    check "T4b exit 0" $?
+    check_contains "T4b writes env" "$D4B/.env" '^APP_NAME="OpenSinop"$'
+    check_contains "T4b completes" "$WORK/t4b.log" 'Installation complete'
+else
+    echo "  SKIP  T4b (fish not installed on this machine)"
+fi
+
 echo "=== T5: cat install.sh | bash with no terminal (CI shape) ==="
 if command -v setsid >/dev/null 2>&1; then
     D5="$(make_fresh_dir t5)"

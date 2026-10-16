@@ -459,9 +459,13 @@ Common environment settings use production defaults instead of extra prompts.
 The scripts below download and execute repository code. Review them before running
 them on a server with credentials or financial records.
 
-- **macOS / Linux:**
+- **macOS / Linux (bash, zsh):**
   ```bash
   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)
+  ```
+- **fish shell** (no `<(…)` process substitution):
+  ```fish
+  curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash
   ```
 - **Windows (PowerShell):**
   ```powershell
@@ -478,9 +482,13 @@ Run updates from the original installation directory so the scripts find the sam
 after a failed dump; it is not a complete backup or rollback system. Do not assume
 it backs up SQLite, MySQL, uploaded files, or encryption keys.
 
-- **macOS / Linux:**
+- **macOS / Linux (bash, zsh):**
   ```bash
   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh) --update
+  ```
+- **fish shell:**
+  ```fish
+  curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash -s -- --update
   ```
 - **Windows (PowerShell):**
   ```powershell
