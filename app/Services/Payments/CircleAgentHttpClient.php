@@ -418,7 +418,7 @@ class CircleAgentHttpClient
             if ($status === 'COMPLETE') {
                 $ids = $challengeData['correlationIds'] ?? [];
 
-                return is_array($ids) ? array_values(array_map('strval', $ids)) : [];
+                return is_array($ids) ? array_values(array_map(strval(...), $ids)) : [];
             }
 
             if (in_array($status, ['FAILED', 'EXPIRED', 'CANCELLED', 'DENIED'], true)) {

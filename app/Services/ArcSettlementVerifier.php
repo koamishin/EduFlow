@@ -356,7 +356,10 @@ final readonly class ArcSettlementVerifier
             // Check if any fee transfer was made from the sender to a paymaster/EntryPoint.
             $senderFeeDeducted = 0;
             foreach ($receipt['logs'] ?? [] as $log) {
-                if (! is_array($log) || ! isset($log['topics'][1])) {
+                if (! is_array($log)) {
+                    continue;
+                }
+                if (! isset($log['topics'][1])) {
                     continue;
                 }
                 $logFrom = '0x'.substr(strtolower((string) $log['topics'][1]), 26);

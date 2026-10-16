@@ -759,30 +759,56 @@ export default function PolicyEvaluations({
                                                     <div>
                                                         <div className="flex items-center justify-between gap-2">
                                                             <span className="text-xs font-semibold text-foreground">
-                                                                Step 1: Review & Verify Receipt
+                                                                Step 1: Review &
+                                                                Verify Receipt
                                                             </span>
-                                                            <Badge variant="warning-light" className="text-[10px]">
+                                                            <Badge
+                                                                variant="warning-light"
+                                                                className="text-[10px]"
+                                                            >
                                                                 Pending Review
                                                             </Badge>
                                                         </div>
                                                         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                                            This receipt awaits dual-control verification. You can approve and re-evaluate it with one click, or inspect details in the Collections ledger.
+                                                            This receipt awaits
+                                                            dual-control
+                                                            verification. You
+                                                            can approve and
+                                                            re-evaluate it with
+                                                            one click, or
+                                                            inspect details in
+                                                            the Collections
+                                                            ledger.
                                                         </p>
                                                     </div>
 
-                                                    {Object.values(approveHttp.errors).flat().map((error, idx) => (
-                                                        <Alert key={idx} variant="destructive" className="py-2 text-xs">
-                                                            <AlertDescription>{error}</AlertDescription>
-                                                        </Alert>
-                                                    ))}
+                                                    {Object.values(
+                                                        approveHttp.errors,
+                                                    )
+                                                        .flat()
+                                                        .map((error, idx) => (
+                                                            <Alert
+                                                                key={idx}
+                                                                variant="destructive"
+                                                                className="py-2 text-xs"
+                                                            >
+                                                                <AlertDescription>
+                                                                    {error}
+                                                                </AlertDescription>
+                                                            </Alert>
+                                                        ))}
 
                                                     <div className="flex flex-col gap-2">
                                                         <Button
                                                             type="button"
                                                             size="sm"
                                                             variant="default"
-                                                            disabled={approveHttp.processing}
-                                                            onClick={handleApproveReceipt}
+                                                            disabled={
+                                                                approveHttp.processing
+                                                            }
+                                                            onClick={
+                                                                handleApproveReceipt
+                                                            }
                                                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                                         >
                                                             <CheckCircle2
@@ -802,7 +828,8 @@ export default function PolicyEvaluations({
                                                             <a
                                                                 href={`${collectionsUrl}?collection_id=${source.source_id}&action=review`}
                                                             >
-                                                                Open Collections Ledger
+                                                                Open Collections
+                                                                Ledger
                                                                 <ExternalLink
                                                                     aria-hidden="true"
                                                                     className="ml-1.5 h-3.5 w-3.5"

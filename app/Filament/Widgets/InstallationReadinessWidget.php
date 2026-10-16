@@ -70,7 +70,7 @@ class InstallationReadinessWidget extends BaseWidget
 
         if ($institution === null) {
             return [Stat::make('Installation', 'Not configured')
-->description('Run php artisan eduflow:install. Context fails closed.')
+                ->description('Run php artisan eduflow:install. Context fails closed.')
                 ->color('danger')];
         }
 

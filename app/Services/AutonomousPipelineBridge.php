@@ -29,7 +29,6 @@ use App\Models\Invoice;
 use App\Models\InvoiceVersion;
 use App\Models\InvoiceVersionReview;
 use App\Models\Organization;
-use App\Models\PaymentAuthorization;
 use App\Models\PaymentIntent;
 use App\Models\PaymentReviewerEnrollment;
 use App\Models\PaymentSubmissionOutbox;
@@ -108,7 +107,7 @@ final readonly class AutonomousPipelineBridge
 
         // Step 3: Identify Target Invoice Version & Budget
         $billVersion = $this->findEligibleInvoice($institution, $targetInvoiceId);
-        if ($billVersion === null) {
+        if (! $billVersion instanceof InvoiceVersion) {
             return [
                 'success' => true,
                 'stage' => 'tuition_reconciled_no_eligible_bills',
@@ -124,7 +123,7 @@ final readonly class AutonomousPipelineBridge
         $snapshot = $this->ensureBudgetSnapshot($maker, $billVersion, $collectionReview, $batch);
 
         // Step 5: JEV Policy Allocation & Plan Proposal
-        $plan = $this->proposeAllocation->handle($reviewer, $snapshot, (string) Str::uuid(), fresh: true);
+        $this->proposeAllocation->handle($reviewer, $snapshot, (string) Str::uuid(), fresh: true);
 
         // Ensure background finance workflow run is executed and reviewed
         /** @var FinanceWorkflowRun $run */
@@ -238,7 +237,6 @@ final readonly class AutonomousPipelineBridge
             'mfa_method' => $mfaMethod,
         ];
 
-        /** @var PaymentAuthorization $authorization */
         $authorization = $this->reviewVendorPayment->handle($reviewer, $intent, $authInput);
 
         // Step 11: Execute Submission Immediately (Same Request/Process Boundary)
@@ -368,15 +366,23 @@ final readonly class AutonomousPipelineBridge
             $query->where('invoice_id', $invoiceId);
         }
 
-        /** @var InvoiceVersion|null $candidate */
         foreach ($query->get() as $version) {
             $review = InvoiceVersionReview::query()->where('invoice_version_id', $version->id)->first();
-            if ($review === null || $review->decision !== 'approve_evidence' || ! $review->hasValidEvidence($version)) {
+            if ($review === null) {
+                continue;
+            }
+            if ($review->decision !== 'approve_evidence') {
+                continue;
+            }
+            if (! $review->hasValidEvidence($version)) {
                 continue;
             }
 
             $vendor = $version->invoice->vendor;
-            if ($vendor === null || $vendor->status !== 'verified') {
+            if ($vendor === null) {
+                continue;
+            }
+            if ($vendor->status !== 'verified') {
                 continue;
             }
 
@@ -397,7 +403,6 @@ final readonly class AutonomousPipelineBridge
 
     private function ensureBudgetSnapshot(User $maker, InvoiceVersion $billVersion, CollectionBatchReview $collectionReview, CollectionBatch $batch): BudgetSnapshot
     {
-        $institutionId = $maker->organization_id ?? $billVersion->organization_id;
         $budget = $billVersion->invoice->budget;
 
         if ($budget === null || $budget->status !== 'active') {
