@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Models\Organization;
 use App\Models\PaymentSubmissionOutbox;
 use App\Models\StudentBillPayment;
 use App\Models\StudentTuitionPaymentAttempt;
@@ -63,7 +64,7 @@ class ObserveCircleNotification implements ShouldQueue
         // an uninstalled deployment has nothing to observe.
         $institution = $institutions->current();
 
-        if ($institution === null) {
+        if (! $institution instanceof Organization) {
             return;
         }
 

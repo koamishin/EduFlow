@@ -24,11 +24,11 @@ function bindCircleVerifier(?VerifiedNotification $event): void
 {
     app()->instance(WebhookVerifier::class, new class($event) implements WebhookVerifier
     {
-        public function __construct(private ?VerifiedNotification $event) {}
+        public function __construct(private readonly ?VerifiedNotification $event) {}
 
         public function verify(string $rawPayload, string $signatureBase64, string $keyId, array $allowedSubscriptions): VerifiedNotification
         {
-            if ($this->event === null) {
+            if (! $this->event instanceof VerifiedNotification) {
                 throw new RuntimeException('Invalid signature.');
             }
 

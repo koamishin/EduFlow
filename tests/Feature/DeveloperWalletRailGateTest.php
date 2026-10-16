@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Services\CircleAgentWalletCli;
 use App\Services\Payments\CircleAgentWalletTransport;
 use App\Services\Payments\FeeGuarantee;
+use App\Services\Payments\TransportAcceptance;
 use Yukazakiri\Lepton\Contracts\WalletGateway;
 use Yukazakiri\Lepton\Gateways\CircleRestGateway;
 use Yukazakiri\Lepton\Support\CliRunner;
@@ -40,7 +41,7 @@ it('refuses to submit on a rail whose payer fee behaviour is unreviewed', functi
 
     // No network call may happen on the way to this refusal: nothing about the
     // amount, recipient or key is even read.
-    expect(fn () => $transport->submit([
+    expect(fn (): TransportAcceptance => $transport->submit([
         'from' => '0x'.str_repeat('1', 40),
         'to' => '0x'.str_repeat('2', 40),
         'amount_base_units' => 1_000000,

@@ -484,13 +484,8 @@ class StudentBillPayment extends Model
             'recipient' => $this->recipient_address,
             'amount_base_units' => $this->amount_base_units,
         ];
-        foreach ($expected as $field => $value) {
-            if (($e[$field] ?? null) !== $value) {
-                return false;
-            }
-        }
 
-        return true;
+        return array_all($expected, static fn (mixed $value, string $field): bool => ($e[$field] ?? null) === $value);
     }
 
     /**
