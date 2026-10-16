@@ -10,6 +10,7 @@ use Illuminate\Support\Collection;
 use Throwable;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
 use Yukazakiri\Lepton\Contracts\WalletGateway;
+use Yukazakiri\Lepton\DTOs\TransactionRecord;
 
 /**
  * Proves whether a recorded transaction actually settled on Arc.
@@ -17,10 +18,34 @@ use Yukazakiri\Lepton\Contracts\WalletGateway;
  * The database is EduFlow's own record and cannot vouch for itself. Every
  * claim of on-chain settlement is re-checked against the chain (or against
  * the Circle agent wallet's own history when RPC access is unavailable), so
- * fabricated hashes cannot masquerade as receipts.
+ * invented hashes cannot masquerade as receipts.
+ *
+ * What this service will not do is the opposite error: a lookup that finds
+ * nothing is *absence of evidence*, not evidence of absence. A transaction
+ * that was submitted moments ago, sits behind a provider's propagation delay,
+ * or was recorded against a different network is indistinguishable from one
+ * that never existed — until it does not matter any more. So the only verdicts
+ * that write to a financial record are `verified` (a successful on-chain
+ * receipt) and `reverted` (a receipt that reports failure). Everything else is
+ * an open question for a human, and `unresolved` rows are never auto-failed.
  */
 class LeptonReconciliationService
 {
+    /**
+     * Verdicts this service can reach, and what each one is allowed to prove.
+     *
+     * @var array<string, string>
+     */
+    private const VERDICTS = [
+        'verified' => 'A successful on-chain receipt exists for this hash.',
+        'pending' => 'The hash is known to the chain but has no receipt yet.',
+        'reverted' => 'The chain accepted the transaction and its receipt reports failure.',
+        'unresolved' => 'No transaction with this hash was found. Absence is not fabrication.',
+        'observed' => 'The provider reports it complete, but no chain receipt could be read.',
+        'unverifiable' => 'Neither the chain nor the provider could be read.',
+        'ledger_only' => 'A local ledger row that never claimed a chain receipt.',
+    ];
+
     public function __construct(
         private readonly ArcNetworkGateway $arc,
         private readonly WalletGateway $wallets,
@@ -44,34 +69,51 @@ class LeptonReconciliationService
             );
         }
 
-        $rpc = $this->viaChain($hash);
+        $chain = $this->viaChain($hash);
 
-        if ($rpc['found']) {
-            return $this->result(
-                $transaction,
-                'verified',
-                'Found on '.strtoupper($this->arc->chainCode()).' in block '.($rpc['block'] ?? '?').'.',
-                $rpc['block'],
-                $rpc['tx'],
-                'rpc',
-            );
+        if ($chain['reachable']) {
+            return match ($chain['state']) {
+                'settled' => $this->result(
+                    $transaction,
+                    'verified',
+                    'Successful receipt in block '.($chain['block'] ?? '?').' on '.strtoupper($this->arc->chainCode())
+                        .'. This proves the receipt succeeded, not that it moved the intended amount.',
+                    $chain['block'],
+                    $chain['tx'],
+                    'rpc',
+                ),
+                'reverted' => $this->result(
+                    $transaction,
+                    'reverted',
+                    'The chain reverted this transaction in block '.($chain['block'] ?? '?')
+                        .'. A receipt exists and reports failure, which is direct evidence.',
+                    $chain['block'],
+                    $chain['tx'],
+                    'rpc',
+                ),
+                'pending' => $this->result(
+                    $transaction,
+                    'pending',
+                    'Known to the chain with no receipt yet, so it is still in flight. Nothing is concluded.',
+                    null,
+                    null,
+                    'rpc',
+                ),
+                default => $this->result(
+                    $transaction,
+                    'unresolved',
+                    'Hash is well-formed but absent from '.strtoupper($this->arc->chainCode())
+                        .'. Absence is not fabrication: propagation delay, a reorganisation, and a hash from another'
+                        .' network all look exactly like this, so the row stays open for investigation.',
+                    null,
+                    null,
+                    'rpc',
+                ),
+            };
         }
 
-        // RPC reachable but nothing there: the hash was never settled.
-        if ($rpc['reachable']) {
-            return $this->result(
-                $transaction,
-                'fabricated',
-                'Hash is well-formed but absent from '.strtoupper($this->arc->chainCode()).'. This was never settled.',
-                null,
-                null,
-                'rpc',
-            );
-        }
-
-        // RPC unavailable: fall back to the Circle agent wallet's own history.
-        $wallet = $transaction->wallet;
-        $circle = $this->viaCircle($wallet?->address, $hash);
+        // Chain reads unavailable: fall back to the Circle agent wallet's own history.
+        $circle = $this->viaCircle($transaction->wallet?->address, $hash);
 
         if ($circle === null) {
             return $this->result(
@@ -84,13 +126,15 @@ class LeptonReconciliationService
             );
         }
 
+        // The wallet history is bounded, so "not in the page we read" is not
+        // evidence of absence either — it stays unresolved, never fabricated.
         return $circle
-            ? $this->result($transaction, 'verified', 'Confirmed in the Circle agent wallet history.', null, null, 'circle')
-            : $this->result($transaction, 'fabricated', 'Absent from the Circle agent wallet history, so it was never settled.', null, null, 'circle');
+            ? $this->result($transaction, 'observed', 'Reported complete by the Circle agent wallet history, but no chain receipt was readable, so this is provider observation and not proof.', null, null, 'circle')
+            : $this->result($transaction, 'unresolved', 'Absent from the Circle agent wallet history that could be read. A bounded history is not proof of absence; investigate before acting.', null, null, 'circle');
     }
 
     /**
-     * @return array{verdict:string, total:int, verified:int, fabricated:int, unverifiable:int, ledger_only:int, items:Collection<int, array<string,mixed>>}
+     * @return array{verdict:string, total:int, verified:int, pending:int, reverted:int, unresolved:int, observed:int, unverifiable:int, ledger_only:int, items:Collection<int, array<string,mixed>>}
      */
     public function verifyAll(?int $organizationId = null, int $limit = 200): array
     {
@@ -104,22 +148,25 @@ class LeptonReconciliationService
             ->map(fn (Transaction $t): array => ['transaction' => $t, ...$this->verify($t)])
             ->values();
 
+        $counts = ['total' => $items->count()];
+        foreach (array_keys(self::VERDICTS) as $verdict) {
+            $counts[$verdict] = $items->where('verdict', $verdict)->count();
+        }
+
+        // A reverted receipt is a proven discrepancy. Everything short of proof
+        // is not clean either — it is unresolved, which still needs a human.
         return [
-            'verdict' => $items->contains(fn (array $i): bool => $i['verdict'] === 'fabricated')
-                ? 'discrepancies'
-                : 'clean',
-            'total' => $items->count(),
-            'verified' => $items->where('verdict', 'verified')->count(),
-            'fabricated' => $items->where('verdict', 'fabricated')->count(),
-            'unverifiable' => $items->where('verdict', 'unverifiable')->count(),
-            'ledger_only' => $items->where('verdict', 'ledger_only')->count(),
+            'verdict' => $counts['reverted'] > 0 ? 'discrepancies' : ($counts['unresolved'] > 0 ? 'unresolved' : 'clean'),
+            ...$counts,
             'items' => $items,
         ];
     }
 
     /**
      * Invoices are business documents, not chain data. What can be proven is
-     * whether the payment that settled them actually happened.
+     * whether the payment that settled them actually happened — and only a
+     * successful on-chain receipt proves that. A provider ID or a stored hash
+     * is a claim, so `observed`, `pending` and `unresolved` cannot settle one.
      *
      * @return array{invoice: Invoice, settlement_verdict: string, evidence: Collection<int, Transaction>}
      */
@@ -144,27 +191,46 @@ class LeptonReconciliationService
     }
 
     /**
-     * @return array{found:bool, reachable:bool, block:?int, tx:?array<string,mixed>}
+     * @return array<string, string>
+     */
+    public static function verdictGlossary(): array
+    {
+        return self::VERDICTS;
+    }
+
+    /**
+     * @return array{state:string, reachable:bool, block:?int, tx:?array<string,mixed>}
      */
     private function viaChain(string $hash): array
     {
         try {
             $tx = $this->arc->rpc('eth_getTransactionByHash', [$hash]);
+            $receipt = is_array($tx) && $tx !== []
+                ? $this->arc->rpc('eth_getTransactionReceipt', [$hash])
+                : null;
         } catch (Throwable) {
-            return ['found' => false, 'reachable' => false, 'block' => null, 'tx' => null];
+            return ['state' => 'unknown', 'reachable' => false, 'block' => null, 'tx' => null];
         }
 
         if (! is_array($tx) || $tx === []) {
-            return ['found' => false, 'reachable' => true, 'block' => null, 'tx' => null];
+            return ['state' => 'unknown', 'reachable' => true, 'block' => null, 'tx' => null];
         }
 
-        $block = $tx['blockNumber'] ?? null;
+        $block = ChainQuantity::toInt($tx['blockNumber'] ?? ($receipt['blockNumber'] ?? null));
+
+        // No receipt yet means the transaction is still in flight. Inclusion in
+        // a block is not settlement, so this never reads as verified.
+        if (! is_array($receipt) || $receipt === []) {
+            return ['state' => 'pending', 'reachable' => true, 'block' => $block, 'tx' => $tx];
+        }
+
+        $succeeded = ChainQuantity::toInt($receipt['status'] ?? null) === 1;
 
         return [
-            'found' => true,
+            'state' => $succeeded ? 'settled' : 'reverted',
             'reachable' => true,
-            'block' => ChainQuantity::toInt($block),
-            'tx' => $tx,
+            'block' => ChainQuantity::toInt($receipt['blockNumber'] ?? null) ?? $block,
+            'tx' => $receipt,
         ];
     }
 
@@ -180,13 +246,7 @@ class LeptonReconciliationService
             return null;
         }
 
-        foreach ($records as $record) {
-            if ($record->txHash !== null && strcasecmp($record->txHash, $hash) === 0) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($records, fn (TransactionRecord $record): bool => $record->txHash !== null && strcasecmp($record->txHash, $hash) === 0);
     }
 
     /**

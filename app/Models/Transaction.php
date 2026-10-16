@@ -104,11 +104,14 @@ class Transaction extends Model
     }
 
     /**
-     * Reconciliation proved this receipt's hash is absent from the chain, so
-     * the payment never settled and the row has been marked failed.
+     * Reconciliation found a receipt for this hash that the chain reports as
+     * failed, so the payment did not settle and the row was marked failed.
+     *
+     * This deliberately never covers a hash the chain could not find: absence
+     * of a receipt is an open question, not a failed payment.
      */
     public function isReconciledFailed(): bool
     {
-        return ($this->metadata['reconciliation'] ?? null) === 'failed';
+        return in_array($this->metadata['reconciliation'] ?? null, ['failed', 'reverted'], true);
     }
 }

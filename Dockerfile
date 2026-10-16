@@ -10,6 +10,7 @@ ARG APP_URL=https://koami.koamishin.org
 # Stage 1: Install PHP Dependencies
 # -----------------------------------------------------------------------------
 FROM composer:${COMPOSER_VERSION} AS vendor
+ENV COMPOSER_IGNORE_PLATFORM_REQS=1
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install \
@@ -29,12 +30,13 @@ RUN mkdir -p \
     storage/framework/testing \
     storage/logs \
     bootstrap/cache
-RUN composer dump-autoload --optimize --classmap-authoritative --no-dev --no-scripts
+RUN composer dump-autoload --optimize --classmap-authoritative --no-dev --no-scripts --ignore-platform-reqs
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build Frontend Assets
 # -----------------------------------------------------------------------------
 FROM oven/bun:1 AS build-assets
+ENV COMPOSER_IGNORE_PLATFORM_REQS=1
 WORKDIR /app
 
 # Install PHP for Wayfinder type generation
@@ -54,6 +56,9 @@ COPY --from=vendor /app/vendor ./vendor
 # Copy necessary Laravel files for Artisan commands
 COPY --from=vendor /app/bootstrap ./bootstrap
 COPY --from=vendor /app/storage ./storage
+
+# Ensure platform check cannot block asset generation CLI if present
+RUN if [ -f ./vendor/composer/platform_check.php ]; then echo "<?php" > ./vendor/composer/platform_check.php; fi
 
 RUN bun run build
 

@@ -17,7 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'color-theme', 'sidebar_state']);
-        $middleware->validateCsrfTokens(except: ['api/webhooks/*']);
+        // One unauthenticated POST route only. A wildcard here would exempt every
+        // future webhook from CSRF without anyone deciding that at review time.
+        $middleware->validateCsrfTokens(except: ['api/webhooks/circle']);
 
         $middleware->web(append: [
             EnforceSchoolRegistration::class,

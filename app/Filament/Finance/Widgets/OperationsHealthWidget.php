@@ -144,9 +144,13 @@ class OperationsHealthWidget extends BaseWidget
             ->where('status', 'pending')
             ->count();
 
+        // 'failed' is the value written before reconciliation separated a chain-proven
+        // revert from an unresolved hash; both are receipts that did not settle.
+        // An 'unresolved' row is deliberately absent: it is an open case, not a
+        // known failure, and is counted with the pending outcomes instead.
         $failed = Transaction::query()
             ->where('organization_id', $institution->id)
-            ->where('metadata->reconciliation', 'failed')
+            ->whereIn('metadata->reconciliation', ['failed', 'reverted'])
             ->count();
 
         $outcomeStat = Stat::make('Unresolved payment outcomes', (string) ($unresolved + $failed))

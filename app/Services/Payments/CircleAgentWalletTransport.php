@@ -59,24 +59,7 @@ final readonly class CircleAgentWalletTransport implements FeeBoundedPaymentTran
         }
 
         if ($this->walletGateway instanceof CircleRestGateway) {
-            $result = $this->walletGateway->transfer(
-                (string) $request['from'],
-                (string) $request['to'],
-                (int) $request['amount_base_units'],
-                [
-                    'chain' => (string) $request['chain'],
-                    'idempotencyKey' => (string) $request['idempotency_key'],
-                ],
-            );
-
-            $candidate = trim((string) ($result->handle ?? $result->raw['id'] ?? $result->raw['data']['id'] ?? ''));
-            if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $candidate) !== 1) {
-                throw new RuntimeException(
-                    'Circle REST API returned no transaction identifier for transfer; submission state is unknown, not settled.'
-                );
-            }
-
-            return new TransportAcceptance(handle: strtolower($candidate), raw: ['raw' => $result->raw]);
+            throw new RuntimeException('Developer wallet execution remains gated until payer fee controls are reviewed; this rail is not assumed relayer-sponsored.');
         }
 
         if ($this->http instanceof CircleAgentHttpClient) {
@@ -128,6 +111,10 @@ final readonly class CircleAgentWalletTransport implements FeeBoundedPaymentTran
      */
     public function feeGuarantee(): FeeGuarantee
     {
+        if ($this->walletGateway instanceof CircleRestGateway) {
+            return FeeGuarantee::Unbounded;
+        }
+
         return FeeGuarantee::RelayerSponsored;
     }
 
@@ -150,6 +137,10 @@ final readonly class CircleAgentWalletTransport implements FeeBoundedPaymentTran
      */
     public function estimate(array $request): ?array
     {
+        if ($this->walletGateway instanceof CircleRestGateway) {
+            return $this->walletGateway->estimateTransfer((string) $request['from'], (string) $request['to'],
+                (int) $request['amount_base_units'], ['chain' => (string) $request['chain']]);
+        }
         $cacheKey = 'circle_wallet_fee_estimate_'.md5((string) ($request['chain'] ?? ''));
 
         $cached = Cache::get($cacheKey);
@@ -207,7 +198,8 @@ final readonly class CircleAgentWalletTransport implements FeeBoundedPaymentTran
     public function resolve(string $handle, array $request): TransportResolution
     {
         if ($this->walletGateway instanceof CircleRestGateway) {
-            $res = $this->walletGateway->resolve($handle, ['chain' => (string) ($request['chain'] ?? 'ARC-TESTNET')]);
+            $res = $this->walletGateway->resolve($handle, ['chain' => (string) ($request['chain'] ?? 'ARC-TESTNET'),
+                'address' => (string) ($request['from'] ?? '')]);
 
             return match ($res->state) {
                 'completed' => is_string($res->txHash) && preg_match('/^0x[0-9a-fA-F]{64}$/D', $res->txHash) === 1

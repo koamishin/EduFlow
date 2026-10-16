@@ -2637,7 +2637,7 @@ parameters:
 		-
 			rawMessage: 'Call to an undefined static method App\Models\Invoice::create().'
 			identifier: staticMethod.notFound
-			count: 3
+			count: 1
 			path: tests/Feature/LeptonReconciliationTest.php
 
 		-
@@ -2655,7 +2655,7 @@ parameters:
 		-
 			rawMessage: 'Call to an undefined static method App\Models\Vendor::create().'
 			identifier: staticMethod.notFound
-			count: 3
+			count: 1
 			path: tests/Feature/LeptonReconciliationTest.php
 
 		-

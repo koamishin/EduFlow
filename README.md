@@ -73,8 +73,9 @@ policy activation or developer demo is not a certified school treasury system.
 2. **Exact money is required.** USDC payments use 6 decimals, so `45.00` is `45_000000`.
    Arc native balance/gas uses 18 decimals. Legacy float balances still require migration.
 3. **A tx hash is not proof.** Successful matching movement and finality must be verified.
-   Legacy `lepton:reconcile` hash-only checks and missing-hash failure labels need hardening;
-   a missing RPC result alone does not prove fabrication.
+   `lepton:reconcile` reads the on-chain receipt: only a successful one is `verified`, only a
+   chain-reported failure is `reverted`, and a missing RPC result alone does not prove fabrication
+   — those rows stay `unresolved` for a human instead of being failed.
 4. **No hardcoded CLI.** All Circle/Arc access goes through
    [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent) gateways.
 5. **Demo funding must match the chain.** Use explicit consent for testnet runs and label
@@ -82,62 +83,59 @@ policy activation or developer demo is not a certified school treasury system.
 
 ## Production readiness
 
-**Status: blockers identified; hardening is not yet implemented.** OpenSinop and
-its Lepton dependency require separate release gates. Neither a green test suite
-nor a new package tag certifies the application for real institutional funds.
+**Status: the SDK and webhook-ingestion blockers are closed; live provider
+validation and operational release gates are still open.** The application now runs
+on Lepton [`v3.0.0-rc.1`](https://github.com/yukazakiri/lepton-agent/releases/tag/v3.0.0-rc.1)
+and requires PHP 8.5. Neither a green test suite nor a package tag certifies the
+application for real institutional funds.
 
-### Current integration blockers
+### What shipped
 
-- The checked-in lock file installs Lepton `v2.7.0`; selecting `developer` or
-  `circle-rest` in an installer does not provide `CircleRestGateway`. The package
-  prerelease [`v2.12.0-rc.2`](https://github.com/yukazakiri/lepton-agent/releases/tag/v2.12.0-rc.2)
-  still has unresolved API, accounting, and runtime-compatibility issues. Upgrading
-  to that prerelease alone is not the fix.
-- The current `POST /api/webhooks/circle` handler logs and continues after failed
-  verification and uses an Entity Secret encryption key instead of the notification
-  key. Do not expose this endpoint publicly for production use until it rejects
-  unauthenticated requests. Notification logging is not settlement verification.
-- Composer metadata, Docker settings, queue/scheduler processes, credentials,
-  application authorization, and reconciliation must all be tested together.
-  Package unit tests do not cover those deployment boundaries.
+- **Hardened Lepton driver.** REST paths, `feeLevel`, signing payloads, bounded
+  pagination, and wallet/network/wallet-set scoping match the Circle OpenAPI
+  contract; mutations require a persisted UUID v4 idempotency key; unsupported
+  operations throw `UnsupportedOperation` instead of inventing zero balances.
+  Arc reads are HTTPS-only with verified chain identity and no CLI fallback.
+  Exact six-decimal USDC; Arc native (18 dp) and ERC-20 (6 dp) views of the same
+  balance are never summed.
+- **Contained webhook ingestion.** `POST /api/webhooks/circle` returns `404`
+  unless `lepton.webhooks.enabled` is set *and* the developer REST driver is
+  selected. Missing signature or key headers are `401`. Raw bytes are verified
+  against `GET /v2/notifications/publicKey/{keyId}` with `ECDSA_SHA_256` — never
+  the Entity Secret RSA key. Notification type, subscription, network, and
+  transaction identity are validated before anything is stored.
+- **Durable inbox, no duplicate payments.** Each verified event is stored once
+  with its payload digest; a reused `notificationId` with a different digest is
+  `409`. The response is `202` with `settlement_verified: false`, and the only
+  side effect is a queued observation job. The webhook can never create or
+  submit a payment, and never marks a bill paid.
+- **Recovery without resend.** `ObserveCircleNotification` wakes only
+  pre-existing submissions, tuition attempts, and bill payments for their own
+  settlement processors, with overlap protection, exponential backoff, and a
+  per-minute `app:recover-circle-notifications` sweep for unobserved hints.
+- **Explicitly gated rail.** `CircleAgentWalletTransport` refuses a requested fee
+  ceiling it cannot enforce, and refuses the developer REST rail outright until
+  payer fee controls are reviewed rather than assuming a relayer sponsors it.
 
-### Hardening sequence and acceptance gates
+### Remaining release gates
 
-The following is required work, not a list of shipped protections:
+1. **Separately authorized live testnet validation.** Circle wallet creation,
+   signing, transfers, faucet eligibility, webhook delivery, and matched on-chain
+   settlement have not been exercised. Offline tests do not cover them.
+2. **Operational rehearsal.** Provider failures, worker crashes, replay, missed
+   events, restart, update, and backup restoration.
+3. **Secrets, authorization, and custody review.** Entity Secret registration and
+   recovery custody, MFA-backed payment review, monitoring, alerting, and rollback
+   before any controlled mainnet decision.
+   No mainnet payment or custody migration is implicit.
+4. **Exact receipt matching.** `transactions.amount` is still a legacy decimal
+   column and `Transaction` records no recipient in chain units, so a verified
+   receipt is still not proof that *this* payment moved *this* amount to *this*
+   recipient. Receipt-level matching of token, sender, recipient, exact amount and
+   finality is the next gate.
 
-1. **Contain webhook ingestion.** Disable public access to the current handler.
-   Require signature headers and verify raw payload bytes with the notification
-   key from `GET /v2/notifications/publicKey/{keyId}` using the documented
-   `ECDSA_SHA_256` algorithm. Missing signatures, invalid signatures, and key-fetch
-   failures must not reach financial processing.
-2. **Validate the REST driver.** Correct Circle endpoint paths and request fields
-   against official OpenAPI schemas, paginate reads, scope wallets to chain and
-   wallet set, verify API access, and document unsupported operations. Resolve
-   PHP/OpenSSL compatibility before updating the application lock file.
-3. **Prove exact balances and bounded sends.** Identify USDC by trusted token and
-   chain identity, normalize to six-decimal base units with exact arithmetic,
-   and never add Arc's native and ERC-20 views of the same balance. Enforce
-   approved amount, recipient, network, and fee controls at the signing boundary;
-   an estimate is not an enforceable fee ceiling.
-4. **Recover without duplicate payments.** Persist submission identity and the
-   provider-compatible idempotency key before sending. Record webhook events in
-   a durable inbox with unique `notificationId`, validate subscription/network,
-   and queue bounded reconciliation. Duplicate and out-of-order notifications
-   must not regress state or cause another transfer. Keep recovery polling for
-   missed notifications; timeouts and null lookups remain unresolved.
-5. **Verify settlement independently.** Notification delivery, a provider ID,
-   `CONFIRMED`, or a stored hash alone must not mark a bill paid. Require a
-   successful receipt and matching token, chain, sender, recipient, exact amount,
-   and finality. Testnet mirrors never clear real local-currency liabilities.
-6. **Pass release validation.** Lock the hardened package version and run
-   application regressions plus separately authorized testnet integration.
-   Exercise provider failures, worker crashes, replay, missed events, restart,
-   update, and backup restoration. Review secrets/recovery custody, MFA,
-   monitoring, alerts, and rollback procedures before a controlled mainnet
-   rollout decision. No mainnet payment or custody migration is implicit.
-
-The [Lepton production-readiness checklist](https://github.com/yukazakiri/lepton-agent/blob/v2.12.0-rc.2/README.md#production-readiness)
-tracks package-specific blockers. See Circle's
+The [Lepton production-readiness checklist](https://github.com/yukazakiri/lepton-agent/blob/v3.0.0-rc.1/README.md#production-readiness)
+tracks package-specific gates. See Circle's
 [transfer schema](https://developers.circle.com/api-reference/wallets/developer-controlled-wallets/create-developer-transaction-transfer)
 and [webhook verification guide](https://developers.circle.com/wallets/webhook-notifications)
 for provider contracts. [PLAN.md](PLAN.md) retains the application's broader
@@ -301,7 +299,7 @@ real permitted source records, staff review and connected verified testnet evide
 | Tool | Minimum Version | Installation / Official Documentation |
 |---|---|---|
 | **Docker** (Self-hosting) | 24.0+ (Compose v2) | [Docker Engine](https://docs.docker.com/engine/install/) · [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
-| **PHP** (Bare-metal) | 8.4.1+ (8.5 recommended) | [PHP Installation Guide](https://www.php.net/downloads) — Required extensions: `pdo_sqlite`, `mbstring`, `openssl`, `curl` |
+| **PHP** (Bare-metal) | 8.5+ (required, not optional) | [PHP Installation Guide](https://www.php.net/downloads) — Required extensions: `pdo_sqlite`, `mbstring`, `openssl`, `curl` |
 | **Composer** | 2.x | [Composer Download](https://getcomposer.org/download/) |
 | **Node.js & npm** | 20.18.2+ | [Node.js Downloads](https://nodejs.org/en/download) |
 | **Circle CLI** | 1.1.4+ | [Circle CLI Documentation](https://developers.circle.com/agent-stack/circle-cli) · `npm i -g @circle-fin/cli` |
@@ -512,7 +510,7 @@ docker exec -it opensinop php artisan app:bootstrap-admin --name="School Operato
 
 For environments running PHP and web servers directly on host infrastructure:
 
-1. **Server prerequisites.** Install PHP 8.4+/8.5 with extensions (`pdo`, `mbstring`, `openssl`,
+1. **Server prerequisites.** Install PHP 8.5 with extensions (`pdo`, `mbstring`, `openssl`,
    `curl`, `fileinfo`, `dom`, `xml`, `zip`, `bcmath`), Composer, Node.js 20.18+, and (for treasury
    features) the Circle CLI + `uv` + `arc-canteen` (see
    [Lepton agent package (Circle + Arc)](#lepton-agent-package-circle--arc)).
@@ -589,10 +587,19 @@ This application depends on [`yukazakiri/lepton-agent`](https://github.com/yukaz
 Circle Agent Wallets and the Arc network behind injected contracts; application code never
 shells out to `circle`/`arc-canteen` directly.
 
+The lock file installs [`v3.0.0-rc.1`](https://github.com/yukazakiri/lepton-agent/releases/tag/v3.0.0-rc.1),
+which requires **PHP 8.5**. Entity Secret encryption uses PHP 8.5's explicit
+RSA-OAEP SHA-256 digest API, so the whole application moved to that floor: update
+consumer CI, containers and any host runtime before upgrading. Existing Agent Stack
+wallets are still not automatically accessible through a Developer-Controlled
+Wallets API key, and the REST driver reports unsupported operations explicitly
+rather than pretending a zero balance.
+
 **Circle CLI driver requirements:**
 - `circle` CLI (`npm i -g @circle-fin/cli`) — Circle owns the agent session; the package stores no
   credentials.
-- `arc-canteen` (`uv tool install arc-canteen && arc-canteen login`) — RPC + optional funded testnet wallet.
+- An Arc **testnet RPC URL**. Arc reads are HTTPS-only now, so `arc-canteen` is no
+  longer used for JSON-RPC and no fallback network is contacted after a failure.
 - A Circle **agent** wallet (Circle MPC), not a local wallet, so Circle can sign.
 
 **Authentication (OTP, mainnet/testnet independent):**
@@ -622,19 +629,23 @@ LEPTON_CIRCLE_API_KEY=
 LEPTON_ENTITY_SECRET=
 LEPTON_WALLET_SET_ID=
 LEPTON_CIRCLE_API_URL=https://api.circle.com/v1/w3s
+
+# Verified Circle notifications (opt-in; both required before the webhook route answers)
+LEPTON_WEBHOOKS_ENABLED=false
+LEPTON_WEBHOOK_SUBSCRIPTIONS=   # comma-separated subscription IDs
+LEPTON_WEBHOOK_MAX_AGE_SECONDS=86400
 ```
 
-**Version boundary:** The application lock file currently installs Lepton `v2.7.0`.
-The `developer` / `circle-rest` options require the newer package that supplies
-`CircleRestGateway`; setting environment variables does not upgrade dependencies.
-Treat these options as integration work until the application locks and tests the
-required version. Existing Agent Stack wallets are not automatically accessible
-through a Developer-Controlled Wallets API key.
-
-The current webhook route is not production-safe: it continues on failed
-verification and does not retrieve the notification signing key. Keep it blocked
-from public production traffic until the [hardening gates](#production-readiness)
-pass. It grants no settlement or payment authority.
+**Webhook route.** `POST /api/webhooks/circle` returns `404` until
+`LEPTON_WEBHOOKS_ENABLED=true` *and* the developer REST driver is selected. It then
+requires `X-Circle-Signature` and `X-Circle-Key-Id`, verifies the raw body with
+`ECDSA_SHA_256` against the key returned by
+`GET /v2/notifications/publicKey/{keyId}`, records the event in
+`circle_webhook_notifications`, and answers `202` with
+`{"received": true, "settlement_verified": false}`. The only side effect is a queued
+observation job; it can never create or submit a payment.
+`php artisan app:recover-circle-notifications` re-dispatches unobserved hints every
+minute, so a delivery that arrives before its local record is not lost.
 
 **Verify:**
 ```bash
@@ -647,6 +658,8 @@ php artisan lepton:status --address=0x...
   `Yukazakiri\Lepton\Support\Amounts`, never floats or `hexdec()`.
 - A transaction hash is a claim, not proof. `eth_getTransactionByHash` shows
   visibility only; settlement needs a successful matching receipt and finality.
+- REST mutations need a persisted UUID v4 `idempotencyKey`. After a timeout, observe
+  the existing submission — never send a second transfer under a fresh key.
 - Prefer Circle agent wallet addresses; local wallets make transfers fail.
 - Mainnet and testnet sessions are independent.
 
@@ -825,7 +838,7 @@ fail for lack of funds.
 ```bash
 php artisan lepton:doctor      # is it wired up?
 php artisan app:demo       # run one full autonomous cycle
-php artisan lepton:reconcile   # legacy hash lookup; stronger pilot verification required
+php artisan lepton:reconcile   # proves each stored receipt against the chain
 ```
 
 `app:demo` moves **85 USDC** of real testnet USDC (30 + 45 + the 10 USDC aid
@@ -1004,25 +1017,38 @@ php artisan lepton:reconcile
 ```
 
 ```
-  ✓  #7    vendor_payment      45.00  verified     0xcecac1d9520c4815
-  ✗  #3    student_assistance 100.00  fabricated   0x59cbf4983d0e6ff1
+  ✓  #7    vendor_payment      45.000000  verified    0xcecac1d9520c4815
+  ~  #9    vendor_payment      12.500000  pending     0x1f0c9ab7d4e35c22
+  ✗  #3    student_assistance 100.000000  reverted    0x59cbf4983d0e6ff1
+  ?  #11   vendor_payment       8.250000  unresolved  0xb7e21c40a95d3381
 
-  1 verified · 1 fabricated · 0 unverifiable · 0 ledger-only
+  1 verified · 1 reverted · 1 unresolved · 1 pending · 0 provider-only · 0 unverifiable · 0 ledger-only
 ```
 
-Legacy output uses **fabricated** for absent hashes, but a missing RPC result alone does
-not prove fabrication or failed settlement. Keep uncertain outcomes unresolved and reconcile
-without blind resubmission. Fake-driver receipts are simulated, never onchain proof.
+Each verdict is a different claim, and only two of them may write to a record:
 
-For reviewed disposable demo records only, the legacy mutation command is:
+| Verdict | Means | What it proves |
+| --- | --- | --- |
+| `verified` | A receipt exists and reports success | The chain executed it; not that it moved the intended amount |
+| `reverted` | A receipt exists and reports failure | Chain-proven failure — the only absence-free verdict that fails a row |
+| `pending` | Known to the chain with no receipt yet | Still in flight; nothing is concluded |
+| `unresolved` | No transaction with this hash was found | An open question, never a failed payment |
+| `observed` | Provider reports completion, no receipt readable | Provider claim only |
+| `unverifiable` | Neither chain nor provider readable | No evidence available |
+| `ledger_only` | No hash recorded | A local ledger row that never claimed a receipt |
+
+A missing RPC result alone does not prove fabrication or failed settlement:
+propagation delay, a reorganisation, and a hash from another network all look
+identical. Keep uncertain outcomes unresolved and reconcile without blind
+resubmission. Fake-driver receipts are simulated, never onchain proof.
+
+`--fix` marks a row failed **only** for `reverted`. Unresolved rows are listed for
+investigation and left untouched, because writing `FAILED` on absent evidence would
+replace one unproven claim with another and erase the record of the gap:
 
 ```bash
 php artisan lepton:reconcile --fix
 ```
-
-It skips rows already marked reconciled, but its legacy evidence rules remain insufficient
-for college payment decisions. Do not run `--fix` on pilot records solely because a hash
-lookup is missing. Harden and test receipt/movement/finality checks first.
 
 To inspect one hash yourself (inspection, not settlement proof):
 
@@ -1302,8 +1328,8 @@ reservation release/rollover, approval renewal/withdrawal, durable recovery and 
 | `php artisan lepton:login --status` | Circle session state per network |
 | `php artisan lepton:login <email>` | Send the OTP, print the request ID |
 | `php artisan lepton:login --request=<id> --otp=<code>` | Complete login |
-| `php artisan lepton:reconcile` | Legacy hash lookup; not complete pilot settlement proof |
-| `php artisan lepton:reconcile --fix` | Legacy reconciliation mutation; review missing/unknown evidence before use |
+| `php artisan lepton:reconcile` | Prove stored receipts against Arc; reports each verdict honestly |
+| `php artisan lepton:reconcile --fix` | Mark only chain-reverted receipts failed; unresolved rows are left for a human |
 | `php artisan app:demo` | Run one full autonomous cycle |
 | `php artisan app:install` | Initialize school identity and financial settings |
 | `php artisan app:bootstrap-admin` | Create the first super-administrator account interactively |
@@ -1314,6 +1340,7 @@ reservation release/rollover, approval renewal/withdrawal, durable recovery and 
 | `php artisan app:dispatch-finance-workflows` | Recover and dispatch bounded read-only finance planning work |
 | `php artisan app:reconcile-payment-submissions` | Verify matching settlement and finality on Arc |
 | `php artisan app:dispatch-policy-evaluations` | Sweep and dispatch queued JEV policy evaluations to background workers |
+| `php artisan app:recover-circle-notifications` | Re-queue verified webhook hints that are still unobserved |
 | `php artisan lepton:status --address=0x…` | Chain, block, balance, limits |
 | `php artisan lepton:transfer 0x… --amount=1.00 --from=0x…` | Single transfer (`--estimate` to dry-run) |
 
@@ -1530,8 +1557,9 @@ be redirected at another student.
 
 A replayed approval finds nothing pending and returns `nothing_pending` without paying twice.
 Any settlement in the response sets `requires_onchain_verification` — a returned hash is a claim
-until successful matching movement and finality are verified. Legacy `lepton:reconcile`
-hash lookup alone does not provide that guarantee.
+until successful matching movement and finality are verified. `lepton:reconcile` reads the
+receipt, so its `verified` verdict is one step further than a hash lookup, but it still does
+not match the intended amount or recipient.
 
 > **Never `app(SettlementOperator::class)`.** Its constructor takes an `Organization`, a fund and
 > a policy version, and Eloquent models take no constructor arguments — so the container hands
@@ -1624,7 +1652,7 @@ Invoices + Aid requests
   Transaction row (status + hash)                      ← a claim
         │
         ▼
-  lepton:reconcile  →  eth_getTransactionByHash        ← legacy lookup, not full proof
+  lepton:reconcile  →  eth_getTransactionReceipt       ← receipt verdict, still not amount-matched
 ```
 
 The base-unit gateway path uses integers: `Amounts::fromDecimalString('45.00')` gives
