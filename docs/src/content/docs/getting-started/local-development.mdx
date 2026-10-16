@@ -62,14 +62,31 @@ an instance holding configured providers or payment history.
 | Student | `juan@eduflow.test` | `password` |
 | Finance officer | `finance@eduflow.test` | `password` |
 
-These belong to the legacy developer demo. The student account still exposes legacy
-assistance screens; it is not a fee-payment portal and is not a prerequisite for the
-institution pilot.
+`DemoUsersSeeder` (run by `DatabaseSeeder` in local/testing) creates demo *accounts*; the
+finance/education fixture data and the `Northstar Learning Center` institution come from
+the seeders below. The student account still exposes legacy assistance screens; it is
+not a fee-payment portal and is not a prerequisite for the institution pilot.
 
 ## The seeded demo cycle
 
+`DatabaseSeeder` deliberately does **not** seed financial fixtures — walls, budgets,
+invoices and the demo institution are no longer startup data. `app:demo` needs the legacy
+fixtures, so seed them first (this also creates the two accounts above):
+
+```bash
+php artisan db:seed --class=EduFlowFinancialSeeder
+php artisan db:seed --class=EducationDemoSeeder
+php artisan db:seed --class=EduFlowPlanSeeder
+```
+
+Without them the command refuses to run and tells you exactly this:
+
 ```bash
 php artisan app:demo
+```
+
+```text
+Run seeders first: EduFlowFinancialSeeder, EducationDemoSeeder, EduFlowPlanSeeder.
 ```
 
 One cycle moves **85 USDC** of real testnet USDC (30 + 45 + the 10 USDC aid portion).

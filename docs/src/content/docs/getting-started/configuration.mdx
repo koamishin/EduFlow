@@ -145,12 +145,15 @@ consequence of anything else.
 | `EDUFLOW_AUTONOMOUS_PIPELINE_MAX_USDC` | Auto-disburse ceiling for the bridge (default `50.00`); a bill above it is held for manual authorisation |
 | `EDUFLOW_AUTONOMOUS_PIPELINE_MAKER_ID` / `_REVIEWER_ID` | Staff IDs the bridge attributes maker and reviewer roles to (defaults `4` / `1`) — set these to your own reviewed users |
 
-:::caution[Never run `composer require`/`update` without `--no-scripts`]
-The `post-update-cmd` script runs `php artisan install:features`, which consumes the
-feature-toggling (chisel) scaffolding: it strips `/* @chisel-* */` markers and deletes
-`chisel.php`, `chisel-paths.php` and `app/Console/Commands/InstallFeaturesCommand.php`.
-No app code is lost and tests still pass, but the tooling is gone. Recover with
-`git checkout -- <files>`.
+:::caution[`install:features` is destructive — run it deliberately]
+`php artisan install:features` applies the chisel feature scaffolding and *consumes* it:
+it strips every `/* @chisel-* */` marker and deletes `chisel.php`, `chisel-paths.php` and
+`app/Console/Commands/InstallFeaturesCommand.php`. No app code is lost and tests still
+pass, but the feature-toggling tooling is gone — recover with
+`git checkout -- chisel.php chisel-paths.php app/Console/Commands/InstallFeaturesCommand.php`.
+
+Composer's `post-update-cmd` only publishes vendor assets (`vendor:publish
+--tag=laravel-assets`), so ordinary `composer require`/`update` does **not** run it.
 :::
 
 ## AI providers (optional)
