@@ -250,7 +250,7 @@ it('will not record triage against a request that has no decision yet', function
 });
 
 it('normalises a numeric confidence string from a gateway that drops the schema', function (): void {
-    // 9Router ignores response_format, so every value arrives quoted.
+    // When a gateway ignores response_format, values may arrive quoted.
     $advisory = $this->sanitizer->sanitize(validAdvisory(['confidence' => '0.75']));
 
     expect($advisory)->not->toBeNull()

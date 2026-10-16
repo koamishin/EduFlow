@@ -54,3 +54,11 @@ Schedule::command('app:reconcile-payment-submissions')->everyMinute()->withoutOv
 // same bill would race on the occurrence identity, not on the money.
 Schedule::command('app:dispatch-mandate-occurrences')->everyMinute()->withoutOverlapping(2)->onOneServer()
     ->when(fn (): bool => (bool) config('eduflow.mandate.runtime_enabled', false));
+
+// Background AI agent evaluation: sweeps queued JEV policy evaluations
+Schedule::command('app:dispatch-policy-evaluations')->everyMinute()->withoutOverlapping(2)->onOneServer()
+    ->when(fn (): bool => (bool) config('eduflow.institution_policy.advice_enabled', false));
+
+// Autonomous Pipeline Bridge: seamlessly reconcile tuition receipts, evaluate JEV policy, and disburse to approved vendors
+Schedule::command('eduflow:autonomous-pipeline-bridge --latest')->everyFiveMinutes()->withoutOverlapping(5)->onOneServer()
+    ->when(fn (): bool => (bool) config('eduflow.autonomous_pipeline.enabled', false));

@@ -1313,6 +1313,7 @@ reservation release/rollover, approval renewal/withdrawal, durable recovery and 
 | `php artisan app:activate-finance-policy` | Activate a reviewed institution finance policy version |
 | `php artisan app:dispatch-finance-workflows` | Recover and dispatch bounded read-only finance planning work |
 | `php artisan app:reconcile-payment-submissions` | Verify matching settlement and finality on Arc |
+| `php artisan app:dispatch-policy-evaluations` | Sweep and dispatch queued JEV policy evaluations to background workers |
 | `php artisan lepton:status --address=0x…` | Chain, block, balance, limits |
 | `php artisan lepton:transfer 0x… --amount=1.00 --from=0x…` | Single transfer (`--estimate` to dry-run) |
 
@@ -1343,6 +1344,23 @@ LEPTON_TREASURY_ADDRESS=0xYourAgentWallet
 approval-resume wiring exist; financial authority remains in deterministic PHP rules.
 The institution inspection tool is read-only. Existing assistance approval endpoints
 are not a departmental vendor-payment approval/execution path.
+
+### OpenAI-Compatible Gateway / Custom Endpoint
+
+OpenSinop supports any OpenAI-compatible provider (e.g., Ollama, vLLM, LiteLLM, LocalAI, or custom AI gateways). As an open-source project, no specific proprietary provider is required; you can point it to any compatible endpoint in your `.env`:
+
+```env
+# Custom OpenAI-compatible endpoint
+OPENAI_COMPATIBLE_URL=https://your-custom-ai-gateway.example.com/v1
+OPENAI_COMPATIBLE_MODEL=ag/gemini-3.8-flash-high # or llama3.1, gpt-4o-mini, etc.
+OPENAI_COMPATIBLE_KEY=your-api-key # optional if gateway requires auth
+
+# Local fallback
+AI_LOCAL_URL=http://localhost:11434/v1
+AI_LOCAL_MODEL=llama3.1
+```
+
+Or connect a local Ollama or hosted provider:
 
 ```bash
 # Optional: a local model, so the AI layer runs with no paid API key
@@ -1403,8 +1421,8 @@ data and without costing a completion.
 > `migrate:refresh` for a demo, or re-enter the key afterwards. The encryption protects a
 > database *dump*; it cannot survive the row being deleted.
 
-> **Not every gateway honours `response_format`.** 9Router accepts the parameter and
-> ignores it, returning the object as text. The agents therefore also ask for the JSON shape
+> **Not every gateway honours `response_format`.** Some OpenAI-compatible gateways accept the parameter and
+> ignore it, returning the object as text. The agents therefore also ask for the JSON shape
 > in their instructions, and the gate decodes a string response. If a gateway streams SSE
 > regardless of `stream: false`, add an `Accept: application/json` extra header.
 
@@ -1519,6 +1537,35 @@ hash lookup alone does not provide that guarantee.
 > a policy version, and Eloquent models take no constructor arguments — so the container hands
 > back **blank, non-existent records**. The agent then refuses with "no active wallet": the right
 > outcome for the wrong reason. Use `SettlementOperatorFactory::makeOrFail()`.
+
+### JEV Advisory Decision Analytics & Human Concurrence Tracking
+
+Institutional governance demands transparent oversight over AI recommendations and human review outcomes. OpenSinop includes a dedicated telemetry engine (`App\Services\JevAnalyticsService`) and dual dashboards:
+
+1. **Dedicated Dashboards**:
+   - **Inertia / React SPA Dashboard**: Route `GET /finance/jev-analytics` (`resources/js/pages/finance/analytics.tsx`) with real-time period filters (`all`, `today`, `7_days`, `14_days`, `30_days`), source filters (`all`, `collection`, `transaction`, `budget_snapshot`), SVG trend graphs, category confidence progress bars, and modal evaluation inspector.
+   - **Filament Finance Panel**: Direct navigation link `JEV Decision Analytics` rendering `App\Filament\Pages\JevAnalyticsDashboard` with live stat cards, Chart.js doughnuts, stacked trend bars, and audit tables.
+
+2. **JEV Advisory Decision Metrics**:
+   - `match`: Evaluated policy clauses match with required confidence; ready for human concurrence.
+   - `needs_review`: Edge case or policy uncertainty flagged for human attention.
+   - `hold`: Policy limits or safety thresholds violated; administrative hold applied.
+   - `exempt`: Transaction meets standard exclusion or exemption criteria.
+   - Category distribution tracking with item counts and average confidence scores.
+
+3. **Staff Review & Approval Telemetry**:
+   - **Approval Rate**: Percentage of human-reviewed proposals that were approved.
+   - **Staff Concurrence Rate**: Frequency with which human staff agreed with JEV's recommendation vs overriding it.
+   - **Manual Override Rate**: Frequency of staff decisions countermanding the agent.
+   - **Time to Approval (Latency)**: Accurate duration between evaluation completion and human review resolution (`avg_time_to_approval_seconds`, fastest, slowest, and human-formatted duration).
+
+4. **Background AI Agent Execution & Queue Scheduling**:
+   - AI evaluations run asynchronously via `App\Jobs\EvaluateInstitutionPolicy` queued jobs.
+   - Console command `php artisan app:dispatch-policy-evaluations` sweeps pending queued evaluations without requiring synchronous browser interactions.
+   - Scheduled in `routes/console.php`:
+     - `app:dispatch-policy-evaluations` runs every minute (`->everyMinute()`).
+     - `eduflow:autonomous-pipeline-bridge --latest` runs every 5 minutes (`->everyFiveMinutes()`).
+   - Run queue workers with: `php artisan queue:work --queue=default`.
 
 ---
 

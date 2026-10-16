@@ -60,7 +60,7 @@ it('cannot read the stored key without the application key', function (): void {
 });
 
 it('asks for JSON by default so a streaming gateway cannot break the response', function (): void {
-    // 9Router streams SSE regardless of `stream: false`, which the SDK cannot
+    // Certain gateways stream SSE regardless of `stream: false`, which the SDK cannot
     // parse. The Accept header must be set even when the operator added none.
     $config = makeProvider()->toProviderConfig();
 

@@ -155,8 +155,8 @@ final readonly class AdvisoryGate
             // even though the text holds the object, so fall through.
         }
 
-        // Not every gateway honours `response_format: json_schema`. 9Router drops
-        // it and returns the object as text, so the SDK hands back a string
+        // Not every gateway honours `response_format: json_schema`. Certain gateways drop
+        // it and return the object as text, so the SDK hands back a string
         // rather than a structured array. Decoding here keeps those providers
         // working; both paths still end at the sanitizer, which is the actual
         // boundary.
