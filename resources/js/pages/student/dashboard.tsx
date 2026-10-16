@@ -1,10 +1,4 @@
-import {
-    Head,
-    Link,
-    router,
-    usePage,
-    usePoll,
-} from '@inertiajs/react';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import {
     ArrowDownLeft,
     ArrowRight,
@@ -13,7 +7,6 @@ import {
     Check,
     CheckCircle2,
     ChevronRight,
-    Clock,
     Copy,
     ExternalLink,
     Eye,
@@ -25,7 +18,7 @@ import {
     TriangleAlert,
     Wallet,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { OfficialPaymentReceiptModal } from '@/components/official-payment-receipt-modal';
@@ -127,7 +120,7 @@ export default function StudentDashboard({
     // Pay Now needs a wallet with a balance and tuition that is still owed.
     const remainingBase = Number(tuitionAccount?.remaining_amount ?? 0);
     const canPay = hasWallet && remainingBase > 0;
-    const [receipt, setReceipt] = useState<TuitionAttempt | null>(null);
+    const [receipt, _setReceipt] = useState<TuitionAttempt | null>(null);
 
     const activeReceipt = receipt
         ? (tuitionAttempts.find(
@@ -371,6 +364,7 @@ export default function StudentDashboard({
         }
         return true;
     });
+
     const openPay = (amount?: string | React.MouseEvent) => {
         const amt = typeof amount === 'string' ? amount : undefined;
         router.visit(

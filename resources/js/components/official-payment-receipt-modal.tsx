@@ -107,8 +107,7 @@ export function OfficialPaymentReceiptModal({
         toast.success('e-Receipt downloaded');
     };
 
-    const isPartial =
-        BigInt(receipt.remaining_balance_base_units || '0') > 0n;
+    const isPartial = BigInt(receipt.remaining_balance_base_units || '0') > 0n;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,7 +131,8 @@ export function OfficialPaymentReceiptModal({
                                     className="border-emerald-500/40 bg-emerald-500/15 text-[10px] font-semibold text-emerald-300"
                                 >
                                     <CheckCircle2 className="mr-1 size-3" />
-                                    {receipt.verified_status ?? 'On-Chain Verified'}
+                                    {receipt.verified_status ??
+                                        'On-Chain Verified'}
                                 </Badge>
                             </div>
                             <DialogHeader className="mt-1 p-0 text-left">
@@ -141,8 +141,8 @@ export function OfficialPaymentReceiptModal({
                                 </DialogTitle>
                                 <DialogDescription className="text-xs text-[var(--clay-text-muted,#9e9589)]">
                                     Issued {receipt.issued_at} &middot;{' '}
-                                    {receipt.chain} (Chain ID{' '}
-                                    {receipt.chain_id})
+                                    {receipt.chain} (Chain ID {receipt.chain_id}
+                                    )
                                 </DialogDescription>
                             </DialogHeader>
                         </div>
