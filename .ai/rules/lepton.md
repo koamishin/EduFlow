@@ -11,6 +11,10 @@ paths:
   - app/Services/ReservationCapacity.php
   - app/Services/MandateOccurrenceScanner.php
   - app/Services/RecordRetrospectiveAgreement.php
+  - app/Jobs/ObserveCircleNotification.php
+  - app/Console/Commands/RecoverCircleNotifications.php
+  - 'database/migrations/*circle_webhook_notifications*'
+  - 'tests/Feature/CircleWebhookTest.php'
 ---
 
 # Lepton / Arc testnet settlement
@@ -140,3 +144,64 @@ So do NOT apply "the sender must hold value + fee, therefore the balance bounds 
 2. A receipt fee above the payer's accepted ceiling must NOT refuse a settlement. It is Circle's cost, so the comparison can reject a payment that genuinely settled -- student pays, debt stands, no repair path.
 
 **To prove who pays, read the payer's balance across the block.** Do not infer it from `tx.from`, and do not infer it from `gasUsed x effectiveGasPrice`.
+
+## A Circle webhook is an observation hint, never settlement authority
+`POST /api/webhooks/circle` (CircleWebhookController) fails closed at every step, because
+the previous handler logged and continued after a failed check. The contract now is:
+
+- **404** unless `lepton.webhooks.enabled` is true AND `lepton.default` is `developer` /
+  `circle-rest`. Circle notifications only exist for Developer-Controlled Wallets; an agent
+  wallet subscription cannot reach this route.
+- **401** when either `X-Circle-Signature` or `X-Circle-Key-Id` is missing, and on any
+  verification failure — including a failed `GET /v2/notifications/publicKey/{keyId}`.
+  The signature is `ECDSA_SHA_256` over the **raw request body**, using the notification
+  signing key. It is NOT the Entity Secret RSA key: that key encrypts, it never signs.
+- **422** for an unsupported notification type, a blockchain that is not the configured
+  chain, or a notification id that is not a UUID.
+- **409** when the same `notificationId` arrives with a different payload digest. The
+  unique index on `notification_id` is the dedupe; `circle_webhook_notifications` is a
+  durable inbox, not a log.
+- **503** when the configured queue connection is not durable. Accepting the event and
+  dropping the work would leave the payment permanently unobserved.
+- **202** `{"received": true, "settlement_verified": false}` is the success shape. The
+  only side effect is `ObserveCircleNotification`, which wakes records that ALREADY exist
+  (outbox, tuition attempt, bill payment) matched by provider handle + chain.
+
+`ObserveCircleNotification` can never create a submission, a payment or a transfer. A hint
+whose local record does not exist yet keeps `observed_at` NULL on purpose: the webhook can
+beat the write that records the handle, so `app:recover-circle-notifications` re-delivers
+every minute. A redelivery re-queues while the hint is still owed, and does nothing once
+`observed_at` is set.
+
+Never widen the CSRF exception beyond this one route, never log the payload (it carries
+transaction detail), and never let a webhook advance `TransactionStatus` or post a credit.
+Settlement still goes through `ArcSettlementVerifier` / `PaymentSettlementReconciler`.
+
+## A missing chain receipt is absence of evidence, never fabrication
+`lepton:reconcile` used to report a well-formed hash missing from a reachable chain as
+**fabricated** and `lepton:reconcile --fix` wrote `status = FAILED` from that alone. A
+lookup that returns nothing cannot distinguish a transaction that never existed from one
+that is still propagating, sits behind a provider's index delay, was recorded against the
+wrong network, or was dropped by a reorganisation. Writing FAILED on it replaces one
+unproven claim with a stronger one and destroys the evidence of the gap.
+
+`LeptonReconciliationService` now separates the claims:
+
+| Verdict | Evidence | May write to the record |
+| --- | --- | --- |
+| `verified` | receipt exists, `status == 0x1` | metadata only |
+| `pending` | tx known, no receipt | metadata only |
+| `reverted` | receipt exists, `status == 0x0` | **FAILED** (chain-proven) |
+| `unresolved` | no tx with this hash; or absent from a bounded wallet history | metadata only |
+| `observed` | provider history reports COMPLETE, chain unreadable | metadata only |
+| `unverifiable` | neither chain nor provider readable | metadata only |
+| `ledger_only` | no hash recorded | metadata only |
+
+`--fix` acts on `reverted` only, and `Transaction::isReconciledFailed()` means exactly
+that — a receipt the chain reports as failed. `verifyInvoiceSettlement()` returns `verified`
+only for a successful receipt; a provider ID or a stored hash cannot settle an invoice.
+
+A successful receipt still proves only that the chain executed the transaction. Matching
+the emitter, sender, recipient and exact amount is a separate, still-open gate, because
+`transactions.amount` is a legacy decimal column and `Transaction` stores no recipient in
+chain units. Do not describe `verified` as "the payment settled".

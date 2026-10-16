@@ -314,13 +314,25 @@ test('a stored hash is labelled unverified until proven, never on-chain', functi
         ->and(TransactionsTable::settlementTooltip($tx))->toContain('a claim, not proof');
 
     $tx->update(['metadata' => array_merge($tx->metadata, [
-        'reconciliation' => 'failed',
+        'reconciliation' => 'reverted',
+        'reconciliation_note' => 'The chain reverted this transaction.',
+    ])]);
+
+    expect(TransactionsTable::settlementLabel($tx->fresh()))->toBe('Reverted on chain')
+        ->and(TransactionsTable::settlementColor($tx->fresh()))->toBe('danger')
+        ->and($tx->fresh()->isReconciledFailed())->toBeTrue();
+
+    // A hash the chain could not find is a different claim, and it must never
+    // read as a failed payment: absence of evidence is not evidence of absence.
+    $tx->update(['metadata' => array_merge($tx->metadata, [
+        'reconciliation' => 'unresolved',
         'reconciliation_note' => 'Hash absent from chain.',
     ])]);
 
-    expect(TransactionsTable::settlementLabel($tx->fresh()))->toBe('Never settled')
-        ->and(TransactionsTable::settlementColor($tx->fresh()))->toBe('danger')
-        ->and($tx->fresh()->isReconciledFailed())->toBeTrue();
+    expect($tx->fresh()->isReconciledFailed())->toBeFalse()
+        ->and(TransactionsTable::settlementLabel($tx->fresh()))->toBe('Unresolved')
+        ->and(TransactionsTable::settlementColor($tx->fresh()))->toBe('warning')
+        ->and(TransactionsTable::settlementTooltip($tx->fresh()))->toContain('not proof it never settled');
 
     $tx->update(['metadata' => array_merge($tx->metadata, ['reconciliation' => 'verified'])]);
 

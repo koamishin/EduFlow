@@ -96,7 +96,7 @@ class TransactionsTable
                             'reconciled_block' => $result['block'],
                         ]);
 
-                        if ($result['verdict'] === 'fabricated') {
+                        if ($result['verdict'] === 'reverted') {
                             $metadata['status_after_reconciliation'] = 'failed';
                             $record->update([
                                 'status' => TransactionStatus::FAILED,
@@ -108,15 +108,31 @@ class TransactionsTable
 
                         match ($result['verdict']) {
                             'verified' => Notification::make()
-                                ->title('Settlement verified on-chain')
+                                ->title('Successful receipt on-chain')
                                 ->body($result['reason'])
                                 ->success()
                                 ->send(),
-                            'fabricated' => Notification::make()
-                                ->title('No such transaction on-chain')
+                            'pending' => Notification::make()
+                                ->title('Still in flight')
+                                ->body($result['reason'])
+                                ->info()
+                                ->send(),
+                            'reverted' => Notification::make()
+                                ->title('The chain reverted this transaction')
                                 ->body($result['reason'].' This receipt has been marked failed.')
                                 ->danger()
                                 ->persistent()
+                                ->send(),
+                            'unresolved' => Notification::make()
+                                ->title('Not found, and not proven absent')
+                                ->body($result['reason'])
+                                ->warning()
+                                ->persistent()
+                                ->send(),
+                            'observed' => Notification::make()
+                                ->title('Provider reports completion')
+                                ->body($result['reason'])
+                                ->warning()
                                 ->send(),
                             'ledger_only' => Notification::make()
                                 ->title('Ledger entry, not a chain transfer')
@@ -146,7 +162,7 @@ class TransactionsTable
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Reconcile every transaction against the chain?')
-                    ->modalDescription('Each stored hash is looked up on '.strtoupper((string) config('lepton.arc.chain', 'ARC-TESTNET')).'. Fabricated receipts are marked failed. This cannot be undone.')
+                    ->modalDescription('Each stored hash is looked up on '.strtoupper((string) config('lepton.arc.chain', 'ARC-TESTNET')).'. Only receipts the chain reports as reverted are marked failed; hashes the chain cannot find are reported, never failed. This cannot be undone.')
                     ->action(function (): void {
                         $report = app(LeptonReconciliationService::class)->verifyAll();
 
@@ -161,22 +177,27 @@ class TransactionsTable
                                 'reconciled_block' => $item['block'],
                             ]);
 
-                            $transaction->update($item['verdict'] === 'fabricated'
+                            $transaction->update($item['verdict'] === 'reverted'
                                 ? ['status' => TransactionStatus::FAILED, 'metadata' => $metadata]
                                 : ['metadata' => $metadata]);
                         }
 
                         $body = sprintf(
-                            '%d verified, %d fabricated, %d unverifiable, %d ledger-only.',
+                            '%d verified, %d reverted, %d unresolved, %d pending, %d provider-only, %d unverifiable, %d ledger-only.',
                             $report['verified'],
-                            $report['fabricated'],
+                            $report['reverted'],
+                            $report['unresolved'],
+                            $report['pending'],
+                            $report['observed'],
                             $report['unverifiable'],
                             $report['ledger_only'],
                         );
 
-                        $report['fabricated'] > 0
-                            ? Notification::make()->title('Reconciliation found discrepancies')->body($body)->danger()->persistent()->send()
-                            : Notification::make()->title('All receipts verified on-chain')->body($body)->success()->send();
+                        match ($report['verdict']) {
+                            'clean' => Notification::make()->title('All receipts verified on-chain')->body($body)->success()->send(),
+                            'discrepancies' => Notification::make()->title('The chain reverted these transactions')->body($body)->danger()->persistent()->send(),
+                            default => Notification::make()->title('Some receipts remain unresolved')->body($body)->warning()->persistent()->send(),
+                        };
                     }),
             ]);
     }
@@ -184,18 +205,16 @@ class TransactionsTable
     public static function settlementLabel(Transaction $record): string
     {
         if ($record->isReconciledFailed()) {
-            return 'Never settled';
+            return 'Reverted on chain';
         }
 
-        if (($record->metadata['simulated_inbound'] ?? false) === true) {
-            return 'Ledger only';
-        }
-
-        if (($record->metadata['is_fake'] ?? false) === true) {
-            return 'Simulated';
-        }
-
-        return 'Unverified';
+        return match ($record->metadata['reconciliation'] ?? null) {
+            'unresolved' => 'Unresolved',
+            'pending' => 'In flight',
+            'observed' => 'Provider only',
+            default => null,
+        } ?? (($record->metadata['simulated_inbound'] ?? false) === true ? 'Ledger only'
+            : (($record->metadata['is_fake'] ?? false) === true ? 'Simulated' : 'Unverified'));
     }
 
     public static function settlementColor(Transaction $record): string
@@ -208,7 +227,10 @@ class TransactionsTable
             return 'gray';
         }
 
-        return ($record->metadata['is_fake'] ?? false) === true ? 'warning' : 'info';
+        return match ($record->metadata['reconciliation'] ?? null) {
+            'unresolved' => 'warning',
+            default => ($record->metadata['is_fake'] ?? false) === true ? 'warning' : 'info',
+        };
     }
 
     public static function settlementTooltip(Transaction $record): string
@@ -217,7 +239,19 @@ class TransactionsTable
         $network = $record->metadata['executed_network'] ?? $record->network;
 
         if ($record->isReconciledFailed()) {
-            return 'Reconciliation against '.strtoupper((string) $network).' found no transaction at this hash. It was never settled.';
+            return 'Reconciliation against '.strtoupper((string) $network).' found a receipt for this hash that reports failure. The chain proved it did not settle.';
+        }
+
+        if (($record->metadata['reconciliation'] ?? null) === 'unresolved') {
+            return 'No transaction with this hash was found on '.strtoupper((string) $network).'. That is not proof it never settled: propagation delay, a reorganisation and a hash from another network look identical. Investigate.';
+        }
+
+        if (($record->metadata['reconciliation'] ?? null) === 'pending') {
+            return 'Known to '.strtoupper((string) $network).' with no receipt yet, so it is still in flight.';
+        }
+
+        if (($record->metadata['reconciliation'] ?? null) === 'observed') {
+            return 'The provider reports this complete, but no chain receipt could be read. Provider observation is not proof.';
         }
 
         if (($record->metadata['simulated_inbound'] ?? false) === true) {

@@ -20,13 +20,20 @@ use Yukazakiri\Lepton\DTOs\TransferResult;
 
 /**
  * Stubs a chain that knows about exactly one hash. Every other hash is absent,
- * which is the situation that let fabricated receipts pass unnoticed.
+ * which is the situation that let invented receipts pass unnoticed.
+ *
+ * `$receiptStatus` chooses the receipt the chain reports for the known hash:
+ * 1 succeeded, 0 reverted, null still in flight with no receipt at all.
  */
-function chainKnowing(string $knownHash, bool $reachable = true): ArcNetworkGateway
+function chainKnowing(string $knownHash, bool $reachable = true, ?int $receiptStatus = 1): ArcNetworkGateway
 {
-    return new class($knownHash, $reachable) implements ArcNetworkGateway
+    return new class($knownHash, $reachable, $receiptStatus) implements ArcNetworkGateway
     {
-        public function __construct(private readonly string $knownHash, private readonly bool $reachable) {}
+        public function __construct(
+            private readonly string $knownHash,
+            private readonly bool $reachable,
+            private readonly ?int $receiptStatus,
+        ) {}
 
         public function rpcUrl(): string
         {
@@ -73,6 +80,17 @@ function chainKnowing(string $knownHash, bool $reachable = true): ArcNetworkGate
                 return $params[0] === $this->knownHash
                     ? ['blockNumber' => '0x3d667a7', 'hash' => $this->knownHash]
                     : null;
+            }
+
+            if ($method === 'eth_getTransactionReceipt') {
+                if ($params[0] !== $this->knownHash || $this->receiptStatus === null) {
+                    return null;
+                }
+
+                return [
+                    'blockNumber' => '0x3d667a7',
+                    'status' => '0x'.dechex($this->receiptStatus),
+                ];
             }
 
             return null;
@@ -186,7 +204,27 @@ function payment(Organization $org, Wallet $wallet, ?string $hash, array $metada
     ]);
 }
 
-test('a hash present on the chain verifies with its block', function (): void {
+function reconInvoice(Organization $org, string $reference, string $status = 'auto_paid'): Invoice
+{
+    $vendor = Vendor::create([
+        'organization_id' => $org->id,
+        'name' => 'Cloud Co',
+        'wallet_address' => '0xvendor',
+        'status' => 'verified',
+        'risk_level' => 'low',
+    ]);
+
+    return Invoice::create([
+        'organization_id' => $org->id,
+        'vendor_id' => $vendor->id,
+        'reference' => $reference,
+        'amount' => 450.00,
+        'due_date' => today(),
+        'status' => $status,
+    ]);
+}
+
+test('a hash with a successful on-chain receipt verifies with its block', function (): void {
     $tx = payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false]);
 
     $result = settleAgainst(chainKnowing($this->realHash), agentWalletKnowing())->verify($tx);
@@ -196,13 +234,32 @@ test('a hash present on the chain verifies with its block', function (): void {
         ->and($result['chain_source'])->toBe('rpc');
 });
 
-test('a hash absent from a reachable chain is reported as fabricated', function (): void {
+test('a hash the chain knows but has no receipt for is in flight, not settled', function (): void {
+    $tx = payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false]);
+
+    $result = settleAgainst(chainKnowing($this->realHash, receiptStatus: null), agentWalletKnowing())->verify($tx);
+
+    expect($result['verdict'])->toBe('pending')
+        ->and($result['reason'])->toContain('still in flight');
+});
+
+test('a receipt the chain reports as failed is a proven discrepancy', function (): void {
+    $tx = payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false]);
+
+    $result = settleAgainst(chainKnowing($this->realHash, receiptStatus: 0), agentWalletKnowing())->verify($tx);
+
+    expect($result['verdict'])->toBe('reverted')
+        ->and($result['reason'])->toContain('reverted');
+});
+
+test('a hash absent from a reachable chain is unresolved, never fabrication', function (): void {
     $tx = payment($this->org, $this->wallet, $this->fakeHash, ['is_fake' => true]);
 
     $result = settleAgainst(chainKnowing($this->realHash), agentWalletKnowing())->verify($tx);
 
-    expect($result['verdict'])->toBe('fabricated')
-        ->and($result['reason'])->toContain('never settled');
+    expect($result['verdict'])->toBe('unresolved')
+        ->and($result['reason'])->toContain('Absence is not fabrication')
+        ->and($result['reason'])->toContain('other network');
 });
 
 test('a transaction with no hash is a ledger entry, not a failure', function (): void {
@@ -214,21 +271,22 @@ test('a transaction with no hash is a ledger entry, not a failure', function ():
         ->and($result['reason'])->toContain('not a chain transfer');
 });
 
-test('when rpc is down the circle wallet history is used as the fallback', function (): void {
+test('when rpc is down the circle wallet history is provider observation only', function (): void {
     $tx = payment($this->org, $this->wallet, $this->fakeHash);
 
     $result = settleAgainst(chainKnowing('', reachable: false), agentWalletKnowing([$this->fakeHash]))->verify($tx);
 
-    expect($result['verdict'])->toBe('verified')
-        ->and($result['chain_source'])->toBe('circle');
+    expect($result['verdict'])->toBe('observed')
+        ->and($result['chain_source'])->toBe('circle')
+        ->and($result['reason'])->toContain('not proof');
 });
 
-test('when rpc is down and circle does not know the hash it is still fabricated', function (): void {
+test('when rpc is down and circle does not know the hash it stays unresolved', function (): void {
     $tx = payment($this->org, $this->wallet, $this->fakeHash);
 
     $result = settleAgainst(chainKnowing('', reachable: false), agentWalletKnowing())->verify($tx);
 
-    expect($result['verdict'])->toBe('fabricated')
+    expect($result['verdict'])->toBe('unresolved')
         ->and($result['chain_source'])->toBe('circle');
 });
 
@@ -241,37 +299,32 @@ test('verifyAll summarises the ledger honestly', function (): void {
 
     expect($report['total'])->toBe(3)
         ->and($report['verified'])->toBe(1)
-        ->and($report['fabricated'])->toBe(1)
+        ->and($report['unresolved'])->toBe(1)
         ->and($report['ledger_only'])->toBe(1)
-        ->and($report['verdict'])->toBe('discrepancies');
+        ->and($report['reverted'])->toBe(0)
+        ->and($report['verdict'])->toBe('unresolved');
 });
 
-test('verifyAll reports clean when every receipt is genuine', function (): void {
+test('verifyAll reports clean only when every receipt is proven', function (): void {
     payment($this->org, $this->wallet, $this->realHash);
 
     $report = settleAgainst(chainKnowing($this->realHash), agentWalletKnowing())->verifyAll();
 
     expect($report['verdict'])->toBe('clean')
-        ->and($report['fabricated'])->toBe(0);
+        ->and($report['unresolved'])->toBe(0);
+});
+
+test('verifyAll reports a discrepancy only when the chain reverted a receipt', function (): void {
+    payment($this->org, $this->wallet, $this->realHash);
+
+    $report = settleAgainst(chainKnowing($this->realHash, receiptStatus: 0), agentWalletKnowing())->verifyAll();
+
+    expect($report['verdict'])->toBe('discrepancies')
+        ->and($report['reverted'])->toBe(1);
 });
 
 test('invoice settlement is unsupported when its payment never happened', function (): void {
-    $vendor = Vendor::create([
-        'organization_id' => $this->org->id,
-        'name' => 'Cloud Co',
-        'wallet_address' => '0xvendor',
-        'status' => 'verified',
-        'risk_level' => 'low',
-    ]);
-
-    $invoice = Invoice::create([
-        'organization_id' => $this->org->id,
-        'vendor_id' => $vendor->id,
-        'reference' => 'INV-RECON-450',
-        'amount' => 450.00,
-        'due_date' => today(),
-        'status' => 'auto_paid',
-    ]);
+    $invoice = reconInvoice($this->org, 'INV-RECON-450');
 
     // The invoice is marked auto_paid, but its payment never settled on chain.
     payment($this->org, $this->wallet, $this->fakeHash, [], $invoice);
@@ -283,23 +336,8 @@ test('invoice settlement is unsupported when its payment never happened', functi
         ->and($result['evidence'])->toHaveCount(1);
 });
 
-test('invoice settlement is verified once the payment is on chain', function (): void {
-    $vendor = Vendor::create([
-        'organization_id' => $this->org->id,
-        'name' => 'Cloud Co',
-        'wallet_address' => '0xvendor',
-        'status' => 'verified',
-        'risk_level' => 'low',
-    ]);
-
-    $invoice = Invoice::create([
-        'organization_id' => $this->org->id,
-        'vendor_id' => $vendor->id,
-        'reference' => 'INV-RECON-OK',
-        'amount' => 450.00,
-        'due_date' => today(),
-        'status' => 'auto_paid',
-    ]);
+test('invoice settlement is verified once the payment has a successful receipt', function (): void {
+    $invoice = reconInvoice($this->org, 'INV-RECON-OK');
 
     payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false], $invoice);
 
@@ -308,39 +346,54 @@ test('invoice settlement is verified once the payment is on chain', function ():
     expect($result['settlement_verdict'])->toBe('verified');
 });
 
-test('an invoice with no payment at all is unsettled', function (): void {
-    $vendor = Vendor::create([
-        'organization_id' => $this->org->id,
-        'name' => 'Cloud Co',
-        'wallet_address' => '0xvendor',
-        'status' => 'verified',
-        'risk_level' => 'low',
-    ]);
+test('a provider-reported payment with no readable receipt does not settle an invoice', function (): void {
+    $invoice = reconInvoice($this->org, 'INV-RECON-OBSERVED');
 
-    $invoice = Invoice::create([
-        'organization_id' => $this->org->id,
-        'vendor_id' => $vendor->id,
-        'reference' => 'INV-RECON-NONE',
-        'amount' => 450.00,
-        'due_date' => today(),
-        'status' => 'pending',
-    ]);
+    payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false], $invoice);
+
+    // Chain unreachable, so all that exists is the provider's own claim.
+    $result = settleAgainst(chainKnowing('', reachable: false), agentWalletKnowing([$this->realHash]))
+        ->verifyInvoiceSettlement($invoice);
+
+    expect($result['settlement_verdict'])->toBe('unsupported');
+});
+
+test('an invoice with no payment at all is unsettled', function (): void {
+    $invoice = reconInvoice($this->org, 'INV-RECON-NONE', 'pending');
 
     $result = settleAgainst(chainKnowing($this->realHash), agentWalletKnowing())->verifyInvoiceSettlement($invoice);
 
     expect($result['settlement_verdict'])->toBe('unsettled');
 });
 
-test('a fabricated receipt is only marked failed once, however often --fix runs', function (): void {
+test('--fix never fails a receipt merely because the chain cannot find it', function (): void {
     $this->app->instance(ArcNetworkGateway::class, chainKnowing($this->realHash));
     $this->app->instance(WalletGateway::class, agentWalletKnowing());
 
     $tx = payment($this->org, $this->wallet, $this->fakeHash, ['is_fake' => true]);
 
+    $this->artisan('lepton:reconcile --fix')
+        ->expectsOutputToContain('not proof they never settled')
+        ->assertFailed();
+
+    // An absent hash is an open question. Marking it FAILED would replace one
+    // unproven claim with another and destroy the evidence of the gap.
+    expect($tx->refresh()->status)->toBe(TransactionStatus::CONFIRMED)
+        ->and($tx->isReconciledFailed())->toBeFalse()
+        ->and($tx->metadata)->not->toHaveKey('reconciliation');
+});
+
+test('a chain-reverted receipt is only marked failed once, however often --fix runs', function (): void {
+    $this->app->instance(ArcNetworkGateway::class, chainKnowing($this->realHash, receiptStatus: 0));
+    $this->app->instance(WalletGateway::class, agentWalletKnowing());
+
+    $tx = payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false]);
+
     $this->artisan('lepton:reconcile --fix')->assertFailed();
 
     expect($tx->refresh()->status)->toBe(TransactionStatus::FAILED)
-        ->and($tx->isReconciledFailed())->toBeTrue();
+        ->and($tx->isReconciledFailed())->toBeTrue()
+        ->and($tx->metadata['reconciliation'])->toBe('reverted');
 
     $firstStamp = $tx->metadata['reconciled_at'];
 
@@ -351,17 +404,17 @@ test('a fabricated receipt is only marked failed once, however often --fix runs'
 });
 
 test('reconcile does not tell you to run --fix when you already did', function (): void {
-    $this->app->instance(ArcNetworkGateway::class, chainKnowing($this->realHash));
+    $this->app->instance(ArcNetworkGateway::class, chainKnowing($this->realHash, receiptStatus: 0));
     $this->app->instance(WalletGateway::class, agentWalletKnowing());
 
-    $tx = payment($this->org, $this->wallet, $this->fakeHash, ['is_fake' => true]);
+    $tx = payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false]);
     $tx->update([
         'status' => TransactionStatus::FAILED,
-        'metadata' => ['reconciliation' => 'failed', 'reconciled_at' => '2026-01-01T00:00:00+00:00'],
+        'metadata' => ['reconciliation' => 'reverted', 'reconciled_at' => '2026-01-01T00:00:00+00:00'],
     ]);
 
     $this->artisan('lepton:reconcile')
-        ->expectsOutputToContain('already marked failed by an earlier reconciliation')
+        ->expectsOutputToContain('nothing left to fix')
         ->assertFailed();
 
     $this->artisan('lepton:reconcile')
@@ -369,11 +422,11 @@ test('reconcile does not tell you to run --fix when you already did', function (
         ->assertFailed();
 });
 
-test('reconcile suggests --fix while fabricated rows are still unfixed', function (): void {
-    $this->app->instance(ArcNetworkGateway::class, chainKnowing($this->realHash));
+test('reconcile suggests --fix while reverted rows are still unfixed', function (): void {
+    $this->app->instance(ArcNetworkGateway::class, chainKnowing($this->realHash, receiptStatus: 0));
     $this->app->instance(WalletGateway::class, agentWalletKnowing());
 
-    payment($this->org, $this->wallet, $this->fakeHash, ['is_fake' => true]);
+    payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false]);
 
     $this->artisan('lepton:reconcile')
         ->expectsOutputToContain('php artisan lepton:reconcile --fix')
@@ -381,10 +434,34 @@ test('reconcile suggests --fix while fabricated rows are still unfixed', functio
         ->assertFailed();
 });
 
-test('a reconciled row is badged as never settled in the transactions table', function (): void {
-    $tx = payment($this->org, $this->wallet, $this->fakeHash, ['reconciliation' => 'failed']);
+test('reconcile prints the stored amount without rounding it through a float', function (): void {
+    $this->app->instance(ArcNetworkGateway::class, chainKnowing($this->realHash));
+    $this->app->instance(WalletGateway::class, agentWalletKnowing());
 
-    expect($tx->isReconciledFailed())->toBeTrue()
-        ->and(TransactionsTable::settlementLabel($tx))->toBe('Never settled')
-        ->and(TransactionsTable::settlementColor($tx))->toBe('danger');
+    payment($this->org, $this->wallet, $this->realHash, ['is_fake' => false]);
+
+    // The JSON report is one write, so exactly one substring can be asserted
+    // against it. Success already proves the verdict was clean; this pins that
+    // the amount is rendered at full USDC precision rather than rounded through
+    // a float.
+    $this->artisan('lepton:reconcile --json')
+        ->expectsOutputToContain('450.000000')
+        ->assertSuccessful();
+
+    expect(LeptonReconciliationService::verdictGlossary())
+        ->toHaveKeys(['verified', 'pending', 'reverted', 'unresolved', 'observed', 'unverifiable', 'ledger_only'])
+        ->and(LeptonReconciliationService::verdictGlossary()['unresolved'])->toContain('Absence is not fabrication');
+});
+
+test('a reverted row is badged as chain-proven, an unresolved one as still open', function (): void {
+    $reverted = payment($this->org, $this->wallet, $this->realHash, ['reconciliation' => 'reverted']);
+    $unresolved = payment($this->org, $this->wallet, $this->fakeHash, ['reconciliation' => 'unresolved']);
+
+    expect($reverted->isReconciledFailed())->toBeTrue()
+        ->and(TransactionsTable::settlementLabel($reverted))->toBe('Reverted on chain')
+        ->and(TransactionsTable::settlementColor($reverted))->toBe('danger')
+        ->and(TransactionsTable::settlementTooltip($reverted))->toContain('reports failure')
+        ->and(TransactionsTable::settlementLabel($unresolved))->toBe('Unresolved')
+        ->and(TransactionsTable::settlementColor($unresolved))->toBe('warning')
+        ->and(TransactionsTable::settlementTooltip($unresolved))->toContain('not proof it never settled');
 });
