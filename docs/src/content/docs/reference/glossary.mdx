@@ -1,0 +1,70 @@
+---
+title: Terms in plain English
+description: Understand the finance and technical terms used in OpenSinop without reading the source code.
+---
+
+## Everyday finance terms
+
+**Collection.** Money the institution has already received. An expected fee or uploaded payment
+request is not yet a collection.
+
+**Collection batch.** A recorded receipt or aggregate report, with its amount, dates, source, and restrictions.
+
+**Restricted money.** Money that may only be used for a stated purpose. Approval of its record does not
+remove that restriction.
+
+**Allocation.** An approved budget allowance. It says what may be spent, not how much cash has arrived.
+
+**Available cash / cash headroom.** Money left for the selected bills after the recorded restrictions, reserve, outflows,
+and other commitments are accounted for.
+
+**Commitment.** Money already promised or reserved for another obligation. Do not count it again as free cash.
+
+**Reserve.** An amount protected from ordinary spending under the institution's controls.
+
+## Records and decisions
+
+**Planning snapshot.** A saved picture of budget, cash, source evidence, and selected bills at a specific
+time. Later changes need a new context.
+
+**Closed bill set.** The specific list staff selected for one plan. The planner does not add other bills.
+
+**Payment intent.** An exact draft of a proposed payment: what bill, amount, recipient, wallet, and network.
+
+**Funding window.** A short-lived record tying payment preparation to reviewed funding evidence.
+
+**Reservation / capacity hold.** An application record holding room for a bill and its maximum fee. It does not stop
+someone using the provider wallet outside OpenSinop.
+
+**Authorization.** Recorded permission for one exact payment under the reviewed path. It is not proof
+that the provider accepted the request or that money arrived.
+
+**Reconciliation.** Comparing records with evidence and bringing an already occurred movement into the
+appropriate record. It must not count the same money twice.
+
+## Payment technology
+
+**USDC.** A digital asset issued by Circle. OpenSinop's USDC payment amounts use six decimal places.
+
+**Arc Testnet.** The test network used by the current payment workflows. Its chain ID is `5042002`.
+Test funds are not real school revenue or a real supplier payment.
+
+**Provider handle.** A request ID returned by the payment provider. It is different from an onchain transaction hash.
+
+**Transaction hash.** An identifier for an onchain transaction. A hash alone does not establish that the
+expected payment succeeded.
+
+**Settlement.** Successful matching movement checked against the expected payment. Testnet settlement
+still proves only a testnet movement.
+
+**Worker and scheduler.** A worker processes queued jobs. A scheduler periodically starts dispatch or recovery
+commands. A healthy web page does not prove either is running.
+
+**Digest.** A fingerprint of recorded content used to detect changes. It is not a person's
+signature or independent proof that the original document is authentic.
+
+**MFA / TOTP.** Multi-factor authentication. A TOTP is the short-lived code from an authenticator app.
+Normal payment review requires the reviewer's own current credentials.
+
+**JEV / policy advice.** Labels used for the application's policy classification and evaluation features.
+A match or high confidence score is advice, not permission to spend.

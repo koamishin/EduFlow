@@ -1,116 +1,114 @@
 ---
-title: Safety & Readiness
-description: Production-readiness status, hardening gates and settlement-verdict semantics — read this before enabling any payment path.
+title: Current limits
+description: What exists in code, what remains experimental, and why installation or a testnet receipt does not certify financial readiness.
 ---
 
-:::caution[Status: blockers identified; hardening is not yet implemented]
-OpenSinop and its Lepton dependency require separate release gates. Neither a green test
-suite nor a new package tag certifies the application for real institutional funds.
-:::
+**Use OpenSinop for evaluation before relying on it for institutional funds.**
+This page describes the inspected code, not a financial audit or a promise of deployment
+readiness. Passing tests and a successful testnet transfer are different from proving
+that a school can operate the full system safely.
 
-## Current integration blockers
+## What exists today?
 
-- **Lepton v3 is a prerelease.** The lock file installs `v3.0.0-rc.1`. Pin it, then run
-  the application regressions and a separately authorised testnet integration against
-  it before any school release; a green suite on an RC is not certification.
-- **Legacy exact-money paths remain.** Treasury and payment float APIs and two-decimal
-  money columns still exist outside the reviewed evidence path; SQLite floating-point
-  money storage is refused rather than presented as exact. Historic values are not
-  silently re-derived.
-- **Payment lifecycle gaps.** Reservation release/funding rollover, approval
-  renewal/withdrawal, reviewer-factor recovery, local-to-testnet mapping authority,
-  durable outbox/attempt recovery, execution recovery and matching settlement
-  verification are still required.
-- **Deployment boundaries are uncertified.** PostgreSQL concurrency, provider races and
-  shared-cache login-replay state are not certified; Composer metadata, Docker settings,
-  queue/scheduler processes, credentials, authorisation and reconciliation must be
-  tested together — package unit tests do not cover those boundaries.
-- **Provider and jurisdiction eligibility are not certified.** Self-hosting OpenSinop
-  does not make Circle's hosted infrastructure available in every jurisdiction, and an
-  on-chain receipt cannot close a custodian or payout-partner obligation.
-
-Webhook ingestion itself is already contained (signature headers, raw-body verification,
-type/network allowlists, durable inbox) — see
-[Security](../../guides/security/#webhook-ingestion).
-
-## Remaining hardening gates
-
-1. **Validate the REST driver.** Correct endpoint paths and request fields against
-   official schemas, paginate reads, scope wallets to chain and wallet set, verify API
-   access, and document unsupported operations.
-2. **Prove exact balances and bounded sends.** Identify USDC by trusted token and chain
-   identity, normalise to six-decimal base units with exact arithmetic, never add Arc's
-   native and ERC-20 views of the same balance. Enforce approved amount, recipient,
-   network and fee controls at the signing boundary; an estimate is not an enforceable
-   fee ceiling.
-3. **Recover without duplicate payments.** Persist submission identity and a
-   provider-compatible idempotency key before sending; record webhook events in a durable
-   inbox with unique `notificationId`; queue bounded reconciliation. Duplicate and
-   out-of-order notifications must not regress state or cause another transfer.
-4. **Verify settlement independently.** Notification delivery, a provider ID, `CONFIRMED`
-   or a stored hash alone must never mark a bill paid. Require a successful receipt and
-   matching token, chain, sender, recipient, exact amount and finality. Testnet mirrors
-   never clear real local-currency liabilities.
-5. **Pass release validation.** Lock the hardened package version; run application
-   regressions plus separately authorised testnet integration; exercise provider
-   failures, worker crashes, replay, missed events, restart, update and backup
-   restoration. Review secrets/recovery custody, MFA, monitoring, alerts and rollback
-   procedures before any controlled mainnet decision. No mainnet payment or custody
-   migration is implicit.
-
-## Settlement verdicts
-
-Only `verified` means money moved — and only after successful execution in a committed
-block with matching sender, recipient and amount. Every other verdict keeps
-`settled: false` and `fabricated: false`; an unreadable chain is *unresolved*, never
-evidence of wrongdoing.
-
-| Verdict | Means | What it proves |
+| Area | What the application includes | Important limit |
 | --- | --- | --- |
-| `verified` | A receipt exists and reports success | The chain executed it — not that it moved the intended amount |
-| `reverted` | A receipt exists and reports failure | Chain-proven failure — the only absence-free verdict that fails a row |
-| `pending` | Known to the chain with no receipt yet | Still in flight; nothing is concluded |
-| `unresolved` | No transaction with this hash was found | An open question, never a failed payment |
-| `observed` | Provider reports completion, no receipt readable | Provider claim only |
-| `unverifiable` | Neither chain nor provider readable | No evidence available |
-| `ledger_only` | No hash recorded | A local ledger row that never claimed a receipt |
+| Manual collections | Private uploads, exact totals, independent batch review | Staff attestation, not independent bank proof. |
+| Department planning | Selected bill sets, cash and allocation checks, plan review | A proposal is not a reservation or permission to pay. |
+| Reviewed vendor payments | Drafts, funding windows, holds, reviewer enrollment, durable submission, settlement matching | Testnet only; full operating and concurrency validation is still needed. |
+| Recovery | Reviewed capacity release, funding rollover, outbox and attempt records, observation | Do not assume every expired approval or lost provider response has a complete operator recovery flow. |
+| Student payments | Quotes, consent, processing, verification, pilot allocations | Operator-controlled test wallets, not a production student custody solution. |
+| Policy advice | Policy revisions, examples, publication, evaluations, analytics | Advice and confidence scores are not spend authority or assurance of correctness. |
+| Recurring mandates | Preparation, review, occurrence checks and supervision | A recorded release disposition is not itself proof of payment submission. |
 
-A missing RPC result alone does not prove fabrication or failed settlement:
-propagation delay, a reorganisation, and a hash from another network all look identical.
-Keep uncertain outcomes unresolved and reconcile without blind resubmission. Fake-driver
-receipts are simulated, never on-chain proof.
+## Experimental automatic bridge
 
-```bash
-php artisan lepton:reconcile
-php artisan lepton:reconcile --fix   # marks only chain-reverted receipts failed
+This is separate from the ordinary reviewed path. It connects an already verified
+student tuition payment to collection review, planning, and a possible vendor payment.
+
+The configuration currently defaults both of these to `true`:
+
+```dotenv
+EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=true
+EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=true
 ```
 
-## Arc-specific facts the code encodes
+The default automatic bill ceiling is `50.00` USDC. This ceiling is not a complete
+institutional spending policy or a certification of safety.
 
-- On Arc, USDC is the gas token — but a Circle **agent-wallet** transfer is relayed and
-  Circle sponsors the gas: the payer's balance delta equals the principal exactly. So
-  affordability is `amount <= balance` (not `amount + fee <= balance`), and a receipt
-  fee above the payer's ceiling must never refuse a settlement.
-- Agent-wallet transfers are asynchronous: without `--quiet`, `circle wallet transfer`
-  returns a fee preview and does not broadcast; with `--quiet` it returns a Circle
-  transaction id (a UUID), not a `0x…` hash.
-- Decimals come from the log emitter, never the payload shape; the payer appears only as
-  the `from` topic of a Transfer log (relayed receipts show a different `tx.from`).
-- Arc has deterministic finality — receipts are immediately authoritative; confirmations
-  = 1, no reorgs. The block read is corroborating evidence and must never gate
-  settlement.
+### Why a recorded reviewer is not proof of human approval
 
-## Release safety
+The bridge can choose staff records, grant reviewer permissions, generate a reviewer
+TOTP from stored authenticator material, and supply a hardcoded demo password to the
+review action. It also turns submission on in the running process. These behaviors must
+not be described as a fresh, independent human payment authorization.
 
-Preview builds publish only after successful same-repository push CI, from its exact
-commit, and use `preview`/version/SHA tags — never stable `latest`. Manual releases
-require successful CI for the dispatched `main` commit, reject existing tags, and reject
-`latest` for drafts/prereleases. Configure required reviewers on the GitHub `release`
-environment before official publication; an environment name alone does not enforce
-approval.
+When its verifier reports settlement, the bridge can mirror a transaction and mark the
+invoice `paid`. That testnet state must not be treated as proof that a real supplier
+received the institution's local-currency payment.
 
-Before going live with any funds, know what is still missing from the target lifecycle:
-reservation release/funding rollover, approval renewal/withdrawal and factor recovery,
-local-to-testnet mapping authority, durable outbox/attempt recovery, execution recovery,
-and matching settlement verification. A draft, policy activation or developer demo is
-not a certified school treasury system.
+### Where it can run
+
+- The scheduler invokes the bridge every five minutes when its enabled flag is true.
+- Reviewing a tuition-linked collection can invoke it.
+- **Auto-Verify & Bridge** invokes it directly.
+- The command `eduflow:autonomous-pipeline-bridge` invokes it directly.
+- Receipt approval from Policy evaluations can invoke it for linked tuition.
+
+The enabled flag gates scheduled and some automatic calls. **It is not checked by
+every direct entry point.** The auto-disburse flag is checked later, after earlier
+review and planning work may already have happened.
+
+### Safest evaluation boundary
+
+Use an isolated instance with simulated data and no live signing credentials. Set both
+bridge flags to `false`, keep submission/student payment runtimes off, and avoid direct
+bridge actions and commands. These settings reduce exposure; they do not create a
+complete authorization boundary where the code has none.
+
+This documentation change does not repair or enable the payment code. Any production
+use needs a separate security and financial review.
+
+## Amounts and settlement evidence
+
+New evidence paths preserve exact amounts, but older treasury and payment paths still
+contain floats and two-decimal storage. Do not infer that all historical amounts can
+be reconstructed precisely.
+
+A transaction hash alone says nothing about success or payment matching. The dedicated
+verifier must match network, asset, economic sender, recipient, exact amount, and
+successful movement. A provider timeout or unreadable lookup remains unresolved—not
+proof that a payment failed or that someone fabricated evidence.
+
+### Settlement verdicts
+
+The legacy `lepton:reconcile` command and the dedicated payment verifier answer
+different questions:
+
+- **Legacy `verified`:** a successful receipt exists for that hash; this does not alone match the expected bill amount and recipient.
+- **Dedicated verified settlement:** the expected movement was checked against the payment evidence.
+- **Pending / observed / unresolved / unverifiable:** more evidence is needed. Never resend blindly.
+- **Reverted:** a readable chain receipt reports failed execution.
+- **Simulated:** no network settlement is claimed.
+
+## Deployment limits
+
+The locked Lepton package is `v3.0.0-rc.1`. A prerelease version and application tests
+do not certify provider integration, PostgreSQL concurrency, shared rate-limit state,
+backup restoration, or failure recovery in a school's environment.
+
+Webhook ingestion is contained behind signature and subscription checks and only queues
+observation. A verified notification still does not settle a payment.
+
+The stock Compose setup runs the web service, database, and Redis. It does not supply
+a complete background-service or backup strategy. See
+[Run background services](../../guides/operations/).
+
+## What a release review still needs
+
+Test the complete configured path: permissions, authentication, exact money, provider
+behavior, duplicate requests, worker crashes, unresolved transfers, updates, restore,
+and human recovery. Confirm custody, privacy, provider availability, and local legal
+requirements separately.
+
+Installation, an approved plan, a policy publication, and a testnet receipt are useful
+milestones. None is a certificate for real institutional funds.

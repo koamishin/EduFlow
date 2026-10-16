@@ -1,257 +1,200 @@
 ---
-title: Installation
-description: Requirements and deployment paths for OpenSinop — Docker Compose, the interactive installer, or a bare-metal setup.
+title: Install an instance
+description: Choose a local evaluation or an operator-managed server, then confirm school identity, access, and background services before inviting staff.
 ---
 
-OpenSinop runs as a standard Laravel application. Choose the path that matches your goal:
+This guide is for the IT operator. Finance staff using an existing installation can
+start with [Collections](../../guides/collections/) instead.
 
-| Goal | Start here |
+**Goal:** an accessible evaluation instance with one institution and a verified
+administrator. Installing the web application does not approve it for real funds.
+
+## Choose a setup path
+
+| Your goal | Start here |
 | --- | --- |
-| Evaluate the application locally | [Local development](../../getting-started/local-development/) with `LEPTON_DRIVER=fake` |
-| Deploy on your own infrastructure | [Docker Compose](#docker-compose-recommended) or [bare metal](#bare-metal-production-setup) |
-| Upgrade an existing deployment | [Updating a Docker deployment](#updating-a-docker-deployment) |
-| Configure wallets and chains | [Configuration](../../getting-started/configuration/) |
+| Understand or contribute to the application | [Local setup](../local-development/) with simulated payments. |
+| Run an isolated school evaluation | Follow Docker or host setup below. |
+| Upgrade an existing instance | [Back up and update](#back-up-and-update) first. |
+
+Before connecting credentials, read [Current limits](../../institution/safety-readiness/).
+The experimental bridge defaults on; do not assume a fresh install cannot submit money.
 
 ## Requirements
 
-| Tool | Version | Notes |
-| --- | --- | --- |
-| PHP | **8.5** (required) | `composer.json` requires `^8.5`. Extensions: `pdo`, `mbstring`, `openssl`, `curl`, `fileinfo`, `dom`, `xml`, `zip`, `bcmath` |
-| Composer | 2.x | Dependency manager for PHP |
-| Node.js & npm | 20.18.2+ | Frontend build and Vite dev server |
-| Docker (self-hosting) | 24.0+ (Compose v2) | Pairs the app with PostgreSQL 16 and Redis 7 |
-| Circle CLI | 1.1.4+ | Only for real (testnet) settlement — `npm i -g @circle-fin/cli` |
-| `uv` / `arc-canteen` | latest | Optional — Arc blockchain queries now use direct HTTP JSON-RPC (`uv tool install arc-canteen && arc-canteen login`) |
+- **Host installation:** PHP **8.5**, Composer 2, Node.js 22 or newer, and npm.
+  Check the locked dependency requirements with Composer before deployment.
+- **Database:** SQLite is convenient locally; the supplied Compose stack uses PostgreSQL 16.
+- **Background work:** a durable database or Redis queue, a worker, and a scheduler.
+- **Docker path:** Docker Engine and the Compose v2 plugin. The image supplies its PHP runtime.
+- **Payment experiments:** separate approved Circle/Arc setup. Not needed for a first simulated trial.
 
-:::caution
-Installation scripts download and execute repository code. Review them before running
-them on a server that holds credentials or financial records.
-:::
+PHP needs the appropriate PDO driver and the extensions required by `composer.lock`,
+including BCMath, cURL, DOM/XML, fileinfo, mbstring, OpenSSL, and ZIP.
+Do not bypass platform checks to make an unsupported host appear compatible.
 
-## Docker Compose (recommended)
+## Docker: start an isolated web instance
 
-The Compose stack pairs the FrankenPHP + Octane application image with PostgreSQL 16 and
-Redis 7. Images are published to GitHub Container Registry through the release
-workflows — confirm the chosen tag exists before deploying; preview releases never
-update `latest`.
-
-### One-line quick start
+Download the Compose file into a dedicated installation directory so updates use the
+same project name and volumes:
 
 ```bash
-docker compose -f https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml up -d
+mkdir opensinop
+cd opensinop
+curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml
 ```
 
-Pass environment variables before the command to customise ports or identity settings,
-e.g. `APP_PORT=8080 docker compose … up -d`. The published image bakes safe identity
-defaults (`APP_NAME=OpenSinop`, `APP_ENV=production`, `APP_DEBUG=false`,
-`APP_URL=http://localhost:8000`); override them per deployment via Compose or build
-arguments.
+Review it before starting. Set institution identity, URL, a unique database password,
+and an available image tag in this directory's `.env`. `EDUFLOW_VERSION` selects the tag;
+do not assume `latest` points to the release you intend to test.
 
-:::caution[The stock Compose stack runs the web app only — no worker, no scheduler]
-`docker-compose.yml` defines just `app`, `db` and `redis`, and the image entrypoint
-(`docker/start-container`) defaults to `CONTAINER_MODE=http`, which starts Supervisor with
-`docker/supervisord.frankenphp.conf`: FrankenPHP/Octane and nothing else. That config
-includes only the optional Horizon/Pulse programs (which are blanked when those packages
-are absent).
+```dotenv
+APP_NAME="Your School"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=http://localhost:8000
+APP_PORT=8000
+DB_PASSWORD=replace-with-a-unique-password
+EDUFLOW_INSTITUTION="Your School"
+EDUFLOW_COUNTRY=PH
+EDUFLOW_TIMEZONE=Asia/Manila
+EDUFLOW_CURRENCY=PHP
+```
 
-So on a fresh Compose deployment **queued work is never processed and the scheduler never
-runs** — submissions, receipt reconciliation, workflow dispatch and the Autonomous
-Pipeline Bridge all sit idle while the UI looks healthy. Before you rely on any
-background finance behaviour, run a worker and the scheduler. The image already ships the
-Supervisor configs at `/etc/supervisor/conf.d/`:
+The Compose file forwards only its listed environment values. It does **not** forward
+all wallet, bridge, mail, or runtime settings from `.env`. Add the settings in
+[Configure your instance](../configuration/) to the service environment through a
+reviewed Compose override. A host `.env` entry alone does not configure an unlisted
+container variable.
 
-- `supervisord.worker.conf` — queue worker
-- `supervisord.scheduler.conf` — scheduler
-
-Add them as `worker` and `scheduler` services in your Compose override (running the same
-image with those programs enabled), or run the processes directly:
+For an evaluation, include the fake driver, disabled payment/bridge flags, and submission
+stop in that override **before** starting the app. Keep signing credentials absent.
 
 ```bash
-docker exec opensinop php artisan queue:work --sleep=3 --tries=3 \
-  --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default
-docker exec opensinop php artisan schedule:work
+docker compose config
+docker compose up -d
+docker compose logs app
 ```
 
-:::caution[The worker must listen on the named queues]
-`queue:work` without `--queue` processes only the connection's default queue. Every
-finance job is dispatched to a named queue (`student-tuition`, `student-bills`,
-`finance-submission`, `finance-mandate`) and the planning/evaluation lanes use
-`finance-planning` and `policy-assessments` — so a worker started without the full list
-looks healthy while silently stranding every payment. The names come from
-`config/eduflow.php`; `composer run dev` passes the same list.
-:::
+The entrypoint attempts migrations and institution initialization. It can continue after
+some failures, so inspect logs and confirm the institution exists; a healthy HTTP server
+alone does not prove setup succeeded.
 
-Use a durable queue connection (never `sync`) for the finance lanes, and supervise both
-processes so they restart with the host. See
-[Workflows](../../guides/workflows/#background-runtime) for what each scheduled command
-does.
-:::
-
-:::caution[Current deployment limitation]
-The checked-in Compose file fixes the database driver to PostgreSQL and does not forward
-every value collected by the installer. Selecting MySQL, SQLite or a wallet driver in
-the wizard alone does not configure those services inside the container. Review the
-resolved Compose configuration before relying on non-default settings.
-:::
-
-### Interactive TUI installer
-
-Run the wizard from a dedicated installation directory. It collects the application URL,
-port, database choice, school identity, wallet driver and optional AI settings; common
-settings fall back to production defaults.
-
-- **macOS / Linux**
-
-  ```bash
-  bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)
-  ```
-
-- **Windows (PowerShell)**
-
-  ```powershell
-  irm https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1 | iex
-  ```
-
-### Bootstrap the first administrator
-
-On first boot the container runs migrations, enables required modules and initialises the
-school identity. Once the instance is healthy, create the first super-administrator
-interactively:
+### Create the first administrator
 
 ```bash
-docker exec -it opensinop php artisan app:bootstrap-admin --name="School Operator" --email="operator@example.org"
+docker exec -it opensinop php artisan app:bootstrap-admin \
+  --name="School Operator" --email="operator@school.example"
 ```
 
-Bootstrap asks for the password through hidden prompts; it refuses existing users and a
-second super-admin. Verify the email and configure MFA before opening access.
+The command asks for a password in the terminal, has no password argument, and refuses
+an existing user or a second super admin. Configure mail, verify the email address,
+and enroll MFA before opening staff access.
 
-:::caution[Data persistence]
-Compose declares the `opensinop_db`, `opensinop_storage`, `opensinop_cache` and
-`opensinop_redis` volumes (normally prefixed by the Compose project name). Keep the
-original project identity when upgrading, and never run `docker compose down -v` on an
-instance whose records you need.
+### Background services are separate
+
+The supplied Compose stack runs `app`, `db`, and `redis`. Its default HTTP mode starts
+FrankenPHP, not a general queue worker or the scheduler. Follow
+[Run background services](../../guides/operations/) before relying on queued finance work.
+
+## Host setup without Docker
+
+Use a new, operator-controlled directory and database. Serve only Laravel's `public/`
+directory through your chosen web server; never expose the project root or `.env`.
+
+### 1. Install code and dependencies
+
+```bash
+git clone https://github.com/koamishin/OpenSinop.git opensinop
+cd opensinop
+composer install --no-dev --optimize-autoloader
+cp .env.example .env
+php artisan key:generate
+npm ci
+```
+
+Generate `APP_KEY` only for this new installation. Keep it stable and backed up afterward.
+
+### 2. Configure the instance
+
+Set your URL, database, mail, sessions, cache, and payment isolation settings before
+starting services. For example:
+
+```dotenv
+APP_NAME="Your School"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://finance.school.example
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=opensinop
+DB_USERNAME=opensinop
+DB_PASSWORD=replace-with-a-unique-password
+QUEUE_CONNECTION=database
+SESSION_DRIVER=database
+CACHE_STORE=database
+LEPTON_DRIVER=fake
+EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false
+EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false
+EDUFLOW_SUBMISSION_ENABLED=false
+EDUFLOW_SUBMISSION_STOP=true
+```
+
+Check the full [configuration checklist](../configuration/). For an existing instance,
+preserve the original key and credentials rather than replacing them with this example.
+
+### 3. Apply schema and initialize the school
+
+```bash
+php artisan module:enable Blog --no-interaction
+php artisan migrate --force --no-interaction
+php artisan module:migrate --force --no-interaction
+php artisan storage:link
+php artisan app:install --institution="Your School" --country=PH \
+  --timezone=Asia/Manila --currency=PHP --no-interaction
+php artisan app:bootstrap-admin --name="School Operator" --email="operator@school.example"
+npm run build
+```
+
+The installer saves one institution, roles, metadata, and conservative application
+settings. It does not create wallets, provision demo finance records, or change the
+separate automatic bridge configuration. Existing institutions need explicit reviewed
+adoption; the command will not silently rename or replace them.
+
+### 4. Start and verify services
+
+Configure the web process and supervised background processes for your environment.
+After final configuration, cache Laravel's configuration and views as appropriate,
+then restart long-lived workers. See [Operations](../../guides/operations/).
+
+## Before inviting staff
+
+- Confirm exactly one institution and the intended currency/timezone.
+- Verify email delivery and the first admin's MFA.
+- Verify runtime isolation; do not rely on zero policy limits alone.
+- Confirm private source uploads remain private.
+- Confirm the worker and scheduler configuration, or explicitly keep the evaluation manual.
+- Back up the database, private files, and application key, then test restoration.
+
+## Back up and update
+
+Keep the original installation directory, Compose project identity, volumes, and key.
+Back up independently before changing code, images, or schema. The supplied updater
+attempts a PostgreSQL dump but can continue after a failed dump; it does not provide a
+complete recovery guarantee for every database or uploaded file.
+
+:::danger[Preserve records and encryption keys]
+Never use `migrate:fresh`, regenerate `APP_KEY`, or run `docker compose down -v` on an
+instance whose records you need. Those actions can destroy data or make encrypted
+settings unreadable. Resolve changes forward with reviewed backups and migrations.
 :::
 
-## Bare-metal production setup
+The optional `install.sh` and `install.ps1` wizards collect settings and have update
+modes. Review the downloaded code before executing it. Selecting a driver in a wizard
+does not fix missing Compose environment forwarding or certify payment readiness.
 
-1. **Server prerequisites** — PHP 8.5 with the extensions above, Composer,
-   Node.js 20.18+, plus the Circle CLI and `arc-canteen` for treasury features.
+## Next step
 
-2. **Application code**
-
-   ```bash
-   git clone https://github.com/koamishin/OpenSinop.git /var/www/opensinop
-   cd /var/www/opensinop
-   composer install --no-dev --optimize-autoloader
-   npm ci
-   npm run build
-   ```
-
-3. **Environment**
-
-   ```bash
-   cp .env.example .env
-   php artisan key:generate
-   ```
-
-   Set at minimum:
-
-   ```dotenv
-   APP_NAME="Your School"
-   APP_ENV=production
-   APP_DEBUG=false
-   APP_URL=https://opensinop.example.org
-
-   DB_CONNECTION=pgsql        # or mysql
-   DB_HOST=127.0.0.1
-   DB_PORT=5432
-   DB_DATABASE=opensinop
-   DB_USERNAME=opensinop
-   DB_PASSWORD=change-me
-
-   QUEUE_CONNECTION=database   # or redis
-   SESSION_DRIVER=database     # or redis
-   CACHE_STORE=database        # or redis
-   ```
-
-4. **Database & storage** (never run `migrate:fresh` on a real instance)
-
-   ```bash
-   php artisan module:enable Blog --no-interaction
-   php artisan migrate --force
-   php artisan module:migrate --force --no-interaction
-   php artisan storage:link
-   ```
-
-5. **School identity and first administrator** (idempotent; safe to repeat as a no-op)
-
-   ```bash
-   php artisan app:install --institution="Pilot School" --country=PH --timezone=Asia/Manila --currency=PHP --no-interaction
-   php artisan app:bootstrap-admin --name="School Operator" --email="operator@school.example"
-   ```
-
-6. **Optimise for production**
-
-   ```bash
-   php artisan config:cache
-   php artisan route:cache
-   php artisan view:cache
-   php artisan event:cache
-   ```
-
-7. **Process management** — run a long-lived queue worker and the scheduler under
-   Supervisor or systemd. The background finance runtime requires both, and the worker
-   must listen on the named queues:
-
-   ```bash
-   php artisan queue:work --sleep=3 --tries=3 \
-     --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default
-   php artisan schedule:work
-   ```
-
-   The image ships Supervisor configs for both (`docker/supervisord.worker.conf`,
-   `docker/supervisord.scheduler.conf`), but the default `http` container mode starts
-   neither — see the [Compose note](#one-line-quick-start) above.
-
-8. **Revenue/agent config** — set `LEPTON_TREASURY_ADDRESS`, `LEPTON_CHAIN` and the
-   finance env flags only after reviewing [Configuration](../../getting-started/configuration/)
-   and the release-safety notes.
-
-:::danger
-Never regenerate `APP_KEY`, reset the database, or delete financial records as
-“credential cleanup”. Preview builds use the `preview` tag only; official releases come
-from `main` after CI.
-:::
-
-## Updating a Docker deployment
-
-Run updates from the original installation directory so the scripts find the same
-`.env`, Compose project and volumes. The update path attempts a PostgreSQL dump to
-`./backups/`, pulls images and starts services again.
-
-:::caution[Back up independently]
-The current updater can continue after a failed dump; it is not a complete backup or
-rollback system. Do not assume it backs up SQLite, MySQL, uploaded files or encryption
-keys.
-:::
-
-- **macOS / Linux**
-
-  ```bash
-  bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh) --update
-  ```
-
-- **Windows (PowerShell)**
-
-  ```powershell
-  iwr https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1 -OutFile install.ps1; .\install.ps1 -Update
-  ```
-
-## Installer guarantees
-
-The `app:install` command creates roles, one institution with zero autonomous
-thresholds, the persisted country/locale/timezone/currency, and disables public
-registration, impersonation and AI. It never migrates, resets data, seeds demo records,
-generates keys, creates wallets or calls external providers. Repeat runs are a no-op;
-changed identity metadata is refused rather than overwritten. See
-[Adoption overview](../../institution/overview/) for the full single-institution boundary.
+Finish [Configure your instance](../configuration/), then use
+[Run background services](../../guides/operations/) for worker and scheduler setup.

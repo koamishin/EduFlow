@@ -1,0 +1,73 @@
+---
+title: Review a payment
+description: Check an exact reserved payment, understand reviewer requirements, and distinguish approval from provider acceptance and settlement.
+---
+
+Use **Payment Approvals** for the ordinary reviewed vendor payment path. It is separate
+from receipt review, policy advice, and plan acceptance.
+
+**Result:** an approval, rejection, or hold on an exact reserved payment. A network
+approval can create submission work for an enabled worker. Recording it is not proof
+that the transfer has settled.
+
+## Check that you can review
+
+The screen shows reviewer readiness. The normal path requires:
+
+- Verified email and a finance/admin role.
+- Directly assigned `AuthorizePayment:PaymentIntent` permission, not only a role label.
+- An authenticator independently enrolled for payment review by a different authorized admin.
+- A reviewer different from the people who prepared the intent and reserved capacity.
+
+Changing or disabling the enrolled authenticator invalidates eligibility. Ask your
+operator about enrollment; sharing a code or signing in as the preparer is not a workaround.
+
+## Review the exact payment
+
+1. Open the reserved bill and choose **View evidence**.
+2. Check the bill reference, treasury wallet, full recipient address, network, exact
+   USDC amount, and fee ceiling. Verify the destination against your approved source,
+   not merely a familiar abbreviated address.
+3. Check the current funding window and whether evidence is simulated or from the network.
+4. Choose **Review payment**. Select approve, reject, or hold and explain the decision.
+5. For approval, check the expiry. Supply your own fresh password and unused
+   authenticator code, then choose **Record payment review**.
+
+Approval lasts at most five minutes and cannot outlive its funding window. Material
+changes require new reviewed evidence. Repeating an old request does not renew it.
+
+## What happens next?
+
+| What you see | What it means |
+| --- | --- |
+| **Approval recorded** | Authority was recorded for the exact evidence. It is not a receipt. |
+| **On hold / Rejected** | No approval was granted. Reserved capacity is not automatically released. |
+| **Accepted by provider** | The provider has a request ID; a matching onchain transfer may not exist yet. |
+| **Verified settlement** | The verifier matched successful movement to the expected payment. |
+| **Unknown / Needs investigation** | Evidence is insufficient to conclude the outcome. Do not send again blindly. |
+
+An enabled worker can process durable submission work after approval. The payment
+screen does not call the provider itself. With the runtime disabled, an approval does
+not by itself turn submission on.
+
+## Testnet is not payment of the real bill
+
+The reviewed payment path is limited to `ARC-TESTNET` (chain ID `5042002`). Keep the
+institution's real local payment status in its existing accounting process. A verified
+test transfer to a pilot address does not establish that the real supplier was paid.
+
+The experimental bridge is an exception: it can generate approval inputs and mark an
+invoice paid after testnet verification. It is not this independent staff review process.
+Read [Current limits](../../institution/safety-readiness/) before using it.
+
+## If approval is refused
+
+Read the reason: expired funding, changed source evidence, missing direct permission,
+changed authenticator, and an already recorded decision are different problems. Do not
+delete history, release a hold, or create a second payment simply to bypass the refusal.
+
+## Next step
+
+Track the existing submission in **Payment submissions** or **Payment progress**.
+Ask your recovery owner to investigate unresolved outcomes using
+[Troubleshooting](../../reference/troubleshooting/).

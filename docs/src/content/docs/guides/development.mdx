@@ -1,81 +1,67 @@
 ---
-title: Development
-description: Coding conventions, the quality toolchain, testing strategy and verification workflows.
+title: Contribute and test
+description: Make focused changes, verify the actual installed APIs, and test financial and documentation boundaries without using live funds.
 ---
 
-## Conventions
+Start with [Local setup](../../getting-started/local-development/) and the
+[project map](../directory-structure/). Prefer a focused change with evidence over a
+large rewrite that changes financial behavior and presentation together.
 
-- Follow existing files: descriptive names, constructor property promotion, explicit
-  return types, curly braces, PHPDoc for types and array shapes.
-- Money is always integer base units via `Amounts`; never floats, never `hexdec()` on
-  chain quantities.
-- Every new persistence boundary is evidence-bound: an immutable snapshot plus a
-  canonical digest, and a second-person review where money or authority is involved.
-- Update the area rules in `.ai/rules` (via the shared `record-rule` workflow) when you
-  settle a durable, non-obvious decision.
+## Before changing code
 
-## Quality toolchain
+Read `AGENTS.md`, `.ai/rules/index.md`, the matching area rules, and nearby tests.
+Verify the installed package version before choosing an API. Rules and old prose can
+drift from the code; investigate contradictions instead of copying them as fact.
 
-| Command | Tool | What it checks |
-| --- | --- | --- |
-| `composer lint` | Pint | PHP code style (fix in place) |
-| `composer test:lint` | Pint | Style check (CI mode) |
-| `composer phpstan` | PHPStan (level in `phpstan.neon`, baseline) | Static types |
-| `composer rector` | Rector | Modernisation rules (dry-run) |
-| `npm run check` | Vite-Plus | Frontend lint + format |
-| `npm run types:check` | tsc | TypeScript |
-| `composer test` | Pest | Config clear + lint + full suite |
-| `composer ci` | all of the above | The full local gate, same order as CI |
+For a finance path, identify who supplies evidence, who reviews it, what can call a
+signer, and how uncertainty is recovered. The ordinary reviewed path, legacy demo,
+student consent paths, and automatic bridge are not interchangeable examples.
 
-## Testing
+## Run the checks that match your change
 
-The project uses **Pest 5** with `pest-plugin-laravel`, `pest-plugin-browser` (Playwright,
-group `browser`), `pest-plugin-agent` (one-off assertions), plus `pest-plugin-evals` and
-`pest-plugin-phpstan` / `pest-plugin-rector`.
+From the application root:
 
 ```bash
-php artisan test --compact
-php artisan test --compact --filter=JevAnalytics
-php artisan test --compact --exclude-group=browser
+npm run check
+npm run types:check
+composer test:lint
+composer phpstan
+composer rector
+php artisan test --compact --filter=NameOfAffectedTest
 ```
 
-Guidelines:
+`composer rector` is a dry run; `composer lint` fixes PHP style. Use the package and
+project rules for broader checks before merging. Browser tests require their installed
+Playwright support, not a production browser session.
 
-- The fake driver needs no network, credentials or cost, so the whole suite runs
-  **offline**; tests that assert on receipts construct a chain stub that knows exactly one
-  hash, so fabricated receipts cannot pass unnoticed.
-- Use factories; check for custom states before building fixtures by hand.
-- Adversarial AI tests run via the SDK's fakes — no provider keys in CI.
+## Test money and authority boundaries
 
-## One-off verification (Pest Agent Plugin)
+Use exact strings/units and explicit fakes. Cover changed evidence, wrong ownership,
+expired approvals, invalid factors, duplicate identities, uncertain provider outcomes,
+and queue retries. An existing request must not become a blind second transfer.
 
-Run a single behavioural check without creating a test file:
+Do not run live transfers, seed school data, or call OTP login from tests. A chain stub
+can prove the application's matching logic under those facts; label it honestly.
+
+## Document actual behavior
+
+Walk the code path before writing a guide. Use screen labels for staff pages and put
+class names in developer reference. Separate implemented behavior from desired safety
+properties, particularly where an experimental path bypasses ordinary human interaction.
+
+To check this handbook, run in `docs/`:
 
 ```bash
-vendor/bin/pest --agent='$user = \App\Models\User::factory()->create(); visit("/login")->type("email", $user->email)->press("Log in")->assertPathIs("/dashboard");'
+npm run test
+npm run build
+npm run check:links
 ```
 
-Use **single** outer quotes so the shell interpolates nothing. After any Blade, Livewire,
-CSS or JS change, take a screenshot with the browser plugin and check for JavaScript
-errors and mobile layout — install the browser plugin only with the user's permission
-(it pulls Playwright and browser binaries).
+Also inspect the rendered pages at desktop and mobile widths, in both themes. A
+successful static build proves neither readability nor application payment safety.
 
-## Debugging
+## Submit a focused PR
 
-- `php artisan pail` streams logs (started by `composer run dev`).
-- `php artisan tinker` for REPL access.
-- `php artisan lepton:doctor` — run first for any rail/session/treasury/ledger question.
-- `php artisan app:finance-preview` — read-only treasury and cashflow view; always
-  `can_execute=false`.
-- Laravel Boost MCP tools (`database-schema`, `database-query`, `read-log-entries`,
-  `browser-logs`) for schema and runtime inspection without a REPL.
-
-## Adding a feature (checklist)
-
-1. Read `.ai/rules/index.md` and the rule files covering the paths you will touch.
-2. Search the installed-package docs before relying on an API; follow existing code.
-3. Model + migration + factory + seeder (ask before creating models outside tests).
-4. Action/service + tests (Pest) — including adversarial/negative cases for anything that
-   touches money, authority or AI.
-5. Filament resource or Inertia page + navigation/permissions (Shield).
-6. `composer ci` and `npm run types:check` green; commit with a conventional message.
+State the behavior changed, evidence inspected, tests run, and remaining limits.
+Exclude secrets, personal/student data, provider sessions, and private source documents.
+Do not remove audit history or weaken financial checks to make a demo pass.

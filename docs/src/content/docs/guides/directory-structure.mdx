@@ -1,6 +1,6 @@
 ---
-title: Directory Structure
-description: How the repository is organised — application code, panels, frontend, modules, and the documentation site.
+title: Project map
+description: Find application actions, staff panels, student pages, payment transports, and the separate documentation site.
 ---
 
 ```text
@@ -15,7 +15,7 @@ description: How the repository is organised — application code, panels, front
 │   ├── Filament/           # Panels: Resources, Pages, Clusters, Widgets (admin + finance)
 │   ├── Http/Controllers/   # Inertia page controllers + finance evidence endpoints
 │   ├── Jobs/               # queued processing (evaluations, submissions, receipts)
-│   ├── Models/             # Eloquent evidence records (~65 models)
+│   ├── Models/             # Eloquent evidence and account records
 │   ├── Notifications/      # role-scoped review/approval alerts
 │   ├── Policies/           # invoice + assistance policy evaluation
 │   ├── Providers/          # App, Fortify, Filament panels (admin, finance)
@@ -23,7 +23,7 @@ description: How the repository is organised — application code, panels, front
 │   └── Settings/           # settings models (Ai, Application*, Installation, SocialLogin)
 ├── config/                 # eduflow.php, ai.php, fortify, permission, modules, …
 ├── database/
-│   ├── migrations/         # ~75 migrations, additive finance-evidence migrations
+│   ├── migrations/         # database schema and additive evidence migrations
 │   └── seeders/            # roles/permissions, local demo accounts
 ├── docs/                   # THIS documentation site (Astro + Starlight, GitHub Pages)
 │   ├── astro.config.mjs
@@ -51,9 +51,9 @@ description: How the repository is organised — application code, panels, front
 
 ## Reading order for a new contributor
 
-1. `README.md` — project scope, pilot contract and release safety.
-2. `PLAN.md` — the authoritative roadmap and safety gates (sections 8–10 govern release).
+1. The relevant action, service, interface, and tests — verify actual behavior first.
+2. `README.md` and `PLAN.md` — product context and intended safety gates, not proof that every described behavior is current.
 3. `.ai/rules/index.md` — area rules (they encode non-obvious traps; read the rule file
    matching the path you are about to touch).
-4. `docs/` — this site: [Core concepts](../../guides/core-concepts/) and
-   [Workflows](../../guides/workflows/).
+4. `docs/` — this handbook: [How OpenSinop works](../../guides/workflows/) and
+   [Money and evidence](../../guides/core-concepts/).

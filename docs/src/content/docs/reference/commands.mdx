@@ -1,96 +1,95 @@
 ---
-title: Artisan Commands
-description: Every command OpenSinop registers — installation, diagnostics, finance policy, dispatch, reconciliation and student lanes.
+title: Command reference
+description: Find an operator command by task and distinguish read-only inspection, configuration changes, and payment-capable commands.
 ---
 
-Run any command with `--help` for the authoritative option list. All commands bind the
-installation institution fail-closed; `sync` is refused where a durable queue is required.
+Run `php artisan <command> --help` for the current options. Commands are operator tools,
+not a substitute for a staff login or independent human authorization. Supplying a user
+ID records attribution; it does not prove the user personally approved that operation.
 
-## Installation & identity
-
-| Command | What it does |
-| --- | --- |
-| `app:install` | Create the single institution identity, roles/permissions, zero autonomous thresholds; disables registration/impersonation/AI. `--institution= --country= --timezone=UTC --locale=en --currency=USDC --adopt-institution=` (alias `eduflow:install`) |
-| `app:bootstrap-admin` | Create the first super-admin interactively (hidden password prompt). `--name= --email=` (alias `eduflow:bootstrap-admin`) |
-| `setup:starter-kit` | Scaffold/rename the starter-kit identity (icons, authors, Docker toggle) |
-| `install:features` | Apply chisel feature markers (`chisel.php`) — one-shot: it consumes the scaffolding and deletes its own files |
-
-`app:install` never migrates, resets data, seeds demo records, generates keys, creates
-wallets or calls external providers. Repeating identical setup is a no-op; changed
-identity metadata is refused rather than overwritten.
-
-## Diagnostics & Circle session
-
-| Command | What it does |
-| --- | --- |
-| `lepton:doctor` | **Run this first.** Verifies binaries, session, treasury, chain reads and ledger parity. `--transfer= --to= --skip-transfer --adopt-agent-wallet` |
-| `lepton:login` | Circle agent session (email OTP; owned by the Circle CLI). `lepton:login <email>` sends the OTP, `--request=<id> --otp=<code>` completes it, `--status` reports both networks |
-| `lepton:status` | Chain, block, balance and limits for an address — `--address=0x…` (mainnet-only `wallet limit`, see [Troubleshooting](../../reference/troubleshooting/)) |
-| `lepton:transfer` | Single transfer — `0x… --amount=1.00 --from=0x…`; `--estimate` dry-runs |
-
-Mainnet and testnet sessions are independent; `isAuthenticatedFor('ARC-TESTNET')` is the
-authoritative check before a testnet transfer.
-
-## Finance policy, evidence & drafts
-
-| Command | What it does |
-| --- | --- |
-| `app:prepare-finance-policy` | Draft an immutable policy version. `{version} --actor= --reserve= --auto-limit=0 --daily-limit=0 --max-fee=0` (exact USDC; alias `eduflow:prepare-finance-policy`) |
-| `app:activate-finance-policy` | Activate a reviewed policy version. `{policy} --reviewer= --expected-activation=` — requires a separate reviewer and explicit `none` for first activation (alias `eduflow:activate-finance-policy`) |
-| `app:draft-institution-policy` | Persist an editable institution-policy draft (never publishes or enables runtime). `{author} --save` (alias `eduflow:draft-institution-policy`) |
-| `app:prepare-vendor-payment` | Prepare one immutable full-bill USDC draft. `{invoice} --actor= --wallet= --max-fee=0 --intent-key=` (UUID reused for retries; alias `eduflow:prepare-vendor-payment`) |
-| `app:finance-preview` | Read-only treasury/cashflow preview without students. `--days=30` (1–90; alias `eduflow:finance-preview`). Always `can_execute=false` |
-
-Policy activation is not payment approval; draft preparation is not human sign-off.
-Shell access is the attribution boundary — CLI staff IDs are not proof of personal
-authentication or MFA.
-
-## Background dispatch & reconciliation
-
-| Command | Schedule | What it does |
-| --- | --- | --- |
-| `app:dispatch-finance-workflows` | every minute | Recover and dispatch bounded read-only planning/review work |
-| `app:dispatch-payment-submissions` | every minute | Hand durable submissions to a worker. `--limit=50 --recover-stale` |
-| `app:reconcile-payment-submissions` | every minute | Verify references against Arc; record only proven settlements. `--limit=50 --mirror` (alias `eduflow:reconcile-payment-submissions`) |
-| `app:dispatch-policy-evaluations` | every minute | Sweep queued JEV evaluations to background workers. `--sync --limit=20` |
-| `app:recover-circle-notifications` | every minute | Re-queue verified webhook hints still unobserved. `--limit=50` |
-| `app:dispatch-mandate-occurrences` | every minute | Classify due obligations for standing mandates (sessionless; no payment authority) |
-| `eduflow:autonomous-pipeline-bridge` | every 5 minutes | Tuition receipt → JEV evaluation → vendor disbursement. `--payment= --invoice= --latest` |
-| `lepton:reconcile` | ad hoc | Legacy hash reconciliation with honest verdicts. `--limit=200 --json --fix` |
+## Start with read-only inspection
 
 ```bash
-php artisan lepton:reconcile
+php artisan lepton:doctor --skip-transfer
+php artisan lepton:login --status
+php artisan app:finance-preview --days=30 --no-interaction
 ```
 
-```text
-  ✓  #7    vendor_payment      45.000000  verified    0xcecac1d9520c4815
-  ~  #9    vendor_payment      12.500000  pending     0x1f0c9ab7d4e35c22
-  ✗  #3    student_assistance 100.000000  reverted    0x59cbf4983d0e6ff1
-  ?  #11   vendor_payment       8.250000  unresolved  0xb7e21c40a95d3381
+The finance preview is read-only and does not reserve or execute payments. Doctor also
+has transfer and wallet-adoption options; do not add those without separate authorization.
 
-  1 verified · 1 reverted · 1 unresolved · 1 pending · 0 provider-only · 0 unverifiable · 0 ledger-only
-```
+## Set up an institution
 
-`--fix` marks a row failed **only** for `reverted`; unresolved rows are listed and left
-untouched for a human. See [Safety & Readiness](../../institution/safety-readiness/#settlement-verdicts).
-
-## Student lanes
-
-| Command | What it does |
+| Command | Purpose |
 | --- | --- |
-| `app:dispatch-student-tuition` | Dispatch queued tuition payment attempts (minute) |
-| `app:reconcile-tuition-receipts` | Recovery for settled tuition movements no receipt covers yet |
-| `app:dispatch-student-bill-payments` | Dispatch consented bill payments nobody took (minute) |
-| `app:reconcile-student-bill-receipts` | Recovery for settled bill receipts |
-| `student:generate-wallet` | Mint a Circle agent wallet for a student — `{student?} --list`. Capped at 5 agent wallets per blockchain (1 used by the treasury) |
-| `student:fund-wallet` | Faucet-fund student wallets — `{student?} --all --list`. 20 USDC per drip, 429 after ~5 drips; each drip is logged |
+| `app:install` | Persist one institution and conservative settings. Use `--institution`, `--country`, `--timezone`, `--locale`, and `--currency`; existing identity needs reviewed `--adopt-institution` handling. |
+| `app:bootstrap-admin` | Create the first super admin interactively with `--name` and `--email`. No password CLI option. |
 
-## Developer demo & tooling
+Installation does not run migrations itself, provision wallets, seed finance fixtures,
+or disable every runtime flag. Follow [Installation](../../getting-started/installation/)
+instead of treating this table as a complete setup script.
 
-| Command | What it does |
+## Prepare reviewed finance evidence
+
+| Command | Purpose and important inputs |
 | --- | --- |
-| `app:demo` | One full autonomous cycle (85 USDC of real testnet USDC). `--student-email=juan@eduflow.test` (alias `eduflow:demo`) |
-| `inspire` | Laravel's default motivational quote |
+| `app:prepare-finance-policy` | Create a version with exact reserve/limits. Inputs include version, `--actor`, `--reserve`, `--auto-limit`, `--daily-limit`, and `--max-fee`. |
+| `app:activate-finance-policy` | Activate a version using a separate `--reviewer` and explicit `--expected-activation` context. Activation is not payment approval. |
+| `app:draft-institution-policy` | Create a starting institution policy draft with author ID and optional `--save`. Not publication. |
+| `app:prepare-vendor-payment` | Prepare an exact full-bill draft with invoice, actor, wallet, fee, and stable `--intent-key`. Not a send command. |
 
-`app:demo` is not repeatable without re-funding (`LEPTON_DRIVER=fake` for iteration) and
-is not the safe new payment lifecycle — see [Workflows](../../guides/workflows/#the-legacy-developer-path).
+Use the browser workflows for staff review. Do not pass a convenient admin ID merely
+to satisfy an action's required actor.
+
+## Dispatch existing work
+
+These commands can queue or process existing work; they are not all read-only.
+The scheduler invokes them under individual runtime settings:
+
+| Command | Work |
+| --- | --- |
+| `app:dispatch-finance-workflows` | Dispatch planning/review runs. |
+| `app:dispatch-payment-submissions` | Dispatch payment submissions; includes stale-work recovery options. |
+| `app:dispatch-student-tuition` | Dispatch tuition submission/observation work. |
+| `app:dispatch-student-bill-payments` | Dispatch campus-bill payment work. |
+| `app:dispatch-policy-evaluations` | Dispatch queued policy evaluations. `--sync` runs in the current process. |
+| `app:dispatch-mandate-occurrences` | Check due mandate occurrences and record dispositions. Not proof of a payment. |
+| `app:recover-circle-notifications` | Re-queue verified notifications awaiting observation. |
+
+See [Operations](../../guides/operations/) for queues, connection selection, and runtime
+defaults before running a dispatcher manually.
+
+## Reconcile and retain evidence
+
+| Command | Work |
+| --- | --- |
+| `app:reconcile-payment-submissions` | Match expected submitted payments against Arc evidence. `--mirror` additionally writes eligible local ledger records. |
+| `app:reconcile-tuition-receipts` | Recover intake of eligible settled tuition movements. |
+| `app:reconcile-student-bill-receipts` | Recover intake of eligible student bill movements. |
+| `lepton:reconcile` | Legacy transaction receipt reconciliation; weaker than matching an expected bill. `--json`, `--limit`, and `--fix` are available. |
+
+Legacy `--fix` marks readable chain-reverted rows failed, not absent hashes. Keep
+unresolved outcomes for investigation. See
+[Settlement verdicts](../../institution/safety-readiness/#settlement-verdicts).
+
+## Payment-capable and provisioning commands
+
+:::danger[These are not setup or health checks]
+`eduflow:autonomous-pipeline-bridge`, `app:demo`, and direct `lepton:transfer` can invoke
+money movement. The bridge command does not universally honor its scheduled enabled
+flag. Do not run it as a diagnostic or to bypass normal review.
+
+Student wallet creation consumes provider capacity, and funding uses an external
+faucet. Neither is a harmless way to populate a dashboard.
+:::
+
+- `student:generate-wallet`: operator-controlled pilot wallet generation; inspect `--list` first.
+- `student:fund-wallet`: explicit pilot funding; inspect `--help` and current provider limits.
+- `app:demo`: legacy fixtures/cycle, documented only for simulated local use in [Local setup](../../getting-started/local-development/#about-appdemo).
+- `eduflow:autonomous-pipeline-bridge`: experimental tuition-to-vendor processing. See [Current limits](../../institution/safety-readiness/#experimental-automatic-bridge).
+
+## Starter scaffolding commands
+
+`setup:starter-kit` and `install:features` belong to starter/feature scaffolding, not
+ordinary school operation. They can rewrite or consume scaffolding. Inspect them
+before use; they are not recommended installation or recovery steps for a school.

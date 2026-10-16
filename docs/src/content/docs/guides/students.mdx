@@ -1,0 +1,70 @@
+---
+title: Student payment screens
+description: Understand what students can view, what the pilot payment flow requires, and how testnet receipts differ from official tuition payments.
+---
+
+Students have screens for their own dashboard, accounts, payments, wallet, and assistance
+features. These are separate from department budgeting and staff payment approval.
+
+**The collection and planning workflow does not require students to use a wallet.**
+A school can start with reviewed aggregate reports from its existing payment channels.
+
+## What students can see
+
+- **Dashboard:** account information and available student services.
+- **My Payments / Pay screen:** tuition or campus bills, amounts, and existing payment attempts.
+- **My Wallet:** the assigned pilot address and observed balance.
+- **Financial Assistance:** a separate legacy assistance workflow, not fee collection approval.
+
+The server identifies the student from the signed-in account and sets the institution
+treasury destination. A student cannot select another student's account or redirect the
+recipient through the normal tuition form.
+
+## The wallet is a pilot wallet
+
+Current generated student wallets are **operator-controlled** wallets attached to student
+records for the pilot. They are not independently owned student wallets or a production
+custody solution. Operators provision and fund them; wallet slots and faucet availability
+are limited.
+
+Do not invite students to send real money or treat this arrangement as consent to
+institutional custody of their personal funds.
+
+## What happens when a student tries a payment
+
+1. The student requests a quote for an allowed tuition account or campus bill.
+2. The quote binds an amount, payer, recipient, network, and expiry.
+3. The student confirms that quote. Consent records an attempt; it is not settlement.
+4. An enabled worker checks the configured rail, recovery owner, balance, and other
+   conditions before submitting.
+5. The application observes the provider request and verifies matching Arc movement
+   before applying an eligible pilot receipt.
+
+The live pilot is restricted to Arc Testnet and explicit account/bill allowlists.
+Circle agent-wallet sponsorship and developer-wallet fee controls are different:
+the current transport treats the agent-wallet rail as sponsored, while developer-wallet
+execution remains blocked. A missing fee-cap API does not mean every agent-wallet transfer
+is categorically impossible.
+
+## Read the status before trying again
+
+**Simulated / Rehearsal** means no network transfer happened. It must not create a real
+receipt or clear a balance as though money arrived.
+
+**Accepted / Awaiting verification** means the provider request is still being resolved.
+**Unknown** requires investigation; do not confirm a second payment to “fix” it.
+
+**Verified on Arc Testnet** means the pilot transfer was checked on the test network.
+It is not an official school tuition receipt, even if a screen offers a receipt-style
+document. Overpayments need separate handling and are not extra spendable income.
+
+## For school staff
+
+Use **Reconcile student payment** only for eligible existing movements, not to count
+them again as a manual receipt. Tuition-linked collections may trigger the experimental
+bridge; read [Current limits](../../institution/safety-readiness/) first.
+
+## Next step
+
+For a first institutional trial, keep student-wallet payments out of scope and follow
+the [small pilot guide](../../institution/pilot-playbook/).

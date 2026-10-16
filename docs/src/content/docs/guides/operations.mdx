@@ -1,0 +1,130 @@
+---
+title: Run background services
+description: Understand workers, queues, and the scheduler, then check that finance work progresses without accidentally enabling payment experiments.
+---
+
+A responsive web page proves the web process is running. It does not prove that
+queued jobs or scheduled recovery work are running.
+
+## Before starting processes
+
+Review [runtime configuration](../../getting-started/configuration/) first. The
+experimental automatic bridge defaults on and can attempt payments when invoked.
+For evaluation, disable both bridge flags, keep payment submission off, set the vendor
+stop switch, and keep live signing credentials absent.
+
+Planning itself is enabled in `config/eduflow.php`. Starting a worker may process
+already queued work; inspect the configured connection and pending jobs first.
+
+## Worker, queue, and scheduler
+
+- A **queue** holds jobs for later processing.
+- A **worker** processes jobs from a connection and selected queue names.
+- The **scheduler** runs periodic dispatch/recovery commands. It does not replace a worker.
+
+Planning and JEV evaluation jobs currently use `QUEUE_CONNECTION` and its default queue.
+Student and vendor payment jobs have named queues and can select separate connections.
+Run a worker on each connection you actually configure; one worker cannot read several
+different connections at once.
+
+## Start a worker
+
+For an instance using `database` for all these connections:
+
+```bash
+php artisan queue:work database \
+  --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default \
+  --sleep=3 --tries=3 --timeout=180
+```
+
+The payment queue names come from `config/eduflow.php`. Some older/optional queue names
+remain in development commands; the `default` queue is essential for the current
+planning and evaluation jobs. A plain `queue:work` without `--queue` does not consume
+the named payment queues.
+
+Use database/Redis rather than `sync`. The connection's `retry_after` must be longer
+than the longest worker/job timeout, with margin, so a running job is not delivered
+again while still alive. Policy evaluation requires `retry_after` greater than
+180 seconds; the checked-in database/Redis default is 240.
+
+This command runs in the foreground. Under production process supervision, use the
+same connection, queue list, environment, timeout, and restart policy. Check your
+enabled jobs before changing any timeout.
+
+## Start the scheduler
+
+Choose one scheduling approach and supervise it appropriately:
+
+```bash
+php artisan schedule:work
+```
+
+Or have your host invoke `php artisan schedule:run` once per minute. Do not start both
+unintentionally on the same instance. Review shared locking when using multiple servers.
+
+### What the schedule can do
+
+| Task | When enabled |
+| --- | --- |
+| Dispatch finance planning | Every minute; planning config is currently on. |
+| Dispatch student/vendor submissions and observations | Every minute under their own runtime flags. |
+| Reconcile student receipts | Every five minutes when auto-intake is enabled. |
+| Reconcile submitted vendor payments | Every minute under the submission runtime. |
+| Dispatch policy evaluations | Every minute when institution policy advice is enabled. |
+| Check mandate occurrences | Every minute when mandate runtime is enabled. |
+| Run automatic tuition-to-vendor bridge | Every five minutes; **enabled by default**. |
+
+Each task has its own guard. A low or zero policy limit is not a universal switch for
+all automated behavior.
+
+## Docker needs explicit processes
+
+The stock Compose services are web, PostgreSQL, and Redis. HTTP mode does not include
+the general worker or scheduler. The image ships separate Supervisor configurations,
+but shipping a file does not mean it is running.
+
+For a short supervised test, run these in separate terminals against the application
+container, after reviewing pending work and runtime flags:
+
+```bash
+docker exec opensinop php artisan queue:work database \
+  --queue=student-tuition,student-bills,finance-submission,finance-mandate,finance-planning,policy-assessments,default \
+  --sleep=3 --tries=3 --timeout=180
+```
+
+```bash
+docker exec opensinop php artisan schedule:work
+```
+
+These commands alone are not a persistent deployment strategy. For long-running use,
+configure supervised worker and scheduler services with the same image, application
+key, database, storage, and runtime environment. The image's worker mode also requires
+`WORKER_COMMAND`; do not assume setting `CONTAINER_MODE=worker` alone starts the right queues.
+
+## Confirm useful work is happening
+
+Create permitted collection/planning evidence and inspect **Finance Supervisor**:
+
+- **Queued** for a long time: check connection, queue names, worker process, and migrations.
+- **Running** with an old heartbeat: investigate the process and its logs before retrying.
+- **Waiting for review:** the worker produced a result; staff action is needed.
+- **Blocked:** inspect the recorded evidence/configuration reason.
+- **Completed:** the run finished. This is not necessarily payment settlement.
+
+For policy advice, inspect the evaluation timeline and queue readiness. Use the existing
+request rather than repeatedly queuing new evaluations to hide an error.
+
+## After configuration changes
+
+Refresh cached configuration and restart long-lived web and queue processes so they
+read the same settings. Preserve in-flight payment records. Stopping new sends should
+not erase unresolved provider requests or their observation history.
+
+## Backups and recovery
+
+Back up database records, private uploads, and the application key together. Test a
+restore on an isolated instance with payment submission disabled. A restored queue or
+outbox may contain unresolved money movement: reconcile existing attempts before
+allowing new sends.
+
+See [Troubleshooting](../../reference/troubleshooting/) for first checks.

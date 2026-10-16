@@ -1,78 +1,79 @@
 ---
-title: Local Development
-description: Run OpenSinop locally with the simulated driver, seeded demo data and the full quality toolchain.
+title: Local setup
+description: Run a disposable OpenSinop development instance with simulated payments, then add optional fixtures deliberately.
 ---
 
-Once installed, everyday development runs from a single command.
+This guide is for contributors evaluating the application on their own machine.
+Use [Install an instance](../installation/) for an operator-managed server.
 
-## The one-command start
+**Goal:** a local app using simulated payments. No Circle account, funded wallet, or
+AI provider is needed for the initial setup.
+
+## Before you start
+
+Use PHP 8.5, Composer 2, Node.js 22 or newer, and npm. Keep this instance separate from
+school data and live credentials. The application and this documentation site have
+separate dependency installations.
+
+## Create a fresh development instance
 
 ```bash
+git clone https://github.com/koamishin/OpenSinop.git opensinop
+cd opensinop
+composer install
+cp .env.example .env
+php artisan key:generate
+npm ci
+```
+
+Use SQLite for the simplest local database. Create `database/database.sqlite` if it
+does not exist, and set the evaluation settings before running the app:
+
+```dotenv
+APP_ENV=local
+APP_DEBUG=true
+DB_CONNECTION=sqlite
+QUEUE_CONNECTION=database
+LEPTON_DRIVER=fake
+EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false
+EDUFLOW_AUTONOMOUS_PIPELINE_AUTO_DISBURSE=false
+EDUFLOW_SUBMISSION_ENABLED=false
+EDUFLOW_SUBMISSION_STOP=true
+EDUFLOW_INSTITUTION_POLICY_ADVICE=false
+```
+
+Then apply schema, seed the default development users, and build the frontend:
+
+```bash
+php artisan module:enable Blog --no-interaction
+php artisan migrate --no-interaction
+php artisan module:migrate --no-interaction
+php artisan db:seed --no-interaction
+npm run build
 composer run dev
 ```
 
-This starts four processes side by side via `concurrently`:
+`composer run dev` starts Laravel, Vite, a queue listener, and Pail logs. It **does not**
+start the scheduler. Its queue list does not include every optional runtime, so inspect
+the script before testing a particular queue.
 
-1. **Laravel server** — `php artisan serve` (backend)
-2. **Vite** — `npm run dev` (frontend with HMR)
-3. **Queue worker** — `php artisan queue:listen` (background finance, submission and
-   observation jobs)
-4. **Pail** — `php artisan pail` (real-time application logs)
+The default seeder creates roles and local/testing users, not the full financial demo.
+If no institution or authorized author exists, the optional default policy seeder skips
+its draft. An empty dashboard after setup is therefore not necessarily an error.
 
-Open the printed URL (`http://localhost:8000` by default).
+## Choose your data path
 
-## Working without a chain
+### Test ordinary school setup
 
-Use the in-memory driver while developing without Circle credentials:
+Use a fresh database, initialize one institution with `app:install`, and bootstrap a
+unique first administrator. Do not first seed a development super admin: bootstrap
+deliberately refuses a second super admin. See [Installation](../installation/).
 
-```dotenv
-LEPTON_DRIVER=fake
-```
+### Try the legacy developer fixtures
 
-Everything then runs in memory. `is_fake` is set on every receipt and the UI badges them
-**Simulated**, so a fake run can never be mistaken for settlement. The fake driver also
-defaults automatically under `APP_ENV=testing`, and needs no network, credentials or
-cost — the whole Pest suite runs offline.
-
-## Database
-
-SQLite is the default: zero-config, stored at `database/database.sqlite`. For
-MySQL/PostgreSQL, update `DB_CONNECTION` and the host credentials in `.env`.
-
-Seed data is intentionally thin:
-
-```bash
-php artisan migrate:fresh --seed
-```
-
-`migrate:fresh --seed` seeds only roles and (in local/testing) developer demo accounts.
-It no longer creates the legacy organisation, wallets, budgets, invoices, vendors or
-assistance requests — those records come through the Circle/Lepton agent path, not the
-database.
-
-:::caution
-`migrate:fresh` deletes existing database records. Never run it on a school database or
-an instance holding configured providers or payment history.
-:::
-
-### Demo accounts
-
-| Role | Email | Password | Created by |
-| --- | --- | --- | --- |
-| Student | `juan@eduflow.test` | `password` | `EducationDemoSeeder` |
-| Finance officer | `finance@eduflow.test` | `password` | `EducationDemoSeeder` |
-
-The default `DatabaseSeeder` runs `DemoUsersSeeder` in local/testing, but that creates
-`admin@admin.com` and `user@user.com` — **not** the two accounts above. They exist only
-after the education fixtures below have been seeded, so run that step before trying to log
-in with them. The student account still exposes legacy assistance screens; it is not a
-fee-payment portal and is not a prerequisite for the institution pilot.
-
-## The seeded demo cycle
-
-`DatabaseSeeder` deliberately does **not** seed financial fixtures — wallets, budgets,
-invoices and the demo institution are no longer startup data. `app:demo` needs the legacy
-fixtures, so seed them first:
+Use only a disposable database without an installed school identity. These seeders add
+legacy organization, student, wallet, budget, and bill fixtures; they are not production
+onboarding and are not guaranteed to fit a separately initialized institution.
 
 ```bash
 php artisan db:seed --class=EduFlowFinancialSeeder
@@ -80,64 +81,61 @@ php artisan db:seed --class=EducationDemoSeeder
 php artisan db:seed --class=EduFlowPlanSeeder
 ```
 
-Run all three: `EduFlowDemo` checks only that the `Northstar Learning Center` organisation
-exists (any of the financial/plan seeders can create it), so a partial run can execute the
-invoice cycle and then silently skip the student-aid scenario instead of refusing.
+The student and finance accounts below come from **EducationDemoSeeder**, not the
+default `DemoUsersSeeder`:
 
-If that organisation is missing entirely, the command refuses and says so:
+| Account | Email | Local fixture password |
+| --- | --- | --- |
+| Student | `juan@eduflow.test` | `password` |
+| Finance officer | `finance@eduflow.test` | `password` |
+
+The default local `DemoUsersSeeder` instead creates `admin@admin.com` and
+`user@user.com`. Never expose these fixture accounts on a deployed school instance.
+
+## About `app:demo`
+
+This command runs the legacy invoice/assistance cycle. It is not the ordinary reviewed
+collections-to-plan workflow and not a safe shortcut for a pilot payment:
 
 ```bash
 php artisan app:demo
 ```
 
-```text
-Run seeders first: EduFlowFinancialSeeder, EducationDemoSeeder, EduFlowPlanSeeder.
-```
+Run it only with `LEPTON_DRIVER=fake` for local iteration. Under a real driver it can
+move testnet funds. Its initial check only looks for the `Northstar Learning Center`
+organization; it does not validate every required fixture. Partial seeding can omit
+scenarios rather than reliably refusing.
 
-One cycle moves **85 USDC** of real testnet USDC (30 + 45 + the 10 USDC aid portion).
-It is not a simulation under the `circle` driver and is not repeatable without
-re-funding. To watch the workflow without touching a chain, run it under
-`LEPTON_DRIVER=fake`.
-
-| Invoice | Amount | Decision | Why |
-| --- | ---: | --- | --- |
-| `INV-FIBER-30` | 30 | auto-pay | verified vendor, under the limit |
-| `INV-CLOUD-45` | 45 | auto-pay | verified vendor, under the limit |
-| `INV-UNVERIFIED-60` | 60 | escalate | vendor not verified, checked first |
-| `INV-LAB-90` | 90 | escalate | over the 50 limit, wallet can still afford it |
-| `INV-SUPPLY-200` | 200 | hold | would breach the 20 USDC reserve |
-| `INV-HAZARD-2000` | 2000 | reject | equipment budget only holds 500 |
-
-Plus one student aid request at **15 USDC** against a **10 USDC** auto-limit, producing
-a bounded split: 10 approved instantly, 5 escalated for advisor review.
-
-## Tooling
-
-- **Laravel Pail** — because `composer run dev` starts Pail, log lines stream into your
-  terminal; no `tail -f storage/logs/laravel.log` needed.
-- **Tinker** — `php artisan tinker` for REPL access to models and services.
-- **Pest Agent Plugin** — `vendor/bin/pest --agent='…'` runs a one-off assertion without
-  creating a test file (route status, rendered page, model relationship, screenshot…).
-- **Browser tests** — Playwright via `pestphp/pest-plugin-browser` (group `browser`);
-  CI runs them separately and uploads failure screenshots as artifacts.
-
-## Code quality before pushing
+## Daily development checks
 
 ```bash
-composer lint      # Laravel Pint (PHP style)
-composer phpstan   # PHPStan static analysis
-composer rector    # Rector dry-run
-npm run check      # Vite-Plus lint + format (frontend)
-npm run types:check # tsc --noEmit
-composer test      # config:clear + lint + Pest
+npm run check
+npm run types:check
+composer test:lint
+php artisan test --compact
 ```
 
-`composer ci` runs the whole gate in one go: lint → PHPStan → Rector → tests.
+Run narrow tests while developing, then the applicable full checks before a PR.
+PHPStan and Rector scripts are also available in `composer.json`.
 
-:::tip[PATH trap on this machine]
-`which circle` can resolve to a broken `mise` shim. If every Lepton call fails with
-“No version is set for shim”, set `LEPTON_CIRCLE_BIN` to the absolute path of the npm
-global binary in `.env`. Also note `circle wallet limit` is mainnet-only, so
-`php artisan lepton:status` failing for a testnet wallet with “Wallet not found … on
-ARC” is expected — check `isAuthenticatedFor('ARC-TESTNET')` instead.
-:::
+## Work on the handbook itself
+
+```bash
+cd docs
+npm ci
+npm run dev -- --host 127.0.0.1
+```
+
+Use the printed URL with `/OpenSinop/`, the configured project base. For a publishable
+build, run `npm run build` and `npm run check:links` in `docs/`.
+The docs toolchain needs Node `>=22.22.0` under the locked Astro version.
+
+## Protect local data
+
+Do not use `migrate:fresh` as a routine fix. It deletes records, including provider
+configuration and evidence. A database reset also does not reverse any onchain transfer.
+If you truly need new fixtures, use a new disposable database and keep previous evidence.
+
+## Next step
+
+Read [Architecture](../../architecture/) and [Contribute and test](../../guides/development/).

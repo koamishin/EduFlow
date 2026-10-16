@@ -1,0 +1,81 @@
+---
+title: Plan department spending
+description: Capture the department's budget and cash evidence, review the selected bills, and understand holds before preparing a payment.
+---
+
+Use **Finance Supervisor** to check whether a known set of approved bills fits the
+department's remaining allocation and usable cash.
+
+**Result:** a proposal with checks and remaining amounts for each bill. A proposal
+does not reserve funds, approve a payment, or change a wallet balance.
+
+## Before you start
+
+You need an existing active department budget, reviewed bill evidence, and reviewed
+collections or separately evidenced opening funds. Some source and funding setup uses
+backend actions or operator commands; an empty screen is not permission to invent those records.
+
+Prepare three things separately:
+
+- **Budget:** approved allocation, amounts already spent, and other commitments.
+- **Cash:** opening funds, reviewed received collections, and actual outflows.
+- **Protection:** restricted cash, protected reserve, and other cash commitments.
+
+## Budget is not cash
+
+An approved allocation says what the department may spend. It does not prove that the
+money has arrived. A bill must fit both remaining allocation and usable cash.
+
+Likewise, opening funds must exclude the receipts you select for the snapshot.
+Counting the same money in both fields makes a plan look funded when it is not.
+
+## Capture a planning snapshot
+
+1. Open **Finance Supervisor** and choose **Capture planning snapshot**.
+2. Select the department budget, original currency, period, and evidence times.
+3. Select the **Closed bill set**: the specific reviewed bill versions this plan should consider.
+4. Select the approved receipt reviews and enter the exact budget, cash, and protection amounts.
+5. Add source references and confirm that commitments and cash buckets do not overlap.
+
+A snapshot is a recorded picture of the evidence at that time. It has an expiry.
+Changed or expired evidence needs a new context, not a silent edit of an old approval.
+
+## Read the proposal
+
+Open **Details** for a background run. The planner orders the selected bills by due date
+and ID, then checks approved evidence, remaining allocation, and remaining cash.
+
+- **Propose human review:** this bill fits the checks in this plan. It is not approved for payment.
+- **Hold:** one or more checks failed. Read the failed checks before changing any inputs.
+
+The planner considers the bills cumulatively. An earlier eligible bill reduces the
+capacity available for the next one. It does not discover new bills, rank arbitrary
+expenses, or transfer money between departments.
+
+## Review the plan
+
+Use **Review proposal**, inspect the exact bill list and amounts, and choose:
+
+- **Accept exact plan — no payment authority**
+- **Reject plan**
+- **Request correction**
+
+Record a reason. Accepting a plan does not override missing evidence, expired funding,
+or a blocked destination.
+
+## Prepare a bill for payment review
+
+For an accepted plan, **Prepare payment review** asks for an eligible proposed bill,
+a separately reviewed funding window, and an exact maximum fee.
+
+This holds capacity for the bill and fee. The hold is an application record, not a lock
+on the provider wallet. It does not approve or submit the payment. A reviewer continues
+in [Payment Approvals](../payment-approvals/).
+
+## If nothing appears
+
+Check that the snapshot was captured, its source records are reviewed, and the background
+worker is running. **Queued** means work has not completed; **Waiting for review** means
+a result needs staff attention. A **Completed** planning run is not a completed payment.
+
+Operators can use [Run background services](../operations/) to investigate the worker.

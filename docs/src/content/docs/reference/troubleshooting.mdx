@@ -1,105 +1,112 @@
 ---
 title: Troubleshooting
-description: Known failure modes with the exact diagnostics and fixes — sessions, faucet limits, drivers and precision traps.
+description: Start with the visible symptom, inspect the right evidence, and avoid duplicate payments or destructive resets.
 ---
 
-## Circle / Arc
+Find the symptom below. If a transfer may already have been sent, **do not send a
+replacement until the existing attempt is resolved**.
 
-**`no agent session is active`** — the address is not a Circle agent wallet, or you are
-not logged in for that network. Check `php artisan lepton:login --status` and
-`circle wallet list --type agent --chain ARC-TESTNET`. Also run `lepton:doctor`: it
-prints the env, database and Circle treasury addresses side by side — a mismatch is the
-bug.
+## I can sign in, but the workspace is empty
 
-**Transfers fail on testnet while the wallet looks funded** — you are authenticated for
-mainnet only. Mainnet and testnet are independent sessions.
+Check that the installation has exactly one configured institution and your account has
+the required role and permissions. The default developer seeder does not create a full
+school finance dataset. Empty Collections or Supervisor pages can be expected.
 
-**`method 'trace_block' not allowed by the proxy`** — the Arc RPC proxy is allowlisted
-by design; that method is not exposed. Not a setup bug.
+For local fixtures, follow [Local setup](../../getting-started/local-development/).
+Do not reset a deployed school database to populate a demo.
 
-**`Faucet drip failed (429)`** — you hit the per-user faucet cap. The faucet mints
-exactly 20 USDC per call and ignores `--amount`; after ~5 drips it rate-limits. A
-realistic funded balance is ~100–200 USDC. Do not retry in a loop; wait, or use a second
-agent wallet.
+## A collection will not save
 
-**Auto-pays fail with “asset amount owned by the wallet is insufficient”** — the local
-ledger claims a balance the chain does not hold. Use **Sync from chain** and check
-`lepton:doctor` for drift. Never seed a demo with a balance the chain cannot back.
+Check the source reference, document, currency, amount, and completed coverage period.
+The same document or overlapping reports from one source can be refused to prevent
+double counting. Inspect collection history before trying another reference or channel.
 
-**A balance reads as 0** — you are probably pointed at an `arc-canteen` local wallet
-instead of your Circle agent wallet, or you are querying a chain you are not
-authenticated for. On Arc, USDC is the gas token, so “no gas” also reads as zero.
+Saved records cannot be edited through the collection screen. A held/rejected review
+is not reopened there. Arrange a reviewed correction instead of creating a duplicate.
 
-**`lepton:status` fails with “Wallet not found … on ARC”** — `circle wallet limit` is
-mainnet-only; this is expected for a testnet wallet. Check the session with
-`isAuthenticatedFor('ARC-TESTNET')` (or `lepton:login --status`) instead.
+## I cannot review my collection or payment
 
-**Every Lepton call fails with “No version is set for shim”** — `which circle` resolves
-to a broken `mise` shim. Set `LEPTON_CIRCLE_BIN` to the absolute path of the npm global
-binary.
+Independent review requires a different authorized person. For normal payment review,
+check verified email, directly assigned permission, and enrollment of the current
+authenticator. A changed factor can invalidate enrollment even when login still works.
 
-**Agent-wallet transfer ends `unknown` and no transaction appears** — expected with the
-installed CLI: without `--quiet`, `circle wallet transfer` returns a fee preview only and
-does not broadcast; with `--quiet` it returns a Circle transaction **id** (UUID), not a
-hash. The working path is quiet submit → poll `circle transaction list` until
-COMPLETE/FAILED → take the hash → `ArcSettlementVerifier`. Do not record the Circle id as
-a hash, and do not retry an `unknown` by resending — the payment may already have been
-accepted.
+See [Collections](../../guides/collections/) or
+[Payment review](../../guides/payment-approvals/). Do not use the automatic bridge to
+bypass a refused independent review.
 
-## Environment & tooling
+## Planning or evaluations stay queued
 
-**`migrate:fresh --seed` deleted my AI providers and keys** — `ai_providers` is an
-application table. Use `migrate:refresh` for demos, or re-enter the key; the encryption
-protects a dump, not a deleted row.
+A healthy web page does not prove a worker is running. Check:
 
-**Feature scaffolding disappeared** — something ran `php artisan install:features`, which
-consumes the chisel system (markers stripped, `chisel.php`, `chisel-paths.php` and
-`app/Console/Commands/InstallFeaturesCommand.php` deleted). Composer's `post-update-cmd`
-does **not** run it, so check your own scripts/CI; recover with
-`git checkout -- chisel.php chisel-paths.php app/Console/Commands/InstallFeaturesCommand.php`.
+1. Which queue connection the job uses.
+2. Whether a worker listens on that connection and queue, including `default`.
+3. Whether migrations, provider settings, and retry/timeout requirements are satisfied.
+4. The run's last error, heartbeat, or evaluation timeline.
 
-**Tailwind v4 build error about `@layer components`** — a stray `postcss.config.js` in a
-parent directory is being picked up. Keep the project-local empty `postcss.config.js`
-(`{ plugins: {} }`) in place.
+Planning is enabled directly in configuration and uses the default connection.
+`EDUFLOW_BACKGROUND_FINANCE` is not a working switch in the current code.
+The stock Compose web service supplies neither a general worker nor the scheduler.
+See [Operations](../../guides/operations/).
 
-**Vite manifest error (“Unable to locate file in the Vite manifest”)** — run
-`npm run build` (or `npm run dev`) so assets exist.
+## The plan holds a bill even though the wallet has money
 
-## Application behaviour
+Wallet balance is only one fact. Check the selected bill's reviewed evidence, remaining
+allocation, restricted cash, reserve, other commitments, and snapshot expiry.
+The planner checks selected bills cumulatively. A plan never grants payment authority.
 
-**`app:demo` is not repeatable** — each run spends 85 USDC. Re-fund, or use
-`LEPTON_DRIVER=fake`.
+## Payment says approved, accepted, or unknown
 
-**Background finance does nothing** — the planning runtime is enabled in
-`config/eduflow.php`, so it only lacks plumbing: configure a durable
-`EDUFLOW_FINANCE_QUEUE_CONNECTION` (never `sync`), keep a supervised queue worker on the
-`finance-planning` queue and invoke the Laravel scheduler every minute. Most scheduler
-tasks submit no money — **except** `eduflow:autonomous-pipeline-bridge`, which defaults
-on and can submit and reconcile a payment within its 50 USDC ceiling. Disable it with
-`EDUFLOW_AUTONOMOUS_PIPELINE_ENABLED=false` if that is not what you want.
+- **Approved:** check whether submission is enabled and the approval/funding evidence is still current.
+- **Accepted:** the provider has a request handle; observation must resolve it to movement evidence.
+- **Unknown:** inspect the existing provider handle and attempt. A timeout does not prove no send occurred.
+- **Verified:** confirm whether this is full expected-payment matching or only the weaker legacy receipt check.
 
-**A payment screen is stuck / a quote cannot be re-quoted** — a bill with an unresolved
-consent (consented, unsettled, unallocated, non-rehearsal) refuses a *new* request key;
-replaying the *same* key returns the stored quote.
+Keep the original identity and history. Do not delete an outbox row, release capacity,
+or create a new request just to make the status disappear.
 
-**My legacy `admin@admin.com` / `user@user.com` accounts still exist** — older seeders
-created them; `RolesAndPermissionsSeeder` now creates no users in any environment. As an
-operator: review those accounts, rotate exposed passwords, revoke sessions and
-unnecessary access, and preserve required audit evidence. Do not regenerate `APP_KEY`,
-reset the database, or delete financial records as cleanup.
+## Circle says `no agent session is active`
 
-**Student wallet generation says slots are exhausted** — `circle wallet create` is capped
-at 5 agent wallets per blockchain with no delete verb (1 is used by the treasury, so 4
-remain on ARC-TESTNET). Read the remaining count with `student:generate-wallet --list`
-before minting; each generation permanently spends a slot.
+Check the intended network and operator session:
 
-**The student wallet screen shows a stale balance** — wallet balances are cached for
-`EDUFLOW_WALLET_BALANCE_CACHE_SECONDS` (30s); the refresh action bypasses the cache.
+```bash
+php artisan lepton:login --status
+php artisan lepton:doctor --skip-transfer
+```
 
-## When a check is uncertain
+Mainnet and testnet sessions are independent. A local wallet is not automatically a
+Circle agent wallet the provider can sign for. Authentication needs a human operator;
+do not put OTP login into a recovery worker.
 
-Never resolve an unknown outcome by writing `FAILED`: a missing RPC result cannot prove
-fabrication (propagation delay, reorganisation and a hash from another network all look
-the same). Keep it unresolved, reconcile without blind resubmission, and escalate to a
-human. `vendor/bin/pest --agent='…'` is the fastest way to prove a route, page or
-relationship behaves as expected.
+## The Circle command fails before a provider request
+
+Check that `LEPTON_CIRCLE_BIN` resolves to the intended executable for the service user.
+A broken version-manager shim or a different worker `PATH` can fail before Circle is
+contacted. The binary variable is `LEPTON_CIRCLE_BIN`, not a misspelled variant.
+
+Some wallet-limit operations are mainnet-only. A testnet limit lookup error is not
+itself proof that the testnet session or balance is absent.
+
+## Faucet funding is rate-limited
+
+Do not loop on a `429` response. Faucet quotas and wallet slots are external limits,
+not guaranteed capacity. Use simulated data for iteration. Creating more operator
+wallets just to avoid the limit can consume scarce wallet slots.
+
+## A developer wallet will not submit
+
+The current payment transport explicitly blocks developer-wallet execution pending
+reviewed fee controls. An API key or newly selected driver does not remove that guard
+or migrate an existing agent wallet. Do not weaken the guard to make a demo run.
+
+## Frontend changes are missing
+
+For the application, rebuild assets with `npm run build` or use the development server.
+For this handbook, build in `docs/`, not the project root. GitHub Pages updates after
+the docs change reaches `main` and the publishing workflow finishes.
+
+## Before asking for help
+
+Include the visible status, affected record IDs, software commit/version, enabled runtime,
+and a sanitized error. Exclude passwords, OTPs, provider sessions, student data, and
+private source documents. If money movement is uncertain, keep new sends stopped while
+preserving observation and evidence.
