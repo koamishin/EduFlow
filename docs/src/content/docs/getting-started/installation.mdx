@@ -210,9 +210,11 @@ settings unreadable. Resolve changes forward with reviewed backups and migration
 
 The optional `install.sh` and `install.ps1` wizards collect settings and have update
 modes. `install.sh` deploys the application, PostgreSQL, and Redis as a Docker Swarm
-stack with the database password in a Docker secret. Review the downloaded code before
-executing it. Selecting a driver in a wizard does not validate resulting database
-connectivity or certify payment readiness.
+stack with the database password in a Docker secret; if Docker is missing it offers
+to install it (official convenience script on Debian/RHEL/openSUSE families,
+distribution package manager on Arch, Alpine, Void and Gentoo). Review the downloaded
+code before executing it. Selecting a driver in a wizard does not validate resulting
+database connectivity or certify payment readiness.
 
 ## Next step
 

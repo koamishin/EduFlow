@@ -48,13 +48,14 @@ write_curl_stub() {
 printf 'curl %s\n' "$*" >> "${DOCKER_STUB_LOG:?}"
 case "$*" in
     *get.docker.com*)
+        if [ "${STUB_FAIL_CURL:-}" = "1" ]; then
+            printf 'curl: (22) The requested URL returned error: 502\n' >&2
+            exit 22
+        fi
         cat <<'EOS'
 #!/bin/sh
-dir="$(dirname "$DOCKER_STUB_LOG")"
 echo "fake get.docker.com: installing Docker Engine stub"
-mkdir -p "$dir/bin-autoinstall"
-cp "$dir/bin-ok/docker" "$dir/bin-autoinstall/docker"
-chmod +x "$dir/bin-autoinstall/docker"
+"$(dirname "$DOCKER_STUB_LOG")/plant-docker.sh"
 exit 0
 EOS
         ;;
@@ -256,6 +257,36 @@ STUB
 done
 write_curl_stub "$WORK/bin-autoinstall/curl"
 
+# Package-manager stubs "install" Docker the way the distro packages would.
+cat > "$WORK/plant-docker.sh" <<'STUB'
+#!/bin/sh
+dir="$(dirname "${DOCKER_STUB_LOG:?}")"
+mkdir -p "$dir/bin-autoinstall"
+cp "$dir/bin-ok/docker" "$dir/bin-autoinstall/docker"
+chmod +x "$dir/bin-autoinstall/docker"
+STUB
+chmod +x "$WORK/plant-docker.sh"
+
+cat > "$WORK/bin-autoinstall/pacman" <<'STUB'
+#!/usr/bin/env bash
+printf 'pacman %s\n' "$*" >> "${DOCKER_STUB_LOG:?}"
+"$(dirname "$DOCKER_STUB_LOG")/plant-docker.sh"
+exit 0
+STUB
+chmod +x "$WORK/bin-autoinstall/pacman"
+
+cat > "$WORK/bin-autoinstall/apt-get" <<'STUB'
+#!/usr/bin/env bash
+printf 'apt-get %s\n' "$*" >> "${DOCKER_STUB_LOG:?}"
+case "$*" in
+    *install*)
+        "$(dirname "$DOCKER_STUB_LOG")/plant-docker.sh"
+        ;;
+esac
+exit 0
+STUB
+chmod +x "$WORK/bin-autoinstall/apt-get"
+
 # A PATH that hides every real tool the installer might otherwise find, so a
 # missing Docker is genuinely missing (used only by the auto-install test).
 for tool in bash env sh uname id grep sed cut head tail tr cat date openssl \
@@ -272,6 +303,12 @@ make_fresh_dir() { # make_fresh_dir <name> [with-dockerfile]
     cp "$REPO/install.sh" "$dir/install.sh"
     if [ "${2:-no}" = "yes" ]; then : > "$dir/Dockerfile"; fi
     printf '%s' "$dir"
+}
+
+reset_autoinstall_docker() {
+    # The auto-install scenarios "install" a docker stub into the shared
+    # bin-autoinstall directory; drop it so the next one truly starts without Docker.
+    rm -f "$WORK/bin-autoinstall/docker"
 }
 
 run_install() { # run_install <dir> <log> <state> <command...>  (stubbed PATH)
@@ -432,12 +469,14 @@ check "T7 exit 1" $([ "$RC7" -ne 0 ] && echo 0 || echo 1)
 check_contains "T7 explains the daemon" "$WORK/t7.log" 'daemon is not reachable'
 check "T7 no .env written" $([ ! -f "$D7/.env" ] && echo 0 || echo 1)
 
-echo "=== T8: Docker missing -> installs via get.docker.com, then deploys ==="
+echo "=== T8: Debian-family host installs via get.docker.com, then deploys ==="
 if [ "$(uname)" = "Linux" ]; then
+    reset_autoinstall_docker
     D8="$(make_fresh_dir t8)"
-    ( cd "$D8" && env PATH="$WORK/bin-autoinstall:$WORK/minimal-bin" DOCKER_STUB_LOG="$WORK/t8.docker.log" STUB_STATE="$WORK/state-t8" DOCKER_VERSION="28.5.0" bash install.sh --yes ) > "$WORK/t8.log" 2>&1
+    ( cd "$D8" && env PATH="$WORK/bin-autoinstall:$WORK/minimal-bin" DISTRO_FAMILY=debian DOCKER_STUB_LOG="$WORK/t8.docker.log" STUB_STATE="$WORK/state-t8" DOCKER_VERSION="28.5.0" bash install.sh --yes ) > "$WORK/t8.log" 2>&1
     check "T8 exit 0" $?
     L8="$WORK/t8.docker.log"
+    check_contains "T8 reports the detected family" "$WORK/t8.log" 'distribution family: debian'
     check_contains "T8 downloads get.docker.com" "$L8" 'get\.docker\.com'
     check_contains "T8 runs the installer script" "$L8" '^(sudo )?sh -s -- --version 28\.5\.0$'
     check_contains "T8 holds packages at the pinned version" "$L8" '^(sudo )?apt-mark hold docker-ce docker-ce-cli docker-ce-rootless-extras$'
@@ -447,6 +486,52 @@ if [ "$(uname)" = "Linux" ]; then
     check_contains "T8 completes" "$WORK/t8.log" 'Installation complete'
 else
     echo "  SKIP  T8 (Linux-only scenario)"
+fi
+
+echo "=== T8b: Arch-like host installs Docker with pacman ==="
+if [ "$(uname)" = "Linux" ]; then
+    reset_autoinstall_docker
+    D8B="$(make_fresh_dir t8b)"
+    ( cd "$D8B" && env PATH="$WORK/bin-autoinstall:$WORK/minimal-bin" DISTRO_FAMILY=arch DOCKER_STUB_LOG="$WORK/t8b.docker.log" STUB_STATE="$WORK/state-t8b" bash install.sh --yes ) > "$WORK/t8b.log" 2>&1
+    check "T8b exit 0" $?
+    L8B="$WORK/t8b.docker.log"
+    check_contains "T8b installs with pacman" "$L8B" '^(sudo )?pacman -S --noconfirm docker$'
+    check_not_contains "T8b skips the convenience script" "$L8B" 'get\.docker\.com'
+    check_contains "T8b initializes swarm" "$L8B" '^docker swarm init'
+    check_contains "T8b deploys the app" "$L8B" '^docker service create --name opensinop '
+    check_contains "T8b completes" "$WORK/t8b.log" 'Installation complete'
+else
+    echo "  SKIP  T8b (Linux-only scenario)"
+fi
+
+echo "=== T8c: unrecognized distro -> clear manual instructions ==="
+if [ "$(uname)" = "Linux" ]; then
+    reset_autoinstall_docker
+    D8C="$(make_fresh_dir t8c)"
+    ( cd "$D8C" && env PATH="$WORK/bin-autoinstall:$WORK/minimal-bin" DISTRO_FAMILY=unknown DOCKER_STUB_LOG="$WORK/t8c.docker.log" STUB_STATE="$WORK/state-t8c" bash install.sh --yes ) > "$WORK/t8c.log" 2>&1
+    RC8C=$?
+    check "T8c exit 1" $([ "$RC8C" -ne 0 ] && echo 0 || echo 1)
+    check_contains "T8c explains the failure" "$WORK/t8c.log" 'Could not install Docker automatically'
+    check_contains "T8c links manual instructions" "$WORK/t8c.log" 'docs.docker.com/engine/install'
+    check "T8c no .env written" $([ ! -f "$D8C/.env" ] && echo 0 || echo 1)
+else
+    echo "  SKIP  T8c (Linux-only scenario)"
+fi
+
+echo "=== T8d: convenience script fails -> distribution fallback ==="
+if [ "$(uname)" = "Linux" ]; then
+    reset_autoinstall_docker
+    D8D="$(make_fresh_dir t8d)"
+    ( cd "$D8D" && env PATH="$WORK/bin-autoinstall:$WORK/minimal-bin" DISTRO_FAMILY=debian STUB_FAIL_CURL=1 DOCKER_STUB_LOG="$WORK/t8d.docker.log" STUB_STATE="$WORK/state-t8d" bash install.sh --yes ) > "$WORK/t8d.log" 2>&1
+    check "T8d exit 0" $?
+    L8D="$WORK/t8d.docker.log"
+    check_contains "T8d reports the fallback" "$WORK/t8d.log" 'did not succeed'
+    check_contains "T8d refreshes apt indexes" "$L8D" '^(sudo )?apt-get update -qq$'
+    check_contains "T8d installs docker.io" "$L8D" '^(sudo )?apt-get install -y docker\.io$'
+    check_contains "T8d deploys the app" "$L8D" '^docker service create --name opensinop '
+    check_contains "T8d completes" "$WORK/t8d.log" 'Installation complete'
+else
+    echo "  SKIP  T8d (Linux-only scenario)"
 fi
 
 echo "=== T9: --help ==="

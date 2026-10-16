@@ -27,9 +27,12 @@ Covered flows:
   recreated while the password, secret and network are kept
 - SQLite (no database service, no secret), an LXC host
   (`--endpoint-mode dnsrr`), and a host where Docker requires `sudo`
-- Docker Engine auto-install via get.docker.com on a host without Docker
-  (pinned `DOCKER_VERSION`, `apt-mark hold`), executed against a minimal `PATH`
-  so the real Docker on the machine stays invisible
+- Docker Engine auto-install on a host without Docker, executed against a
+  minimal `PATH` so the real Docker on the machine stays invisible:
+  the get.docker.com path for Debian-family hosts (pinned `DOCKER_VERSION`,
+  `apt-mark hold`), the `pacman` path for Arch-family hosts, the distribution
+  fallback when the convenience script fails, and the clear error on a
+  distro the installer cannot recognize
 - the container entrypoint's `DB_PASSWORD_FILE` handling, used by the Swarm
   secret
 

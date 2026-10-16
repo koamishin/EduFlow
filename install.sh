@@ -16,6 +16,7 @@
 # Environment overrides:
 #   EDUFLOW_VERSION      application image tag (default: latest)
 #   DOCKER_VERSION       pin Docker Engine (e.g. 28.5.0) when the installer installs it
+#   DISTRO_FAMILY        override Linux distribution detection for Docker install
 #   ADVERTISE_ADDR       address for `docker swarm init` on multi-interface hosts
 #   ENDPOINT_MODE=dnsrr  force service endpoint mode (Proxmox LXC hosts without IPVS)
 
@@ -261,7 +262,9 @@ Usage: install.sh [--update] [--yes|-y]
   Sets the application up as a Docker Swarm stack: the app, PostgreSQL 16 and
   Redis 7 run as services on an overlay network, and the database password is
   kept in a Docker secret. When Docker is missing on Linux, the installer
-  offers to install Docker Engine via the official get.docker.com script.
+  offers to install it with the official convenience script on
+  Debian/RHEL/openSUSE families and with the distribution package manager on
+  Arch, Alpine, Void, Gentoo and their derivatives.
 
   --update, -u   Update an existing installation (pull or rebuild the image
                  and roll the application service).
@@ -270,6 +273,8 @@ Usage: install.sh [--update] [--yes|-y]
 Environment:
   EDUFLOW_VERSION      application image tag (default: latest)
   DOCKER_VERSION       pin Docker Engine (e.g. 28.5.0) when it gets installed
+  DISTRO_FAMILY        override distribution detection for the Docker install
+                       (debian|rhel|suse|arch|alpine|void|gentoo|nixos)
   ADVERTISE_ADDR       address for `docker swarm init` on multi-interface hosts
   ENDPOINT_MODE=dnsrr  force service endpoint mode (LXC hosts without IPVS)
 EOF
@@ -319,6 +324,133 @@ resolve_docker() {
     return 1
 }
 
+detect_os_family() {  # echoes debian|rhel|suse|arch|alpine|void|gentoo|nixos|unknown
+    if [ -n "${DISTRO_FAMILY:-}" ]; then
+        printf '%s' "$DISTRO_FAMILY"
+        return
+    fi
+    local os_id="" os_like=""
+    if [ -r /etc/os-release ]; then
+        os_id="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID:-}" || true)"
+        os_like="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID_LIKE:-}" || true)"
+    fi
+    os_id="$(printf '%s' "$os_id" | tr '[:upper:]' '[:lower:]')"
+    os_like="$(printf '%s' "$os_like" | tr '[:upper:]' '[:lower:]')"
+    case "$os_id" in
+        debian|ubuntu|raspbian|linuxmint|lmde|pop|kali|elementary|zorin|neon|parrot|devuan|mx|antix|tuxedo|deepin)
+            printf 'debian'; return ;;
+        rhel|centos|rocky|almalinux|alma|ol|oracle|fedora|amzn|amazon|scientific|virtuozzo|cloudlinux|nobara|bazzite)
+            printf 'rhel'; return ;;
+        opensuse*|sles|sled|suse)
+            printf 'suse'; return ;;
+        arch|archlinux|archarm|garuda|manjaro|endeavouros|cachyos|arcolinux|artix|blackarch|steamos|omarchy)
+            printf 'arch'; return ;;
+        alpine|postmarketos)
+            printf 'alpine'; return ;;
+        void)
+            printf 'void'; return ;;
+        gentoo|funtoo)
+            printf 'gentoo'; return ;;
+        nixos)
+            printf 'nixos'; return ;;
+    esac
+    case " $os_like " in
+        *" ubuntu "*|*" debian "*) printf 'debian'; return ;;
+        *" rhel "*|*" centos "*|*" fedora "*) printf 'rhel'; return ;;
+        *" suse "*) printf 'suse'; return ;;
+        *" arch "*) printf 'arch'; return ;;
+        *" alpine "*) printf 'alpine'; return ;;
+    esac
+    # Marker files, then whatever package manager the host actually has.
+    if [ -f /etc/arch-release ]; then printf 'arch'; return; fi
+    if [ -f /etc/alpine-release ]; then printf 'alpine'; return; fi
+    if [ -f /etc/debian_version ]; then printf 'debian'; return; fi
+    if [ -f /etc/redhat-release ]; then printf 'rhel'; return; fi
+    if cmd_exists pacman; then printf 'arch'; return; fi
+    if cmd_exists apk; then printf 'alpine'; return; fi
+    if cmd_exists apt-get; then printf 'debian'; return; fi
+    if cmd_exists dnf || cmd_exists yum; then printf 'rhel'; return; fi
+    if cmd_exists zypper; then printf 'suse'; return; fi
+    if cmd_exists xbps-install; then printf 'void'; return; fi
+    if cmd_exists emerge; then printf 'gentoo'; return; fi
+    printf 'unknown'
+}
+
+native_docker_install() {  # native_docker_install <family> — from the distribution repositories
+    local family="$1"
+    case "$family" in
+        debian)
+            cmd_exists apt-get || return 1
+            "${SUDO[@]}" apt-get update -qq || true
+            "${SUDO[@]}" apt-get install -y docker.io || return 1
+            ;;
+        rhel)
+            local pm="" pkg
+            if cmd_exists dnf; then pm=dnf; elif cmd_exists yum; then pm=yum; else return 1; fi
+            for pkg in docker docker.io moby-engine; do
+                if "${SUDO[@]}" "$pm" install -y "$pkg"; then
+                    break
+                fi
+            done
+            ;;
+        suse)
+            cmd_exists zypper || return 1
+            "${SUDO[@]}" zypper --non-interactive install docker || return 1
+            ;;
+        arch)
+            cmd_exists pacman || return 1
+            if ! "${SUDO[@]}" pacman -S --noconfirm docker; then
+                "${SUDO[@]}" pacman -Sy --noconfirm docker || return 1
+            fi
+            ;;
+        alpine)
+            cmd_exists apk || return 1
+            "${SUDO[@]}" apk add --no-cache docker || return 1
+            ;;
+        void)
+            cmd_exists xbps-install || return 1
+            "${SUDO[@]}" xbps-install -Sy docker || return 1
+            ;;
+        gentoo)
+            cmd_exists emerge || return 1
+            "${SUDO[@]}" emerge --ask=n --quiet app-containers/docker || return 1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    cmd_exists docker
+}
+
+start_docker_daemon() {
+    if cmd_exists systemctl && [ -d /run/systemd/system ]; then
+        "${SUDO[@]}" systemctl enable --now docker >/dev/null 2>&1 || true
+    elif cmd_exists rc-service; then
+        "${SUDO[@]}" rc-update add docker default >/dev/null 2>&1 || true
+        "${SUDO[@]}" rc-service docker start >/dev/null 2>&1 || true
+    elif cmd_exists sv; then
+        "${SUDO[@]}" ln -sf /etc/sv/docker /var/service/docker >/dev/null 2>&1 || true
+        "${SUDO[@]}" sv start docker >/dev/null 2>&1 || true
+    elif cmd_exists service; then
+        "${SUDO[@]}" service docker start >/dev/null 2>&1 || true
+    fi
+}
+
+wait_for_docker_daemon() {  # up to ~15s for the daemon socket to answer
+    local attempt
+    local probe=(docker)
+    if [ "${#SUDO[@]}" -gt 0 ]; then
+        probe=("${SUDO[@]}" docker)
+    fi
+    for ((attempt = 0; attempt < 15; attempt++)); do
+        if "${probe[@]}" info >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
 install_docker() {
     if [ "$(uname)" = "Darwin" ]; then
         err "Docker is not installed."
@@ -336,37 +468,78 @@ install_docker() {
         info "https://docs.docker.com/engine/install/"
         return 1
     fi
-    if ! cmd_exists curl; then
-        err "curl is required to install Docker."
-        info "Install curl and re-run this installer."
+
+    local family
+    family="$(detect_os_family)"
+    info "Detected platform $(uname -s)/$(uname -m), distribution family: $family."
+
+    if [ "$family" = "nixos" ]; then
+        err "NixOS manages system services declaratively; this script will not change your configuration."
+        info "Enable Docker in configuration.nix and run nixos-rebuild switch:"
+        info "  virtualisation.docker.enable = true;"
         return 1
     fi
+
     if [ "$(yes_no "Docker is not installed. Install Docker Engine now?" "yes")" != "yes" ]; then
         err "Docker is required for this installation."
         info "Install Docker Engine, then re-run: https://docs.docker.com/engine/install/"
         return 1
     fi
-    local version_args=()
-    if [ -n "${DOCKER_VERSION:-}" ]; then
-        version_args=(--version "$DOCKER_VERSION")
-        info "Pinning Docker Engine to $DOCKER_VERSION."
-    fi
+
     title "Installing Docker Engine"
-    info "Running the official convenience script (https://get.docker.com) ..."
-    if ! curl -fsSL https://get.docker.com | "${SUDO[@]}" sh -s -- "${version_args[@]}"; then
-        err "Docker installation failed."
-        info "Install Docker Engine manually, then re-run: https://docs.docker.com/engine/install/"
-        return 1
+    local script_ok=0
+    case "$family" in
+        debian|rhel|suse)
+            # The official convenience script covers these families. Everywhere
+            # else (and whenever it fails) the distribution packages are used.
+            if ! cmd_exists curl; then
+                warn "curl is not available; using the $family package manager instead."
+            else
+                local version_args=()
+                if [ -n "${DOCKER_VERSION:-}" ]; then
+                    version_args=(--version "$DOCKER_VERSION")
+                    info "Pinning Docker Engine to $DOCKER_VERSION."
+                fi
+                info "Running the official convenience script (https://get.docker.com) ..."
+                if curl -fsSL https://get.docker.com | "${SUDO[@]}" sh -s -- "${version_args[@]}"; then
+                    script_ok=1
+                else
+                    warn "The convenience script did not succeed; using the $family package manager instead."
+                fi
+            fi
+            ;;
+    esac
+
+    if [ "$script_ok" = 1 ]; then
+        if [ -n "${DOCKER_VERSION:-}" ] && cmd_exists apt-mark; then
+            "${SUDO[@]}" apt-mark hold docker-ce docker-ce-cli docker-ce-rootless-extras >/dev/null 2>&1 || true
+            info "Held Docker packages at $DOCKER_VERSION (apt-mark hold)."
+        fi
+    else
+        if [ -n "${DOCKER_VERSION:-}" ]; then
+            warn "Version pinning only applies to the official script; installing the distribution package."
+        fi
+        if [ "$family" != "unknown" ]; then
+            info "Installing Docker from the $family distribution repositories ..."
+        fi
+        if ! native_docker_install "$family"; then
+            err "Could not install Docker automatically on this system."
+            info "Install Docker Engine manually, then re-run: https://docs.docker.com/engine/install/"
+            info "Distribution packages: apt-get install docker.io | dnf install docker | pacman -S docker | apk add docker | zypper install docker"
+            return 1
+        fi
     fi
-    if [ -n "${DOCKER_VERSION:-}" ] && cmd_exists apt-mark; then
-        "${SUDO[@]}" apt-mark hold docker-ce docker-ce-cli docker-ce-rootless-extras >/dev/null 2>&1 || true
-        info "Held Docker packages at $DOCKER_VERSION (apt-mark hold)."
-    fi
-    if cmd_exists systemctl; then
-        "${SUDO[@]}" systemctl enable --now docker >/dev/null 2>&1 || true
+
+    start_docker_daemon
+    if ! wait_for_docker_daemon; then
+        warn "Docker was installed but the daemon has not answered yet; continuing."
     fi
     if [ "${#SUDO[@]}" -gt 0 ]; then
-        "${SUDO[@]}" usermod -aG docker "$(id -un)" >/dev/null 2>&1 || true
+        if cmd_exists usermod; then
+            "${SUDO[@]}" usermod -aG docker "$(id -un)" >/dev/null 2>&1 || true
+        elif cmd_exists addgroup; then
+            "${SUDO[@]}" addgroup "$(id -un)" docker >/dev/null 2>&1 || true
+        fi
     fi
     ok "Docker Engine installed."
     return 0

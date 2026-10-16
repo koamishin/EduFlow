@@ -478,7 +478,11 @@ them on a server with credentials or financial records.
 
 Options: `--yes` accepts every default (also used when no terminal is available),
 `EDUFLOW_VERSION=<tag>` pins the application image, and `ADVERTISE_ADDR` selects
-the address for `docker swarm init` on hosts with several interfaces. PostgreSQL
+the address for `docker swarm init` on hosts with several interfaces. When Docker
+is missing, the installer offers to install it — with the official convenience
+script on Debian/RHEL/openSUSE families and with the distribution package manager
+on Arch, Alpine, Void and Gentoo; `DISTRO_FAMILY` overrides the detection, and on
+NixOS the installer prints the `configuration.nix` setting instead. PostgreSQL
 is the managed database service; choosing MySQL expects an existing server (you
 are asked for its host), and SQLite keeps its file in the persisted storage volume.
 
