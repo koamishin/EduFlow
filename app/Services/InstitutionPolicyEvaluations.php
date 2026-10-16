@@ -48,9 +48,17 @@ final readonly class InstitutionPolicyEvaluations
             }
             $review = CollectionBatchReview::query()->where('collection_batch_id', $batch->id)->first();
             $reviewed = $review !== null && $review->decision === 'approve_receipts' && $review->hasValidEvidence($batch);
-            $evidence = ['description' => 'Institution collection '.$batch->source_reference.' from '.$batch->source_stream
+            $streamLabel = match ($batch->source_stream) {
+                CollectionBatch::TUITION_PORTAL_STREAM => 'student tuition payment portal',
+                CollectionBatch::BILL_PORTAL_STREAM => 'student campus bills portal',
+                default => $batch->source_stream,
+            };
+            $typePrefix = $batch->source_stream === CollectionBatch::TUITION_PORTAL_STREAM
+                ? 'Verified student tuition payment collection '
+                : ($batch->source_stream === CollectionBatch::BILL_PORTAL_STREAM ? 'Verified student campus bill collection ' : 'Institution collection ');
+            $evidence = ['description' => $typePrefix.$batch->source_reference.' from '.$streamLabel
                 .'. Received '.Money::formatExact($batch->received_minor_units, $batch->currency)
-                .'; restricted '.Money::formatExact($batch->restricted_minor_units, $batch->currency).'. Receipt review: '.($reviewed ? 'approved' : 'not approved').'.',
+                .'; restricted '.Money::formatExact($batch->restricted_minor_units, $batch->currency).'. Receipt review: '.($reviewed ? 'approved by staff' : 'awaiting staff review').'.',
                 'reference' => $batch->source_reference, 'source_stream' => $batch->source_stream, 'currency' => $batch->currency,
                 'received_minor_units' => (string) $batch->received_minor_units, 'restricted_minor_units' => (string) $batch->restricted_minor_units,
                 'batch_digest' => $batch->snapshot_digest, 'review_digest' => $review?->review_digest,

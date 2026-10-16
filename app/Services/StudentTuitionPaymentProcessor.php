@@ -375,7 +375,7 @@ final readonly class StudentTuitionPaymentProcessor
                     $this->intake->reconcile($payment);
                 }
 
-                if (config('eduflow.autonomous_pipeline.enabled', false)) {
+                if (config('eduflow.autonomous_pipeline.enabled', true)) {
                     app(AutonomousPipelineBridge::class)->bridgePayment($payment);
                 }
             }

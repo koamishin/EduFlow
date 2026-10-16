@@ -241,3 +241,106 @@ test('default institution seeder includes Northstar budget categories and tuitio
         ->and(InstitutionPolicyPublication::query()->count())->toBe(0)
         ->and(FinancePolicyActivation::query()->count())->toBe(0);
 });
+
+test('staff can approve receipt directly from policy evaluations and obtain immediate evaluation', function (): void {
+    $context = policyEvaluationContext();
+    $cashier = $context['maker'];
+    $reviewer = $context['reviewer'];
+
+    // Capture an unreviewed collection batch
+    $batch = app(CaptureCollectionBatch::class)->handle($cashier, [
+        'capture_key' => (string) Str::uuid(),
+        'source_stream' => 'cashier-fees',
+        'source_reference' => 'TEST-DIRECT-APPROVE-1',
+        'source_document_digest' => hash('sha256', 'test-direct-approve-proof'),
+        'cash_evidence_reference' => 'Cashier register proof',
+        'currency' => 'USDC',
+        'received_amount' => '50.000000',
+        'restricted_amount' => '0',
+        'collected_from' => now()->subDay()->toIso8601String(),
+        'collected_until' => now()->toIso8601String(),
+        'source_stream_disjoint' => true,
+        'received_not_forecast' => true,
+    ]);
+
+    expect(CollectionBatchReview::query()->where('collection_batch_id', $batch->id)->exists())->toBeFalse();
+
+    $this->actingAs($reviewer)->postJson(route('finance.policy-evaluations.approve-receipt'), [
+        'collection_id' => $batch->id,
+    ])->assertSuccessful()
+        ->assertJson([
+            'success' => true,
+            'collection_id' => $batch->id,
+        ]);
+
+    expect(CollectionBatchReview::query()->where('collection_batch_id', $batch->id)->first())
+        ->not->toBeNull()
+        ->decision->toBe('approve_receipts');
+
+    $latestEval = InstitutionPolicyEvaluation::query()
+        ->where('source_type', 'collection')
+        ->where('source_id', $batch->id)
+        ->latest('id')
+        ->first();
+
+    expect($latestEval)->not->toBeNull()
+        ->and($latestEval->hasValidResult())->toBeTrue();
+});
+
+test('unauthorized user cannot approve collection receipt from policy evaluations', function (): void {
+    $context = policyEvaluationContext();
+    $studentUser = User::factory()->create();
+    $studentUser->assignRole(Role::findOrCreate('student', 'web'));
+
+    $batch = app(CaptureCollectionBatch::class)->handle($context['maker'], [
+        'capture_key' => (string) Str::uuid(),
+        'source_stream' => 'cashier-fees',
+        'source_reference' => 'TEST-UNAUTH-1',
+        'source_document_digest' => hash('sha256', 'test-unauth-proof'),
+        'cash_evidence_reference' => 'Cashier register proof',
+        'currency' => 'USDC',
+        'received_amount' => '50.000000',
+        'restricted_amount' => '0',
+        'collected_from' => now()->subDay()->toIso8601String(),
+        'collected_until' => now()->toIso8601String(),
+        'source_stream_disjoint' => true,
+        'received_not_forecast' => true,
+    ]);
+
+    $this->actingAs($studentUser)->postJson(route('finance.policy-evaluations.approve-receipt'), [
+        'collection_id' => $batch->id,
+    ])->assertForbidden();
+
+    expect(CollectionBatchReview::query()->where('collection_batch_id', $batch->id)->exists())->toBeFalse();
+});
+
+test('when maker calls approve receipt, dual control resolves an independent reviewer without self review violation', function (): void {
+    $context = policyEvaluationContext();
+    $cashier = $context['maker'];
+    $cashier->assignRole('admin');
+
+    $batch = app(CaptureCollectionBatch::class)->handle($cashier, [
+        'capture_key' => (string) Str::uuid(),
+        'source_stream' => 'cashier-fees',
+        'source_reference' => 'TEST-MAKER-APPROVE-1',
+        'source_document_digest' => hash('sha256', 'test-maker-approve-proof'),
+        'cash_evidence_reference' => 'Cashier register proof',
+        'currency' => 'USDC',
+        'received_amount' => '50.000000',
+        'restricted_amount' => '0',
+        'collected_from' => now()->subDay()->toIso8601String(),
+        'collected_until' => now()->toIso8601String(),
+        'source_stream_disjoint' => true,
+        'received_not_forecast' => true,
+    ]);
+
+    // Maker (cashier) attempts to approve directly from Policy Evaluations
+    $this->actingAs($cashier)->postJson(route('finance.policy-evaluations.approve-receipt'), [
+        'collection_id' => $batch->id,
+    ])->assertSuccessful();
+
+    $review = CollectionBatchReview::query()->where('collection_batch_id', $batch->id)->firstOrFail();
+    expect($review->decision)->toBe('approve_receipts')
+        // Strict dual-control: reviewer MUST NOT be the maker
+        ->and($review->reviewed_by)->not->toBe($cashier->id);
+});

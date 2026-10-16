@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\ReviewCollectionBatch;
 use App\Http\Requests\StoreInstitutionPolicyEvaluationRequest;
+use App\Jobs\EvaluateInstitutionPolicy;
 use App\Models\BudgetSnapshot;
 use App\Models\CollectionBatch;
+use App\Models\CollectionBatchReview;
 use App\Models\InstitutionPolicyEvaluation;
 use App\Models\InstitutionPolicyPublication;
+use App\Models\StudentTuitionPayment;
 use App\Models\Transaction;
+use App\Models\User;
+use App\Services\AutonomousPipelineBridge;
 use App\Services\InstallationInstitution;
 use App\Services\InstitutionPolicyEvaluations;
 use App\Services\InstitutionPolicyWorkspace;
@@ -17,10 +23,12 @@ use App\Settings\AiSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class InstitutionPolicyEvaluationController extends Controller
 {
@@ -89,6 +97,94 @@ class InstitutionPolicyEvaluationController extends Controller
         Gate::forUser($request->user())->authorize('view', $institutionPolicyEvaluation);
 
         return response()->json(['data' => $this->data($institutionPolicyEvaluation)])->header('Cache-Control', 'no-store, private');
+    }
+
+    public function approveReceipt(
+        Request $request,
+        InstallationInstitution $institutions,
+        ReviewCollectionBatch $reviewCollection,
+        InstitutionPolicyWorkspace $policies,
+        InstitutionPolicyEvaluations $evaluations
+    ): JsonResponse {
+        $actor = $request->user();
+        abort_unless($actor instanceof User && $actor->hasAnyRole(['admin', 'super_admin']), 403);
+
+        $validated = $request->validate([
+            'collection_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $institution = $institutions->require();
+        /** @var CollectionBatch $batch */
+        $batch = CollectionBatch::query()
+            ->where('organization_id', $institution->id)
+            ->findOrFail((int) $validated['collection_id']);
+
+        Gate::forUser($actor)->authorize('view', $batch);
+
+        $existingReview = CollectionBatchReview::query()->where('collection_batch_id', $batch->id)->first();
+        if ($existingReview === null) {
+            if ($batch->tuitionPayment instanceof StudentTuitionPayment && config('eduflow.autonomous_pipeline.enabled', true)) {
+                app(AutonomousPipelineBridge::class)->bridgePayment($batch->tuitionPayment);
+            } else {
+                $reviewer = ($actor->id !== $batch->prepared_by && $actor->hasAnyRole(['admin', 'super_admin']))
+                    ? $actor
+                    : app(AutonomousPipelineBridge::class)->resolveReviewer($actor, $batch);
+
+                $reviewCollection->handle(
+                    $reviewer,
+                    $batch,
+                    $batch->snapshot_digest,
+                    'approve_receipts',
+                    'Direct staff approval from Policy Evaluations',
+                    'Verified receipt against institutional ledger and treasury records.'
+                );
+            }
+        }
+
+        // Re-evaluate against active policy publication so updated results are immediate
+        $newEvaluation = null;
+        $publication = $policies->active();
+        if ($publication instanceof InstitutionPolicyPublication) {
+            $source = $evaluations->source($actor, 'collection', $batch->id);
+
+            /** @var InstitutionPolicyEvaluation|null $existingEvaluation */
+            $existingEvaluation = InstitutionPolicyEvaluation::query()
+                ->where('organization_id', $institution->id)
+                ->where('source_type', 'collection')
+                ->where('source_id', $batch->id)
+                ->latest('id')
+                ->first();
+
+            if ($existingEvaluation instanceof InstitutionPolicyEvaluation
+                && $existingEvaluation->state === 'completed'
+                && $existingEvaluation->source_digest === $source['source_digest']
+                && ! ($existingEvaluation->result['needs_review'] ?? false)) {
+                $newEvaluation = $existingEvaluation;
+            } else {
+                $newEvaluation = $evaluations->request($actor, [
+                    'source_type' => 'collection',
+                    'source_id' => $batch->id,
+                    'source_digest' => $source['source_digest'],
+                    'expected_publication_digest' => $publication->publication_digest,
+                    'request_key' => (string) Str::uuid(),
+                    'reason' => 'Fresh evaluation after receipt approval and verification.',
+                ]);
+
+                try {
+                    app()->call([new EvaluateInstitutionPolicy($newEvaluation->id), 'handle']);
+                    $newEvaluation->refresh();
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Receipt approved and verified. Policy evaluation completed.',
+            'collection_id' => $batch->id,
+            'evaluation' => $newEvaluation !== null ? $this->data($newEvaluation) : null,
+        ]);
     }
 
     /** @return array<string, mixed> */

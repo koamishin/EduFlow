@@ -14,6 +14,7 @@ use App\Actions\ReviewVendorPayment;
 use App\Actions\RollOverFundingWindow;
 use App\DTOs\Money;
 use App\Enums\CurrencyCode;
+use App\Jobs\EvaluateInstitutionPolicy;
 use App\Jobs\ProcessPaymentSubmission;
 use App\Models\Budget;
 use App\Models\BudgetSnapshot;
@@ -22,6 +23,8 @@ use App\Models\CollectionBatchReview;
 use App\Models\FinanceWorkflowRun;
 use App\Models\FundingWindow;
 use App\Models\FundingWindowApproval;
+use App\Models\InstitutionPolicyEvaluation;
+use App\Models\InstitutionPolicyPublication;
 use App\Models\Invoice;
 use App\Models\InvoiceVersion;
 use App\Models\InvoiceVersionReview;
@@ -40,6 +43,7 @@ use Illuminate\Validation\ValidationException;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Throwable;
 
 /**
  * Autonomous Pipeline Bridge
@@ -94,10 +98,13 @@ final readonly class AutonomousPipelineBridge
 
         $institution = $this->institutions->require();
         $maker = $this->resolveMaker($payment);
-        $reviewer = $this->resolveReviewer($maker);
+        $reviewer = $this->resolveReviewer($maker, $batch);
 
         // Step 2: Ensure Dual-Control Collection Review
         $collectionReview = $this->ensureCollectionReview($reviewer, $batch);
+
+        // Step 2.5: Ensure Institution Policy Evaluation
+        $this->ensurePolicyEvaluation($reviewer, $batch);
 
         // Step 3: Identify Target Invoice Version & Budget
         $billVersion = $this->findEligibleInvoice($institution, $targetInvoiceId);
@@ -152,6 +159,19 @@ final readonly class AutonomousPipelineBridge
                 'Autonomous pipeline accepted JEV-classified budget plan.'
             );
             $run->refresh();
+        }
+
+        if ($run->state !== 'completed') {
+            return [
+                'success' => true,
+                'stage' => 'tuition_reconciled_bill_held',
+                'message' => 'Tuition payment successfully reconciled into treasury collections; available realized cash ('.(new Money($batch->received_minor_units, CurrencyCode::USDC))->format().' USDC) does not cover vendor bill ('.(new Money($billVersion->valuation_base_units, CurrencyCode::USDC))->format().' USDC). Bill held for additional collections.',
+                'payment_id' => $payment->id,
+                'collection_batch_id' => $batch->id,
+                'collection_review_id' => $collectionReview->id,
+                'budget_snapshot_id' => $snapshot->id,
+                'workflow_run_id' => $run->id,
+            ];
         }
 
         // Step 6: Treasury Wallet Resolution
@@ -509,22 +529,23 @@ final readonly class AutonomousPipelineBridge
         return $user;
     }
 
-    public function resolveReviewer(User $maker): User
+    public function resolveReviewer(User $maker, ?CollectionBatch $batch = null): User
     {
+        $excludedIds = array_values(array_unique(array_filter([$maker->id, $batch?->prepared_by])));
         $id = config('eduflow.autonomous_pipeline.reviewer_id', 1);
-        $user = User::query()->find($id);
+        $user = in_array((int) $id, $excludedIds, true) ? null : User::query()->find($id);
 
-        if (! $user instanceof User || ! $user->hasVerifiedEmail() || $user->id === $maker->id) {
+        if (! $user instanceof User || ! $user->hasVerifiedEmail() || in_array($user->id, $excludedIds, true)) {
             $user = User::query()
                 ->whereHas('roles', fn ($q) => $q->whereIn('name', ['super_admin', 'admin', 'finance_officer']))
                 ->whereNotNull('email_verified_at')
-                ->where('id', '!=', $maker->id)
+                ->whereNotIn('id', $excludedIds)
                 ->first();
 
             if (! $user instanceof User) {
                 $user = User::query()
                     ->whereNotNull('email_verified_at')
-                    ->where('id', '!=', $maker->id)
+                    ->whereNotIn('id', $excludedIds)
                     ->firstOrFail();
             }
         }
@@ -562,6 +583,52 @@ final readonly class AutonomousPipelineBridge
             ->where('organization_id', $institution->id)
             ->where('status', 'active')
             ->firstOrFail();
+    }
+
+    public function ensurePolicyEvaluation(User $reviewer, CollectionBatch $batch): ?InstitutionPolicyEvaluation
+    {
+        try {
+            $workspace = app(InstitutionPolicyWorkspace::class);
+            $publication = $workspace->active();
+            if (! $publication instanceof InstitutionPolicyPublication) {
+                return null;
+            }
+
+            /** @var InstitutionPolicyEvaluation|null $existing */
+            $existing = InstitutionPolicyEvaluation::query()
+                ->where('organization_id', $batch->organization_id)
+                ->where('source_type', 'collection')
+                ->where('source_id', $batch->id)
+                ->latest('id')
+                ->first();
+
+            $evaluations = app(InstitutionPolicyEvaluations::class);
+            $source = $evaluations->source($reviewer, 'collection', $batch->id);
+
+            if ($existing !== null
+                && $existing->state === 'completed'
+                && $existing->source_digest === $source['source_digest']
+                && ! ($existing->result['needs_review'] ?? false)) {
+                return $existing;
+            }
+
+            $evaluation = $evaluations->request($reviewer, [
+                'source_type' => 'collection',
+                'source_id' => $batch->id,
+                'source_digest' => $source['source_digest'],
+                'expected_publication_digest' => $publication->publication_digest,
+                'request_key' => (string) Str::uuid(),
+                'reason' => 'Autonomous pipeline intake evaluation against current institution policy.',
+            ]);
+
+            app()->call([new EvaluateInstitutionPolicy($evaluation->id), 'handle']);
+
+            return $evaluation->refresh();
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
     }
 
     private function generateReviewerTotp(User $reviewer): string

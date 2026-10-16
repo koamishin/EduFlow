@@ -46,6 +46,7 @@ Route::get('dashboard', [StudentDashboardController::class, 'index'])->middlewar
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('finance/policy-evaluations', [InstitutionPolicyEvaluationController::class, 'index'])->name('finance.policy-evaluations.index');
     Route::post('finance/policy-evaluations', [InstitutionPolicyEvaluationController::class, 'store'])->middleware('throttle:5,1')->name('finance.policy-evaluations.store');
+    Route::post('finance/policy-evaluations/approve-receipt', [InstitutionPolicyEvaluationController::class, 'approveReceipt'])->name('finance.policy-evaluations.approve-receipt');
     Route::get('finance/policy-evaluations/{institutionPolicyEvaluation}', [InstitutionPolicyEvaluationController::class, 'show'])
         ->middleware('throttle:60,1')->name('finance.policy-evaluations.show');
     Route::get('finance/policies', [InstitutionPolicyController::class, 'index'])->name('finance.policies.index');

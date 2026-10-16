@@ -15,6 +15,7 @@ use App\Models\InstitutionPolicyEvaluation;
 use App\Models\StudentBillPayment;
 use App\Models\StudentTuitionPayment;
 use App\Models\User;
+use App\Services\AutonomousPipelineBridge;
 use App\Services\InstallationInstitution;
 use BackedEnum;
 use Carbon\CarbonInterface;
@@ -52,6 +53,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Throwable;
 use UnitEnum;
 
 class Collections extends Page implements HasTable
@@ -105,6 +107,27 @@ class Collections extends Page implements HasTable
             && Gate::forUser(Auth::user())->allows('create', CollectionBatch::class);
     }
 
+    public function mount(): void
+    {
+        $collectionId = request()->query('collection_id');
+        if ($collectionId !== null && is_numeric($collectionId)) {
+            $record = CollectionBatch::query()->find((int) $collectionId);
+            if ($record instanceof CollectionBatch) {
+                $this->bootedInteractsWithTable();
+
+                $action = request()->query('action');
+                $hasReview = CollectionBatchReview::query()->where('collection_batch_id', $record->id)->exists();
+                if ($action !== 'view' && ! $hasReview && Gate::forUser(Auth::user())->allows('review', $record)) {
+                    $this->mountTableAction('reviewCollectionBatch', (string) $record->getKey());
+                } elseif ($action !== 'view' && ! $hasReview && $record->tuitionPayment()->exists() && Auth::user()?->hasAnyRole(['admin', 'super_admin', 'finance_officer'])) {
+                    $this->mountTableAction('autonomousReviewAndSettle', (string) $record->getKey());
+                } else {
+                    $this->mountTableAction('viewCollectionBatch', (string) $record->getKey());
+                }
+            }
+        }
+    }
+
     public function table(Table $table): Table
     {
         Gate::forUser(Auth::user())->authorize('create', CollectionBatch::class);
@@ -145,7 +168,8 @@ class Collections extends Page implements HasTable
                 Filter::make('awaiting_review')->label('Awaiting review')
                     ->query(function (Builder $query): void {
                         $query->whereNotIn('id', CollectionBatchReview::query()->select('collection_batch_id'));
-                    }),
+                    })
+                    ->excludeWhenResolvingRecord(),
                 SelectFilter::make('source_stream')->label('Payment channel')->options(fn (): array => $this->channelOptions()),
             ], layout: FiltersLayout::AboveContent)
             ->recordActions([
@@ -161,10 +185,10 @@ class Collections extends Page implements HasTable
                     })
                     ->schema(fn (): array => $this->batchEvidenceSchema())
                     ->modalSubmitAction(false)->modalCancelActionLabel('Close'),
-                Action::make('reviewCollectionBatch')->label('Review')->icon(Heroicon::ClipboardDocumentCheck)
+                Action::make('reviewCollectionBatch')->label('Review')->icon(Heroicon::CheckBadge)->color('primary')
                     ->visible(fn (CollectionBatch $record): bool => $record->getAttribute('review_decision') === null
                         && Gate::forUser(Auth::user())->allows('review', $record))
-                    ->modalHeading('Review collection')->modalWidth('3xl')->slideOver()
+                    ->modalHeading('Review & Verify collection')->modalWidth('3xl')->slideOver()
                     ->modalDescription('Compare the receipt/report with received funds and any restrictions. Only a different authorized staff member can review.')
                     ->modalSubmitActionLabel('Save review')
                     ->mountUsing(function (CollectionBatch $record, Schema $schema): void {
@@ -206,10 +230,51 @@ class Collections extends Page implements HasTable
                                 throw ValidationException::withMessages(['attestation' => 'Reopen the review and inspect the exact batch evidence.']);
                             }
                             $review->handle($this->actor(), $record, $this->mountedBatchDigest, $data['decision'], $data['verification_reference'], $data['reason']);
+
+                            if ($data['decision'] === 'approve_receipts' && $record->tuitionPayment instanceof StudentTuitionPayment && config('eduflow.autonomous_pipeline.enabled', true)) {
+                                try {
+                                    app(AutonomousPipelineBridge::class)->bridgePayment($record->tuitionPayment);
+                                } catch (Throwable $e) {
+                                    report($e);
+                                }
+                            }
                         } catch (ValidationException $exception) {
                             $this->reportActionValidation($exception, $schema);
                         }
                         Notification::make()->title('Review saved')->body('Receipt review only. No accounts changed and no payment authorized.')->success()->send();
+                    }),
+                Action::make('autonomousReviewAndSettle')->label('Auto-Verify & Bridge')->icon(Heroicon::Sparkles)->color('success')
+                    ->visible(fn (CollectionBatch $record): bool => $record->getAttribute('review_decision') === null
+                        && $record->student_tuition_payment_id !== null
+                        && Auth::user() instanceof User
+                        && Auth::user()->hasAnyRole(['admin', 'super_admin', 'finance_officer']))
+                    ->requiresConfirmation()
+                    ->modalHeading('Auto-Verify & Bridge Tuition')
+                    ->modalDescription('Execute independent dual-control review and autonomous pipeline bridging for this verified student payment.')
+                    ->modalSubmitActionLabel('Verify & Bridge')
+                    ->action(function (CollectionBatch $record): void {
+                        $payment = $record->tuitionPayment;
+                        if (! $payment instanceof StudentTuitionPayment) {
+                            Notification::make()->title('No linked tuition payment')->danger()->send();
+
+                            return;
+                        }
+
+                        try {
+                            app(AutonomousPipelineBridge::class)->bridgePayment($payment);
+                            Notification::make()
+                                ->title('Tuition Verified & Bridged')
+                                ->body('Dual-control receipt review and pipeline settlement executed successfully.')
+                                ->success()
+                                ->send();
+                        } catch (Throwable $e) {
+                            report($e);
+                            Notification::make()
+                                ->title('Bridge execution failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
             ])
             ->emptyStateHeading('Record your first collection')
@@ -609,8 +674,11 @@ class Collections extends Page implements HasTable
         return match ($batch->getAttribute('review_decision')) {
             'approve_receipts' => 'Recorded approval, not bank or payment verification',
             'reject', 'hold' => 'Ask finance staff; this decision is final',
-            default => Gate::forUser(Auth::user())->allows('review', $batch)
-                ? 'Open details, check proof, then review' : 'Another authorized staff member must review',
+            default => $batch->student_tuition_payment_id !== null
+                ? 'Click "Review & Verify" or "Auto-Verify & Bridge"'
+                : (Gate::forUser(Auth::user())->allows('review', $batch)
+                    ? 'Open details, check proof, then review'
+                    : 'Another authorized staff member must review'),
         };
     }
 

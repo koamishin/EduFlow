@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use App\Actions\CaptureCollectionBatch;
+use App\Actions\ImportTuitionPaymentAsCollection;
 use App\Actions\ReviewCollectionBatch;
 use App\Filament\Pages\Collections;
 use App\Models\CollectionBatch;
 use App\Models\CollectionBatchReview;
 use App\Models\Organization;
 use App\Models\PaymentIntent;
+use App\Models\StudentTuitionPayment;
 use App\Models\Transaction;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
@@ -372,4 +374,86 @@ test('legacy collection records remain readable without claiming retained source
     $page->__call('mountAction', [TestAction::make('viewCollectionBatch')->table($batch)]);
     expect(implode('', $page->effects['partials'] ?? []))->toContain('No uploaded file')->not->toContain('Download receipt / report');
     get(route('finance.collection-batches.document', $batch))->assertNotFound();
+});
+
+test('collections deep link auto-mounts review action when unreviewed and user is reviewer', function (): void {
+    $c = cashierCollectionContext('admin');
+    $batch = captureCashierDocument($c['cashier']);
+    actingAs($c['reviewer']);
+    $page = Livewire::withQueryParams(['collection_id' => (string) $batch->id])->test(Collections::class);
+    $page->assertActionMounted(TestAction::make('reviewCollectionBatch')->table($batch));
+});
+
+test('collections deep link auto-mounts view details when already reviewed', function (): void {
+    $c = cashierCollectionContext('admin');
+    $batch = captureCashierDocument($c['cashier']);
+    app(ReviewCollectionBatch::class)->handle($c['reviewer'], $batch, $batch->snapshot_digest, 'approve_receipts', 'Checked register', 'Approved');
+    actingAs($c['reviewer']);
+    $page = Livewire::withQueryParams(['collection_id' => (string) $batch->id])->test(Collections::class);
+    $page->assertActionMounted(TestAction::make('viewCollectionBatch')->table($batch));
+});
+
+test('collections deep link auto-mounts autonomousReviewAndSettle for unreviewed tuition batch when user is preparer', function (): void {
+    $c = cashierCollectionContext('admin');
+    $treasury = '0x2629de3b67042842ab2a2e33a1bd81ca583d975c';
+    config(['lepton.arc.treasury' => $treasury]);
+    $tuitionPayment = StudentTuitionPayment::factory()->create([
+        'request_key' => (string) Str::uuid(),
+        'amount_base_units' => 5_000000,
+        'applied_base_units' => 5_000000,
+        'overpayment_base_units' => 0,
+        'simulated' => false,
+        'tx_verified_on_chain' => true,
+        'executed_at' => now(),
+        'recipient_address' => $treasury,
+    ]);
+    $batch = app(ImportTuitionPaymentAsCollection::class)->handle($c['cashier'], $tuitionPayment, (string) Str::uuid());
+
+    actingAs($c['cashier']);
+    $page = Livewire::withQueryParams(['collection_id' => (string) $batch->id])->test(Collections::class);
+    $page->assertActionMounted(TestAction::make('autonomousReviewAndSettle')->table($batch));
+});
+
+test('collections table exposes auto-verify action on unreviewed tuition batch', function (): void {
+    $c = cashierCollectionContext('admin');
+    $treasury = '0x2629de3b67042842ab2a2e33a1bd81ca583d975c';
+    config(['lepton.arc.treasury' => $treasury]);
+    $tuitionPayment = StudentTuitionPayment::factory()->create([
+        'request_key' => (string) Str::uuid(),
+        'amount_base_units' => 5_000000,
+        'applied_base_units' => 5_000000,
+        'overpayment_base_units' => 0,
+        'simulated' => false,
+        'tx_verified_on_chain' => true,
+        'executed_at' => now(),
+        'recipient_address' => $treasury,
+    ]);
+    $batch = app(ImportTuitionPaymentAsCollection::class)->handle($c['cashier'], $tuitionPayment, (string) Str::uuid());
+
+    actingAs($c['reviewer']);
+    $page = Livewire::test(Collections::class);
+    $page->assertActionVisible(TestAction::make('autonomousReviewAndSettle')->table($batch));
+});
+
+test('autonomousReviewAndSettle action bridges tuition payment', function (): void {
+    $c = cashierCollectionContext('admin');
+    $treasury = '0x2629de3b67042842ab2a2e33a1bd81ca583d975c';
+    config(['lepton.arc.treasury' => $treasury, 'eduflow.autonomous_pipeline.enabled' => true]);
+    $tuitionPayment = StudentTuitionPayment::factory()->create([
+        'request_key' => (string) Str::uuid(),
+        'amount_base_units' => 5_000000,
+        'applied_base_units' => 5_000000,
+        'overpayment_base_units' => 0,
+        'simulated' => false,
+        'tx_verified_on_chain' => true,
+        'executed_at' => now(),
+        'recipient_address' => $treasury,
+    ]);
+    $batch = app(ImportTuitionPaymentAsCollection::class)->handle($c['cashier'], $tuitionPayment, (string) Str::uuid());
+
+    actingAs($c['reviewer']);
+    $page = Livewire::test(Collections::class);
+    $page->callAction(TestAction::make('autonomousReviewAndSettle')->table($batch));
+    $page->assertHasNoActionErrors();
+    expect(CollectionBatchReview::query()->where('collection_batch_id', $batch->id)->exists())->toBeTrue();
 });

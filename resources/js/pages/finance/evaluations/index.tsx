@@ -43,7 +43,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { formatUsdc } from '@/lib/financial-aid';
-import { store } from '@/routes/finance/policy-evaluations';
+import { approveReceipt, store } from '@/routes/finance/policy-evaluations';
 
 type Source = {
     source_type: 'collection' | 'transaction' | 'budget_snapshot';
@@ -203,6 +203,10 @@ export default function PolicyEvaluations({
     const [local, setLocal] = useState<Evaluation | null>(null);
     const [pollError, setPollError] = useState(false);
     const http = useHttp<Record<string, never>, { data: Evaluation }>({});
+    const approveHttp = useHttp<
+        { collection_id: number },
+        { success: boolean; evaluation: Evaluation | null }
+    >({ collection_id: 0 });
     const source = sources.find(
         (item) => `${item.source_type}:${item.source_id}` === sourceKey,
     );
@@ -260,6 +264,22 @@ export default function PolicyEvaluations({
             setSelectedId(response.data.id);
             start();
             router.reload({ only: ['evaluations'] });
+        } catch {
+            /* Server validation remains inline. */
+        }
+    }
+
+    async function handleApproveReceipt() {
+        if (!source || source.source_type !== 'collection') return;
+        approveHttp.transform(() => ({ collection_id: source.source_id }));
+        try {
+            const response = await approveHttp.post(approveReceipt.url());
+            if (response.evaluation) {
+                setLocal(response.evaluation);
+                setSelectedId(response.evaluation.id);
+            }
+            start();
+            router.reload();
         } catch {
             /* Server validation remains inline. */
         }
@@ -547,7 +567,7 @@ export default function PolicyEvaluations({
                                                 'collection' && (
                                                 <div className="pt-2 border-t border-border/50 flex justify-end">
                                                     <a
-                                                        href={collectionsUrl}
+                                                        href={`${collectionsUrl}?collection_id=${source.source_id}&action=review`}
                                                         className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                                                     >
                                                         Open in Collections
@@ -735,41 +755,61 @@ export default function PolicyEvaluations({
 
                                         <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
                                             {isUnreviewedCollection ? (
-                                                <div className="rounded-lg border border-amber-200 bg-white/70 p-3.5 dark:border-amber-800/40 dark:bg-white/5 flex flex-col justify-between gap-2">
+                                                <div className="rounded-lg border border-amber-200 bg-white/70 p-3.5 dark:border-amber-800/40 dark:bg-white/5 flex flex-col justify-between gap-3">
                                                     <div>
-                                                        <span className="text-xs font-semibold text-foreground">
-                                                            Step 1: Review
-                                                            Receipt in
-                                                            Collections
-                                                        </span>
-                                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                                            This receipt has not
-                                                            been approved by
-                                                            staff yet. A
-                                                            separate officer
-                                                            must check the proof
-                                                            of funds.
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="text-xs font-semibold text-foreground">
+                                                                Step 1: Review & Verify Receipt
+                                                            </span>
+                                                            <Badge variant="warning-light" className="text-[10px]">
+                                                                Pending Review
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                                            This receipt awaits dual-control verification. You can approve and re-evaluate it with one click, or inspect details in the Collections ledger.
                                                         </p>
                                                     </div>
-                                                    <Button
-                                                        asChild
-                                                        size="sm"
-                                                        variant="default"
-                                                        className="w-full"
-                                                    >
-                                                        <a
-                                                            href={
-                                                                collectionsUrl
-                                                            }
+
+                                                    {Object.values(approveHttp.errors).flat().map((error, idx) => (
+                                                        <Alert key={idx} variant="destructive" className="py-2 text-xs">
+                                                            <AlertDescription>{error}</AlertDescription>
+                                                        </Alert>
+                                                    ))}
+
+                                                    <div className="flex flex-col gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="default"
+                                                            disabled={approveHttp.processing}
+                                                            onClick={handleApproveReceipt}
+                                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                                         >
-                                                            Open Collections
-                                                            Ledger
-                                                            <ExternalLink
+                                                            <CheckCircle2
                                                                 aria-hidden="true"
-                                                                className="ml-1.5 h-3.5 w-3.5"
+                                                                className="mr-1.5 h-3.5 w-3.5"
                                                             />
-                                                        </a>
-                                                    </Button>
+                                                            {approveHttp.processing
+                                                                ? 'Approving & Re-evaluating…'
+                                                                : 'Approve & Verify Receipt (1-Click)'}
+                                                        </Button>
+                                                        <Button
+                                                            asChild
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="w-full"
+                                                        >
+                                                            <a
+                                                                href={`${collectionsUrl}?collection_id=${source.source_id}&action=review`}
+                                                            >
+                                                                Open Collections Ledger
+                                                                <ExternalLink
+                                                                    aria-hidden="true"
+                                                                    className="ml-1.5 h-3.5 w-3.5"
+                                                                />
+                                                            </a>
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <div className="rounded-lg border border-amber-200 bg-white/70 p-3.5 dark:border-amber-800/40 dark:bg-white/5 flex flex-col justify-between gap-2">

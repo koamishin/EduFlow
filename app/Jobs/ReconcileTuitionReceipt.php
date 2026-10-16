@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Models\StudentTuitionPayment;
+use App\Services\AutonomousPipelineBridge;
 use App\Services\TuitionReceiptIntake;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -41,11 +42,21 @@ class ReconcileTuitionReceipt implements ShouldQueue
     public function handle(TuitionReceiptIntake $intake): void
     {
         $payment = StudentTuitionPayment::query()->find($this->paymentId);
-        if ($payment === null || $payment->collections()->exists()) {
+        if ($payment === null) {
             return;
         }
 
-        $intake->reconcile($payment);
+        if (! $payment->collections()->exists()) {
+            $intake->reconcile($payment);
+        }
+
+        if (config('eduflow.autonomous_pipeline.enabled', true)) {
+            try {
+                app(AutonomousPipelineBridge::class)->bridgePayment($payment);
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
     }
 
     public function failed(?Throwable $exception): void
