@@ -14,6 +14,13 @@ declare module '@inertiajs/core' {
             auth: Auth;
             notificationSummary: DashboardNotificationSummary | null;
             sidebarOpen: boolean;
+            network?: {
+                isMainnet: boolean;
+                name: string;
+                chainCode: string;
+                chainId: number;
+                explorerUrl: string;
+            };
             [key: string]: unknown;
         };
     }

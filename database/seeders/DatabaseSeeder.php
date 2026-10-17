@@ -12,16 +12,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-
         $this->call([
             RolesAndPermissionsSeeder::class,
         ]);
 
         if (app()->environment(['local', 'testing'])) {
-            // Demo users (including the password `password`) are retained for
-            // local testing only. Financial demo data, wallets, transactions,
-            // budgets, invoices and assistance requests now come from the
-            // Circle/Lepton testnet path, not the database.
             $this->call([
                 DemoUsersSeeder::class,
             ]);

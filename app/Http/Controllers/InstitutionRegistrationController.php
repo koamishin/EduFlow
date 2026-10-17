@@ -169,6 +169,7 @@ class InstitutionRegistrationController extends Controller
             report($e);
         }
 
-        return redirect()->route('institutions.setup');
+        return redirect()->route('institutions.setup')
+            ->with('success', "Educational institution \"{$org->name}\" deployed successfully! Please complete first-time configuration.");
     }
 }

@@ -24,12 +24,17 @@ class EduFlowFinancialSeeder extends Seeder
         $org = Organization::updateOrCreate(
             ['name' => 'Northstar Learning Center'],
             [
+                'slug' => 'northstar-learning-center',
+                'domain' => 'northstar.eduflow.internal',
+                'country' => 'United States',
+                'timezone' => 'UTC',
                 'type' => 'school',
                 'currency' => 'USDC',
                 'minimum_reserve' => 20.00,
                 'max_auto_payment' => 50.00,
                 'max_daily_disbursement' => 200.00,
                 'human_approval_threshold' => 50.00,
+                'is_setup_completed' => true,
             ]
         );
 

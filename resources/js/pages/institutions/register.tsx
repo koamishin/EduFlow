@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
+    AlertCircle,
     ArrowLeft,
     Building2,
     CheckCircle2,
@@ -12,6 +13,7 @@ import {
     Wallet as WalletIcon,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import { Badge } from '@/components/ui/badge';
@@ -96,7 +98,17 @@ export default function InstitutionRegister({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post('/institutions/register');
+        post('/institutions/register', {
+            onSuccess: () => {
+                toast.success('Institution deployed successfully! Loading setup wizard...');
+            },
+            onError: (errs) => {
+                const keys = Object.keys(errs);
+                const firstMsg = keys.length > 0 ? errs[keys[0]] : null;
+                toast.error(firstMsg || 'Please correct the highlighted form errors.');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+        });
     };
 
     return (
@@ -145,6 +157,21 @@ export default function InstitutionRegister({
 
                 {/* Form Container */}
                 <form onSubmit={handleSubmit} className="space-y-8">
+                    {Object.keys(errors).length > 0 && (
+                        <div className="rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-200 shadow-md">
+                            <div className="flex items-center gap-2 font-semibold text-red-400 mb-2">
+                                <AlertCircle className="size-4 shrink-0" />
+                                <span>Registration couldn't be completed. Please fix the following errors:</span>
+                            </div>
+                            <ul className="list-disc list-inside space-y-1 text-xs text-red-300">
+                                {Object.entries(errors).map(([field, msg]) => (
+                                    <li key={field}>
+                                        <span className="font-semibold capitalize">{field.replace(/_/g, ' ')}:</span> {msg}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                     {/* Step 1: Institution Details */}
                     <Card className="clay-card border-[var(--clay-border,#2e2924)] bg-[#141210]/95 shadow-xl">
                         <CardHeader className="pb-4 border-b border-[var(--clay-border,#2e2924)]">

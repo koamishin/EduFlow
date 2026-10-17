@@ -9,6 +9,7 @@ use App\Settings\ApplicationFeaturesSettings;
 use App\Settings\SocialLoginSettings;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -56,9 +57,21 @@ class HandleInertiaRequests extends Middleware
             ->values()
             ->all();
 
+        $networkGateway = app(ArcNetworkGateway::class);
+        $isMainnet = \App\Services\ArcNetworkGateway::isMainnetGateway($networkGateway);
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'network' => [
+                'isMainnet' => $isMainnet,
+                'name' => $isMainnet ? 'Arc Mainnet' : 'Arc Testnet',
+                'chainCode' => $networkGateway->chainCode(),
+                'chainId' => $networkGateway->chainId(),
+                'explorerUrl' => $isMainnet
+                    ? (string) config('lepton.explorer.mainnet', 'https://explorer.arc.network')
+                    : (string) config('lepton.explorer.testnet', 'https://testnet.arcscan.io'),
+            ],
             'auth' => [
                 'user' => $request->user(),
                 'impersonating' => app('impersonate')->isImpersonating(),
@@ -73,6 +86,11 @@ class HandleInertiaRequests extends Middleware
             'authLayout' => app(ApplicationFeaturesSettings::class)->auth_layout,
             'settingsFeatures' => $settingsFeatures,
             'socialProviders' => $socialProviders,
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+                'status' => $request->session()->get('status'),
+            ],
         ];
     }
 }

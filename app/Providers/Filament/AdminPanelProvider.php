@@ -49,6 +49,10 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::BODY_START,
                 fn (): string => Blade::render('@include("impersonate-banner")'),
             )
+            ->renderHook(
+                PanelsRenderHook::USER_MENU_BEFORE,
+                fn (): string => Blade::render('@include("filament.components.network-badge")'),
+            )
             ->databaseNotifications()
             ->login()
             ->colors([

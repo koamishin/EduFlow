@@ -31,14 +31,14 @@ class DefaultInstitutionPolicySeeder extends Seeder
     public function run(): void
     {
         /** @var Organization|null $institution */
-        $institution = app(InstallationInstitution::class)->current();
+        $institution = app(InstallationInstitution::class)->current() ?? Organization::query()->first();
         if ($institution === null) {
             $this->command?->warn('No institution found; skipping default policy.');
 
             return;
         }
 
-        $author = $this->author();
+        $author = $this->author($institution);
         if ($author === null) {
             $this->command?->warn('No finance officer or administrator to author the default policy; skipping.');
 
@@ -66,9 +66,14 @@ class DefaultInstitutionPolicySeeder extends Seeder
         $this->command?->line('Open /finance/policies to test it against its examples and have a second person publish it. Nothing is active yet.');
     }
 
-    private function author(): ?User
+    private function author(?Organization $institution = null): ?User
     {
-        return User::query()->whereNotNull('email_verified_at')->whereHas('roles', fn ($query) => $query->whereIn('name', ['finance_officer', 'admin', 'super_admin'])
-            ->where('guard_name', 'web'))->orderBy('id')->first();
+        return User::query()
+            ->whereNotNull('email_verified_at')
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['finance_officer', 'admin', 'super_admin'])
+                ->where('guard_name', 'web'))
+            ->when($institution?->id, fn ($q) => $q->where('organization_id', $institution->id))
+            ->orderBy('id')
+            ->first() ?? User::query()->whereNotNull('email_verified_at')->first();
     }
 }

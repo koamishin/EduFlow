@@ -11,6 +11,7 @@ import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
+import { NetworkBadge } from '@/components/network-badge';
 import {
     Sidebar,
     SidebarContent,
@@ -75,6 +76,9 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
+                <div className="px-2 pt-1 pb-0.5 group-data-[collapsible=icon]:hidden">
+                    <NetworkBadge className="w-full justify-center" />
+                </div>
             </SidebarHeader>
 
             <SidebarContent>

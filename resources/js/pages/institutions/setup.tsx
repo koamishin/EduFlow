@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { toast } from 'sonner';
 import {
     ArrowRight,
     Bot,
@@ -107,6 +108,19 @@ export default function InstitutionSetup({
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false);
     const [submitting, setSubmitting] = useState<boolean>(false);
 
+    const page = usePage();
+    const flash = (page.props as any).flash as { success?: string; error?: string; status?: string } | undefined;
+
+    useEffect(() => {
+        if (flash?.success) {
+            toast.success(flash.success);
+        } else if (flash?.status) {
+            toast.info(flash.status);
+        } else if (flash?.error) {
+            toast.error(flash.error);
+        }
+    }, [flash]);
+
     const handleBudgetChange = (id: number, value: string) => {
         const val = parseFloat(value) || 0;
         setBudgets(budgets.map((b) => (b.id === id ? { ...b, allocated_amount: val } : b)));
@@ -198,6 +212,16 @@ export default function InstitutionSetup({
                         Your sovereign school treasury, autonomous JEV finance agent, and multi-school tenancy are provisioned. Review and confirm your first-time application configuration below before opening your finance console.
                     </p>
                 </div>
+
+                {flash?.success && (
+                    <div className="mb-8 flex items-start gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-emerald-200 shadow-xl backdrop-blur-sm animate-in fade-in duration-300">
+                        <CheckCircle2 className="size-5 shrink-0 text-emerald-400 mt-0.5" />
+                        <div>
+                            <p className="font-semibold text-white">Tenancy Deployed Successfully</p>
+                            <p className="text-xs text-emerald-300/90 mt-0.5">{flash.success}</p>
+                        </div>
+                    </div>
+                )}
 
                 <form onSubmit={handleComplete} className="space-y-8">
                     {/* Section 1: Institution Profile & Identity */}

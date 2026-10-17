@@ -93,6 +93,16 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
         return rtrim($this->explorerBase(), '/').'/address/'.$address;
     }
 
+    public static function isMainnetGateway(ArcNetworkGatewayContract $gateway): bool
+    {
+        if (method_exists($gateway, 'isMainnet')) {
+            return $gateway->isMainnet();
+        }
+
+        return in_array($gateway->chainCode(), ['ARC', 'ARC-MAINNET'], true)
+            || $gateway->chainId() === self::MAINNET_CHAIN_ID;
+    }
+
     public function isMainnet(): bool
     {
         return in_array($this->chainCode, ['ARC', 'ARC-MAINNET'], true)
