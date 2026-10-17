@@ -15,6 +15,9 @@ use App\Services\ArcNetworkGateway as AppArcNetworkGateway;
 use App\Services\LeptonTreasuryService;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
+use Yukazakiri\Lepton\Contracts\AuthGateway;
+use Yukazakiri\Lepton\Contracts\JsonTransport;
+use Yukazakiri\Lepton\DTOs\HttpResponse;
 
 beforeEach(function (): void {
     config([
@@ -101,7 +104,8 @@ test('status never throws when the chain is unreachable and explains why', funct
     expect($status['live_available'])->toBeFalse()
         ->and($status['onchain_balance'])->toBeNull()
         ->and($status['block'])->toBeNull()
-        ->and($status['error'])->toContain('circle wallet login');
+        ->and($status['error'])->toContain('HTTP JSON-RPC')
+        ->and($status['error'])->toContain('No CLI login is required.');
 });
 
 test('status surfaces ledger drift instead of hiding it', function (): void {
@@ -258,6 +262,114 @@ test('syncBalance is a no-op when the chain cannot be read', function (): void {
 
     expect(app(LeptonTreasuryService::class)->syncBalance($this->wallet))->toBeNull()
         ->and($this->wallet->fresh()->balance)->toBe(25420.00);
+});
+
+test('treasury sync uses HTTP RPC without wallet authentication', function (string $quantity, float $expected): void {
+    $auth = Mockery::mock(AuthGateway::class);
+    $auth->shouldNotReceive('authStatus', 'isAuthenticatedFor', 'beginLogin', 'completeLogin');
+    $this->app->instance(AuthGateway::class, $auth);
+
+    $transport = Mockery::mock(JsonTransport::class);
+    mockExpectation($transport, 'request')->times(3)->andReturnUsing(
+        function (string $method, string $url, array $headers, ?array $body) use ($quantity): HttpResponse {
+            expect($method)->toBe('POST')
+                ->and($url)->toBe('https://configured.example.com/rpc');
+
+            if ($body['method'] === 'eth_getBalance') {
+                expect($body['params'])->toBe([$this->wallet->address, 'latest']);
+            }
+
+            return new HttpResponse(200, ['result' => match ($body['method']) {
+                'eth_chainId' => '0x13b2',
+                'eth_getBalance' => $quantity,
+                'eth_blockNumber' => '0x10',
+            }]);
+        },
+    );
+    $this->app->instance(JsonTransport::class, $transport);
+    config([
+        'lepton.default' => 'developer',
+        'lepton.arc.rpc_url' => null,
+        'lepton.rpc.testnet' => 'https://configured.example.com/rpc',
+    ]);
+    $this->app->forgetInstance(ArcNetworkGateway::class);
+
+    expect(app(LeptonTreasuryService::class)->syncBalance($this->wallet))->toBe($expected)
+        ->and($this->wallet->fresh()->balance)->toBe($expected);
+})->with([
+    'funded wallet' => ['0x1158e460913d00000', 20.0],
+    'empty wallet' => ['0x0', 0.0],
+]);
+
+test('failed HTTP RPC reads preserve the ledger and return safe diagnostics', function (HttpResponse|Throwable $response, string $error): void {
+    $transport = Mockery::mock(JsonTransport::class);
+    mockExpectation($transport, 'request')->andReturnUsing(
+        static function (string $method, string $url, array $headers, ?array $body) use ($response): HttpResponse {
+            if ($body['method'] === 'eth_chainId') {
+                return new HttpResponse(200, ['result' => '0x13b2']);
+            }
+
+            if ($response instanceof Throwable) {
+                throw $response;
+            }
+
+            return $response;
+        },
+    );
+    $service = new LeptonTreasuryService(new AppArcNetworkGateway(
+        chainCode: 'ARC-TESTNET',
+        chainId: 5042,
+        transport: $transport,
+    ));
+
+    expect($service->syncBalance($this->wallet))->toBeNull()
+        ->and($this->wallet->fresh()->balance)->toBe(25420.0)
+        ->and($service->status($this->wallet)['error'])->toContain($error)
+        ->and($service->status($this->wallet)['error'])->not->toContain('private-endpoint-token');
+})->with([
+    'HTTP rejection' => [new HttpResponse(403), 'HTTP 403'],
+    'RPC rejection' => [new HttpResponse(200, ['error' => ['message' => 'private-endpoint-token']]), 'RPC rejected'],
+    'connection failure' => [new RuntimeException('https://example.com/private-endpoint-token'), 'endpoint connectivity'],
+    'HTTPS policy' => [new RuntimeException('SDK HTTP endpoints must use HTTPS without embedded credentials.'), 'must use HTTPS'],
+    'SDK connection failure' => [new RuntimeException('SDK HTTP transport failed; mutation outcome may be unknown.'), 'HTTPS connection failed or timed out'],
+    'invalid JSON' => [new RuntimeException('SDK endpoint returned invalid JSON; mutation outcome may be unknown.'), 'invalid JSON response'],
+    'unexpected JSON' => [new RuntimeException('SDK endpoint returned an unexpected JSON shape.'), 'invalid JSON response'],
+    'missing result' => [new HttpResponse(200, []), 'no usable balance'],
+    'malformed result' => [new HttpResponse(200, ['result' => ['private-endpoint-token']]), 'no usable balance'],
+]);
+
+test('arc gateway honors network-specific RPC configuration', function (string $chain, int $chainId, string $expected): void {
+    config([
+        'lepton.rpc.testnet' => 'https://testnet.example.com/rpc',
+        'lepton.rpc.mainnet' => 'https://mainnet.example.com/rpc',
+    ]);
+
+    $gateway = new AppArcNetworkGateway(chainCode: $chain, chainId: $chainId);
+    expect($gateway->rpcUrl())->toBe($expected);
+
+    $override = new AppArcNetworkGateway(
+        chainCode: $chain,
+        chainId: $chainId,
+        configuredRpcUrl: 'https://override.example.com/rpc',
+    );
+    expect($override->rpcUrl())->toBe('https://override.example.com/rpc');
+})->with([
+    'testnet' => ['ARC-TESTNET', 5042002, 'https://testnet.example.com/rpc'],
+    'mainnet' => ['ARC-MAINNET', 5040, 'https://mainnet.example.com/rpc'],
+]);
+
+test('treasury sync rejects a balance from the wrong network', function (): void {
+    $transport = Mockery::mock(JsonTransport::class);
+    mockExpectation($transport, 'request')->once()->andReturn(new HttpResponse(200, ['result' => '0x13b0']));
+    $service = new LeptonTreasuryService(new AppArcNetworkGateway(
+        chainCode: 'ARC-TESTNET',
+        chainId: 5042,
+        transport: $transport,
+    ));
+
+    expect($service->syncBalance($this->wallet))->toBeNull()
+        ->and($this->wallet->fresh()->balance)->toBe(25420.0)
+        ->and($service->status($this->wallet)['error'])->toContain('chain ID does not match');
 });
 
 test('adoptConfiguredWallet repoints a placeholder treasury at the agent wallet', function (): void {

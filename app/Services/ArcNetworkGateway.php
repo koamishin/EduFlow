@@ -43,10 +43,15 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
     public function rpcUrl(): string
     {
         if (is_string($this->configuredRpcUrl) && $this->configuredRpcUrl !== '') {
-            return $this->configuredRpcUrl;
+            return trim($this->configuredRpcUrl);
         }
 
-        return $this->defaultPublicRpcUrl();
+        $network = $this->isMainnet() ? 'mainnet' : 'testnet';
+        $configured = config('lepton.rpc.'.$network);
+
+        return is_string($configured) && trim($configured) !== ''
+            ? trim($configured)
+            : $this->defaultPublicRpcUrl();
     }
 
     public function defaultPublicRpcUrl(): string

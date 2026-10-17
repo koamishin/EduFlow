@@ -8,10 +8,14 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Wallet;
+use App\Services\ArcNetworkGateway as HttpArcNetworkGateway;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
+use Yukazakiri\Lepton\Contracts\JsonTransport;
+use Yukazakiri\Lepton\DTOs\HttpResponse;
 use Yukazakiri\Lepton\Gateways\FakeLeptonGateway;
 
 use function Pest\Laravel\actingAs;
@@ -121,6 +125,28 @@ test('non super admin users cannot access admin treasury wallet page', function 
     actingAs($this->financeOfficer)
         ->get(TreasuryWallet::getUrl())
         ->assertForbidden();
+});
+
+test('sync failure shows RPC diagnostics instead of requesting CLI login', function (): void {
+    actingAs($this->superAdmin);
+
+    $transport = Mockery::mock(JsonTransport::class);
+    mockExpectation($transport, 'request')->andReturn(new HttpResponse(503));
+    $this->app->instance(ArcNetworkGateway::class, new HttpArcNetworkGateway(
+        chainCode: 'ARC-TESTNET',
+        chainId: 5042,
+        treasuryAddress: $this->wallet->address,
+        transport: $transport,
+    ));
+
+    Livewire::test(TreasuryWallet::class)
+        ->callAction('syncBalance')
+        ->assertNotified(Notification::make()
+            ->title('Sync failed')
+            ->body('Arc RPC returned HTTP 503. Check endpoint access and availability. No CLI login is required.')
+            ->danger());
+
+    expect($this->wallet->fresh()->balance)->toBe(100.0);
 });
 
 test('sync balance action updates wallet ledger from chain', function (): void {
