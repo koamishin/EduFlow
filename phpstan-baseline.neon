@@ -1059,7 +1059,13 @@ parameters:
 		-
 			rawMessage: Expression on left side of ?? is not nullable.
 			identifier: nullCoalesce.expr
-			count: 2
+			count: 4
+			path: app/Http/Controllers/StudentDashboardController.php
+
+		-
+			rawMessage: Using nullsafe method call on non-nullable type App\Models\AcademicTerm. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
 			path: app/Http/Controllers/StudentDashboardController.php
 
 		-
@@ -1517,12 +1523,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/LeptonReconciliationService.php
-
-		-
-			rawMessage: 'Offset ''error'' on array{chain: string, chain_id: int, block: int|null, rpc_host: non-empty-string|null, driver: string, live_available: false, onchain_balance: null, ledger_balance: float, ...} on left side of ??= always exists and is always null.'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: app/Services/LeptonTreasuryService.php
 
 		-
 			rawMessage: 'Call to an undefined static method App\Models\Transaction::create().'

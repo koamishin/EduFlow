@@ -163,7 +163,9 @@ export default function InstitutionRegister({
                             <ArrowLeft className="size-3.5" />
                             Back to Home
                         </Link>
-                        <span className="text-xs text-[var(--clay-text-faint,var(--muted-foreground))]">·</span>
+                        <span className="text-xs text-[var(--clay-text-faint,var(--muted-foreground))]">
+                            ·
+                        </span>
                         <Link
                             href="/finance"
                             className="inline-flex items-center gap-1.5 text-xs text-[var(--clay-text-muted,var(--muted-foreground))] hover:text-[var(--clay-ink,var(--foreground))] transition-colors"

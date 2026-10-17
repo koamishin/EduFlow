@@ -244,6 +244,8 @@ class StudentTuitionPaymentController extends Controller
             ],
             'wallet' => [
                 'address' => $walletAddress,
+                'provider' => $student->wallet?->provider,
+                'controlled_by_student' => $student->wallet?->getAttribute('ownership_verified_at') !== null,
                 'qr_code' => $walletQr,
                 'snapshot' => $walletSnapshot->toArray(),
                 'balance_fiat' => $this->walletBalanceFiat($walletSnapshot, $converter, $displayCurrency),
@@ -267,6 +269,15 @@ class StudentTuitionPaymentController extends Controller
             'billPayments' => $billPayments,
             'pilot_enabled' => (bool) config('eduflow.student_bills.enabled', false),
             'tuition_enabled' => (bool) config('eduflow.student_tuition.enabled', false),
+            // The operator pilot signs through Circle, so it can only pay from an
+            // operator-minted wallet. A student who owns their wallet pays from the
+            // student-controlled checkout instead; sending them here would only
+            // fail after they believed a wallet was usable.
+            'tuition_payment_mode' => $student->wallet?->getAttribute('ownership_verified_at') !== null && $student->wallet->provider !== 'circle'
+                ? 'student_controlled'
+                : 'operator_pilot',
+            'student_wallets_enabled' => (bool) config('student-wallets.enabled'),
+            'circleAppId' => config('student-wallets.circle_api_key') ? config('student-wallets.circle_app_id') : null,
             'currency' => [
                 'display' => $displayCurrency->value,
                 'symbol' => $displayCurrency->symbol(),

@@ -4,6 +4,7 @@ import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import fastGlob from 'fast-glob';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import laravel from 'laravel-vite-plugin';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, lazyPlugins } from 'vite-plus';
@@ -36,6 +37,9 @@ export default defineConfig({
             presets: [reactCompilerPreset()],
         }),
         tailwindcss(),
+        nodePolyfills({
+            include: ['buffer', 'crypto', 'stream', 'util', 'process'],
+        }),
         wayfinder({
             formVariants: true,
         }),

@@ -79,6 +79,40 @@ test('explicit demo user seeding preserves local accounts and is idempotent', fu
         ->and(Hash::check('password', $admin->password))->toBeTrue();
 })->with(['local', 'testing']);
 
+test('demo user is repaired into a student and can access their wallet and payments', function (): void {
+    config(['lepton.default' => 'fake']);
+    Role::findOrCreate('user', 'web');
+    $user = User::factory()->create(['email' => 'user@user.com'])->assignRole('user');
+    $password = $user->getRawOriginal('password');
+
+    $this->seed(DemoUsersSeeder::class);
+    $this->seed(DemoUsersSeeder::class);
+    $user->refresh();
+
+    expect($user->hasRole('student'))->toBeTrue()
+        ->and($user->hasRole('user'))->toBeFalse()
+        ->and($user->student()->count())->toBe(1)
+        ->and($user->student()->firstOrFail()->payout_address)->toBeNull()
+        ->and($user->getRawOriginal('password'))->toBe($password);
+
+    $this->actingAs($user);
+    $this->get(route('student.wallet.show'))->assertSuccessful();
+    $this->get(route('payments.index'))->assertSuccessful();
+    $this->get(route('dashboard'))->assertRedirect(route('student.dashboard'));
+});
+
+test('demo seeding preserves an existing student wallet', function (): void {
+    $student = Student::factory()->create([
+        'user_id' => User::factory()->create(['email' => 'user@user.com'])->id,
+    ]);
+    $address = $student->payout_address;
+
+    $this->seed(DemoUsersSeeder::class);
+
+    expect($student->fresh()->payout_address)->toBe($address)
+        ->and($student->user->student()->count())->toBe(1);
+});
+
 test('direct role seeding never creates users including in local and testing environments', function (string $environment): void {
     app()->instance('env', $environment);
     $this->seed(RolesAndPermissionsSeeder::class);

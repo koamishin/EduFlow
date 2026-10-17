@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property int $id
@@ -94,13 +95,32 @@ class Transaction extends Model
      */
     public function scopePaidTo(Builder $query, ?string $address): void
     {
-        if (! is_string($address) || preg_match('/^0x[0-9a-fA-F]{40}$/D', $address) !== 1) {
+        $query->paidToAny(is_string($address) ? [$address] : []);
+    }
+
+    /**
+     * Several valid destinations, e.g. every wallet a student has ever linked
+     * after a deliberate switch. Malformed entries match nothing rather than
+     * everything.
+     *
+     * @param  iterable<mixed>  $addresses
+     */
+    public function scopePaidToAny(Builder $query, iterable $addresses): void
+    {
+        $valid = [];
+        foreach ($addresses as $address) {
+            if (is_string($address) && preg_match('/^0x[0-9a-fA-F]{40}$/D', $address) === 1) {
+                $valid[] = strtolower($address);
+            }
+        }
+
+        if ($valid === []) {
             $query->whereRaw('1 = 0');
 
             return;
         }
 
-        $query->whereRaw('lower(recipient_address) = ?', [strtolower($address)]);
+        $query->whereIn(DB::raw('lower(recipient_address)'), $valid);
     }
 
     /**

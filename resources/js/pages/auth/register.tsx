@@ -1,8 +1,6 @@
 import { Form, Head, Link } from '@inertiajs/react';
 import {
-    AlertCircle,
     Building2,
-    CheckCircle2,
     GraduationCap,
     ShieldCheck,
     Wallet as WalletIcon,
@@ -54,7 +52,6 @@ export default function Register({
               : '',
     );
     const [walletAddress, setWalletAddress] = useState<string>('');
-    const [isWalletVerified, setIsWalletVerified] = useState<boolean>(false);
     const [connectingWallet, setConnectingWallet] = useState<boolean>(false);
     const [walletError, setWalletError] = useState<string | null>(null);
 
@@ -86,24 +83,7 @@ export default function Register({
             const address = accounts[0];
             setWalletAddress(address);
 
-            // Request personal_sign verification for cryptographic ownership proof
-            const message = `Sign to verify your student wallet address for EduFlow:\n${address}\nTimestamp: ${new Date().toISOString()}`;
-            const hexMessage =
-                '0x' +
-                Array.from(new TextEncoder().encode(message))
-                    .map((b) => b.toString(16).padStart(2, '0'))
-                    .join('');
-
-            try {
-                await ethereum.request({
-                    method: 'personal_sign',
-                    params: [hexMessage, address],
-                });
-                setIsWalletVerified(true);
-            } catch (signErr) {
-                console.warn('Personal sign skipped or rejected', signErr);
-                // Even if signature is cancelled, the connected address is captured
-            }
+            // Ownership is verified by a server challenge after registration.
         } catch (err: unknown) {
             const errorMessage =
                 err instanceof Error
@@ -308,19 +288,12 @@ export default function Register({
                                         <WalletIcon className="size-3.5 text-primary" />
                                         Arc Web3 Payout Wallet
                                     </Label>
-                                    {isWalletVerified ? (
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] flex items-center gap-1">
-                                            <CheckCircle2 className="size-3" />
-                                            Signature Verified
-                                        </Badge>
-                                    ) : (
-                                        <Badge
-                                            variant="outline"
-                                            className="text-[10px] text-muted-foreground"
-                                        >
-                                            EIP-1193 / Arc
-                                        </Badge>
-                                    )}
+                                    <Badge
+                                        variant="outline"
+                                        className="text-[10px] text-muted-foreground"
+                                    >
+                                        Verify after registration
+                                    </Badge>
                                 </div>
 
                                 <p className="text-xs text-muted-foreground">
@@ -339,7 +312,7 @@ export default function Register({
                                     {connectingWallet ? (
                                         <>
                                             <Spinner className="size-3.5" />
-                                            Connecting & Requesting Signature...
+                                            Connecting wallet...
                                         </>
                                     ) : (
                                         <>
@@ -366,15 +339,14 @@ export default function Register({
                                         hex characters)
                                     </Label>
                                     <Input
+                                        aria-describedby="wallet-onboarding"
                                         id="wallet_address"
                                         type="text"
-                                        required
                                         tabIndex={5}
                                         name="wallet_address"
                                         value={walletAddress}
                                         onChange={(e) => {
                                             setWalletAddress(e.target.value);
-                                            setIsWalletVerified(false);
                                         }}
                                         placeholder="0x71C...49A"
                                         className="font-mono text-xs"
@@ -382,6 +354,16 @@ export default function Register({
                                     <InputError
                                         message={errors.wallet_address}
                                     />
+                                    <p
+                                        id="wallet-onboarding"
+                                        className="text-sm text-muted-foreground"
+                                    >
+                                        Wallet address is optional. After
+                                        registration, open My Wallet to verify a
+                                        browser wallet or create a Circle PIN
+                                        wallet without an extension. A pasted
+                                        address is not proof of ownership.
+                                    </p>
                                 </div>
                             </div>
 

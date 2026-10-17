@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import {
     Check,
     Copy,
@@ -7,16 +7,16 @@ import {
     TriangleAlert,
     Wallet,
 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
+import { show as controlledWallet } from '@/actions/App/Http/Controllers/StudentControlledWalletController';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import InputError from '@/components/input-error';
 import { Label } from '@/components/ui/label';
-import {
-    refresh as walletRefresh,
-    show as walletShow,
-} from '@/routes/student/wallet';
+import { refresh as walletRefresh } from '@/routes/student/wallet';
+import { update as walletUpdate } from '@/routes/wallet';
 import { index as paymentsIndex } from '@/routes/payments';
 import type { TuitionAttempt } from '@/types/financial-aid';
 
@@ -37,6 +37,7 @@ interface WalletSnapshot {
 interface WalletProps {
     snapshot: WalletSnapshot;
     tuitionAttempts?: TuitionAttempt[];
+    walletLocked?: boolean;
 }
 
 function formatBaseUnits(baseUnits: string | number): string {
@@ -60,9 +61,12 @@ function formatBalance(snapshot: WalletSnapshot): string {
 }
 
 export default function StudentWallet({
-    snapshot,
+    snapshot: initialSnapshot,
+    walletLocked = false,
     tuitionAttempts = [],
 }: WalletProps) {
+    const [snapshot, setSnapshot] = useState(initialSnapshot);
+    const [refreshing, setRefreshing] = useState(false);
     const hasAddress = Boolean(snapshot.address);
 
     const { data, setData, patch, processing, errors, reset } = useForm({
@@ -80,27 +84,50 @@ export default function StudentWallet({
         toast.success('Wallet address copied');
     };
 
-    const refreshBalance = () => {
-        router.post(
-            walletRefresh.url(),
-            {},
-            {
-                preserveScroll: true,
-                preserveState: true,
-                onSuccess: () => {
-                    toast.success('Balance refreshed from the chain.');
+    const refreshBalance = async () => {
+        setRefreshing(true);
+        try {
+            const csrf = document.cookie
+                .split('; ')
+                .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+                ?.split('=')
+                .slice(1)
+                .join('=');
+            const response = await fetch(walletRefresh.url(), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': decodeURIComponent(csrf ?? ''),
                 },
-                onError: () => {
-                    toast.error('Could not read the chain just now.');
-                },
-            },
-        );
+            });
+            if (!response.ok)
+                throw new Error('Could not refresh wallet balance.');
+            const result = (await response.json()) as {
+                snapshot: WalletSnapshot;
+            };
+            setSnapshot(result.snapshot);
+            if (result.snapshot.is_available)
+                toast.success('Balance refreshed from Arc Testnet.');
+            else
+                toast.error(
+                    result.snapshot.reason ?? 'Live balance is unavailable.',
+                );
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Could not refresh wallet balance.',
+            );
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     const saveWallet = (e: React.FormEvent) => {
         e.preventDefault();
 
-        patch(walletShow.url(), {
+        patch(walletUpdate.url(), {
             preserveScroll: true,
             onSuccess: () => {
                 toast.success('Payout wallet updated.', {
@@ -144,7 +171,7 @@ export default function StudentWallet({
                             variant="outline"
                             size="sm"
                             className="clay-focus h-9 rounded-full border-[var(--clay-border)] bg-transparent text-xs font-semibold shadow-none"
-                            disabled={!hasAddress}
+                            disabled={!hasAddress || refreshing}
                             onClick={refreshBalance}
                         >
                             <RefreshCw className="size-3.5" />
@@ -152,6 +179,12 @@ export default function StudentWallet({
                         </Button>
                     </header>
 
+                    <Button asChild>
+                        <Link href={controlledWallet.url()}>
+                            Connect student-controlled wallet / pay testnet
+                            bills
+                        </Link>
+                    </Button>
                     {/* -- Balance -- */}
                     <section className="clay-card p-5 sm:p-6">
                         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -313,73 +346,83 @@ export default function StudentWallet({
                             be recovered.
                         </p>
 
-                        <form onSubmit={saveWallet} className="mt-4 grid gap-4">
-                            <div className="space-y-1.5">
-                                <Label
-                                    htmlFor="wallet_address"
-                                    className="bulletin-eyebrow"
-                                >
-                                    Wallet address
-                                </Label>
-                                <Input
-                                    id="wallet_address"
-                                    placeholder="0x…"
-                                    autoComplete="off"
-                                    spellCheck={false}
-                                    value={data.wallet_address}
-                                    onChange={(e) =>
-                                        setData(
-                                            'wallet_address',
-                                            e.target.value.trim(),
-                                        )
-                                    }
-                                    className="clay-field clay-focus font-mono shadow-none"
-                                    required
-                                />
-                                <InputError message={errors.wallet_address} />
-                                <p className="clay-meta">
-                                    Starts with 0x, followed by exactly 40
-                                    hexadecimal characters.
-                                </p>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-3">
-                                <Button
-                                    type="submit"
-                                    disabled={processing || !isEditing}
-                                    data-loading={processing}
-                                    className="clay-focus rounded-full bg-[var(--clay-primary)] font-semibold text-[var(--clay-primary-foreground)] shadow-[var(--shadow-cta)] hover:bg-[var(--clay-primary-bright)]"
-                                >
-                                    <Check className="size-3.5" />
-                                    {hasAddress
-                                        ? 'Replace wallet'
-                                        : 'Link wallet'}
-                                </Button>
-
-                                {isEditing && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="clay-focus h-9 rounded-full text-xs font-semibold"
-                                        onClick={() => reset('wallet_address')}
+                        {walletLocked ? (
+                            <p className="clay-body mt-4">
+                                Your verified payment wallet is protected.
+                                Connecting another wallet does not transfer your
+                                balance. Use the student-controlled wallet
+                                screen to reconnect your existing wallet.
+                            </p>
+                        ) : (
+                            <form
+                                onSubmit={saveWallet}
+                                className="mt-4 grid gap-4"
+                            >
+                                <div className="space-y-1.5">
+                                    <Label
+                                        htmlFor="wallet_address"
+                                        className="bulletin-eyebrow"
                                     >
-                                        Undo
-                                    </Button>
-                                )}
+                                        Wallet address
+                                    </Label>
+                                    <Input
+                                        id="wallet_address"
+                                        placeholder="0x…"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        value={data.wallet_address}
+                                        onChange={(e) =>
+                                            setData(
+                                                'wallet_address',
+                                                e.target.value.trim(),
+                                            )
+                                        }
+                                        className="clay-field clay-focus font-mono shadow-none"
+                                        required
+                                    />
+                                    <InputError
+                                        message={errors.wallet_address}
+                                    />
+                                    <p className="clay-meta">
+                                        Starts with 0x, followed by exactly 40
+                                        hexadecimal characters.
+                                    </p>
+                                </div>
 
-                                <Button
-                                    variant="link"
-                                    size="sm"
-                                    className="clay-focus h-9 rounded-full text-xs font-semibold text-[var(--clay-text-muted)]"
-                                    onClick={() =>
-                                        router.visit(paymentsIndex())
-                                    }
-                                >
-                                    View payments
-                                </Button>
-                            </div>
-                        </form>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <Button
+                                        type="submit"
+                                        disabled={processing || !isEditing}
+                                        data-loading={processing}
+                                        className="clay-focus rounded-full bg-[var(--clay-primary)] font-semibold text-[var(--clay-primary-foreground)] shadow-[var(--shadow-cta)] hover:bg-[var(--clay-primary-bright)]"
+                                    >
+                                        <Check className="size-3.5" />
+                                        {hasAddress
+                                            ? 'Replace wallet'
+                                            : 'Link wallet'}
+                                    </Button>
+
+                                    {isEditing && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="clay-focus h-9 rounded-full text-xs font-semibold"
+                                            onClick={() =>
+                                                reset('wallet_address')
+                                            }
+                                        >
+                                            Undo
+                                        </Button>
+                                    )}
+                                </div>
+                            </form>
+                        )}
+                        <Button type="button" variant="link" asChild>
+                            <Link href={paymentsIndex.url()}>
+                                View payments
+                            </Link>
+                        </Button>
                     </section>
                 </div>
             </div>

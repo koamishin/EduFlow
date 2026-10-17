@@ -486,11 +486,15 @@ export default function Welcome({
                             </div>
                             <div className="flex items-center gap-3 font-mono text-[11px] text-muted-foreground">
                                 <span>3 intake records in batch</span>
-                                <span className="text-muted-foreground/40">|</span>
+                                <span className="text-muted-foreground/40">
+                                    |
+                                </span>
                                 <span className="font-semibold text-foreground">
                                     $50,000.00 verified
                                 </span>
-                                <span className="text-muted-foreground/40">|</span>
+                                <span className="text-muted-foreground/40">
+                                    |
+                                </span>
                                 <span className="inline-flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/70">
                                     <span className="size-1.5 rounded-full bg-amber-500" />
                                     1 approval waiting

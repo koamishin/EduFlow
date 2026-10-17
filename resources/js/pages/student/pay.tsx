@@ -27,10 +27,23 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { arcTestnet } from 'viem/chains';
+import { createPublicClient, custom, toHex } from 'viem';
+import type { EIP1193Provider } from 'viem';
+import { executeCircleChallenge } from '@/lib/circle-wallet-onboarding';
 
 import InputError from '@/components/input-error';
 import { OfficialPaymentReceiptModal } from '@/components/official-payment-receipt-modal';
 import { StudentPaymentTracker } from '@/components/student-payment-tracker';
+import {
+    circlePay,
+    circleSession,
+    circleStatus,
+    confirm as confirmControlled,
+    quote as studentQuote,
+    show as studentControlledWallet,
+    start as startControlled,
+} from '@/actions/App/Http/Controllers/StudentControlledWalletController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -125,6 +138,10 @@ type TuitionQuote = {
     consent_text: string;
     expires_at: string;
     fee_ceiling_base_units: number;
+    wallet_sender?: `0x${string}`;
+    wallet_recipient?: `0x${string}`;
+    wallet_token?: `0x${string}`;
+    wallet_data?: `0x${string}`;
     request_key?: string;
 };
 
@@ -134,6 +151,10 @@ type BillMountedQuote = {
     amount_base_units: number;
     quoted_network_fee: string;
     fee_ceiling_base_units: number;
+    wallet_sender?: `0x${string}`;
+    wallet_recipient?: `0x${string}`;
+    wallet_token?: `0x${string}`;
+    wallet_data?: `0x${string}`;
     available_base_units: number;
     total: string;
     recipient: string;
@@ -154,6 +175,8 @@ interface StudentPayPageProps {
     initialAccountId?: number | null;
     student: StudentDashboardProps['student'];
     wallet: NonNullable<StudentDashboardProps['wallet']> & {
+        provider?: string | null;
+        controlled_by_student?: boolean;
         qr_code?: string | null;
     };
     treasury: {
@@ -168,6 +191,9 @@ interface StudentPayPageProps {
     bills: BillItem[];
     billPayments: BillPaymentItem[];
     pilot_enabled: boolean;
+    tuition_payment_mode?: 'operator_pilot' | 'student_controlled';
+    student_wallets_enabled?: boolean;
+    circleAppId?: string | null;
     tuition_enabled: boolean;
     currency: {
         display: string;
@@ -260,6 +286,9 @@ export default function StudentPayPage({
     bills = [],
     billPayments = [],
     pilot_enabled,
+    tuition_payment_mode = 'operator_pilot',
+    student_wallets_enabled = false,
+    circleAppId: circleAppIdProp = null,
     currency,
 }: StudentPayPageProps) {
     const [mode, setMode] = useState<'tuition' | 'bill'>(
@@ -293,6 +322,124 @@ export default function StudentPayPage({
     const snapshot = wallet?.snapshot;
     const walletAddress = wallet?.address ?? null;
     const hasWallet = Boolean(walletAddress);
+    const studentRail =
+        tuition_payment_mode === 'student_controlled' &&
+        student_wallets_enabled;
+    const circleWallet = wallet?.provider === 'circle-user';
+    const circleAppId = circleAppIdProp;
+    const sdk = useRef<import('@circle-fin/w3s-pw-web-sdk').W3SSdk | null>(
+        null,
+    );
+
+    const postJson = async <T,>(url: string, data: object = {}): Promise<T> => {
+        const response = await fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': readCsrfToken(),
+                Accept: 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(
+                payload?.message ??
+                    (payload?.errors
+                        ? Object.values(
+                              payload.errors as Record<string, string[]>,
+                          )
+                              .flat()
+                              .join(' ')
+                        : null) ??
+                    'Request failed.',
+            );
+        }
+
+        return payload as T;
+    };
+
+    const arcTestnetProvider = async (): Promise<EIP1193Provider> => {
+        const ethereum = (window as unknown as { ethereum?: EIP1193Provider })
+            .ethereum;
+        if (!ethereum)
+            throw new Error(
+                'No browser wallet detected. Use your Circle PIN wallet instead.',
+            );
+        try {
+            await ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x4cef52' }],
+            });
+        } catch (error) {
+            if ((error as { code?: number }).code !== 4902) throw error;
+            await ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [
+                    {
+                        chainId: '0x4cef52',
+                        chainName: 'Arc Testnet',
+                        nativeCurrency: {
+                            name: 'USDC',
+                            symbol: 'USDC',
+                            decimals: 18,
+                        },
+                        rpcUrls: ['https://rpc.testnet.arc.io'],
+                        blockExplorerUrls: ['https://testnet.arcscan.app'],
+                    },
+                ],
+            });
+        }
+        if ((await ethereum.request({ method: 'eth_chainId' })) !== '0x4cef52')
+            throw new Error('Switch to Arc Testnet 5042002 first.');
+
+        return ethereum;
+    };
+
+    const sendControlledTransfer = async (
+        eth: EIP1193Provider,
+        sender: `0x${string}`,
+        quote: TuitionQuote,
+    ): Promise<string> => {
+        const client = createPublicClient({
+            chain: arcTestnet,
+            transport: custom(eth),
+        });
+        if (!quote.wallet_token || !quote.wallet_data)
+            throw new Error('Quote is missing transfer details. Review again.');
+        const request = {
+            account: sender,
+            to: quote.wallet_token,
+            data: quote.wallet_data,
+            value: 0n,
+        };
+        const gas = await client.estimateGas(request);
+        const gasPrice = await client.getGasPrice();
+        const maxFeePerGas = gasPrice * 2n;
+        if (
+            !window.confirm(
+                `Arc Testnet only. Send ${((quote.amount_base_units ?? 0) / 1_000_000).toFixed(2)} USDC to ${quote.wallet_recipient}. Maximum network fee ${(Number(gas * maxFeePerGas) / 1e18).toFixed(6)} USDC. Test funds do not pay official charges. Approve?`,
+            )
+        ) {
+            throw new Error('Payment cancelled. Nothing was sent.');
+        }
+
+        return eth.request({
+            method: 'eth_sendTransaction',
+            params: [
+                {
+                    from: sender,
+                    to: quote.wallet_token,
+                    data: quote.wallet_data,
+                    value: '0x0',
+                    gas: toHex(gas),
+                    maxFeePerGas: toHex(maxFeePerGas),
+                    maxPriorityFeePerGas: '0x0',
+                },
+            ],
+        });
+    };
 
     const walletBalanceBaseUnits = useMemo(() => {
         if (!snapshot?.balance) {
@@ -531,6 +678,13 @@ export default function StudentPayPage({
             if (!tuitionAccount?.id) {
                 return null;
             }
+            if (studentRail) {
+                const quote = buildInstantQuote(baseUnits);
+                setPayQuote(quote);
+                setPayError(null);
+
+                return quote;
+            }
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
@@ -614,7 +768,7 @@ export default function StudentPayPage({
 
             return promise;
         },
-        [tuitionAccount?.id, setRequestKey],
+        [tuitionAccount?.id, studentRail, setRequestKey],
     );
 
     // Automatically quote when payAmount changes in tuition mode
@@ -661,6 +815,131 @@ export default function StudentPayPage({
         setPayError(null);
         setPayQuote(buildInstantQuote(clamped));
         void requestTuitionQuote(clamped);
+    };
+
+    /**
+     * Student-owned wallet: we never sign. The student approves inside their own
+     * wallet, then the server verifies settlement on Arc Testnet.
+     */
+    const submitStudentTransfer = async (
+        baseUnits: number,
+        paymentId: string | null,
+        quoteOverride?: TuitionQuote,
+    ) => {
+        if (!paymentId) {
+            setPaying(false);
+            setPayError('Lock a fresh network quote before approving.');
+
+            return;
+        }
+
+        try {
+            if (circleWallet) {
+                if (!sdk.current) {
+                    if (!circleAppId)
+                        throw new Error(
+                            'Circle wallets are not configured. Reconnect on the wallet screen.',
+                        );
+                    const { W3SSdk } =
+                        await import('@circle-fin/w3s-pw-web-sdk');
+                    sdk.current = new W3SSdk({
+                        appSettings: { appId: circleAppId },
+                    });
+                    await sdk.current.getDeviceId();
+                }
+                const session = await postJson<{
+                    userToken: string;
+                    encryptionKey: string;
+                    challengeId: string | null;
+                }>(circleSession.url());
+                sdk.current?.setAuthentication({
+                    userToken: session.userToken,
+                    encryptionKey: session.encryptionKey,
+                });
+                if (session.challengeId)
+                    await executeCircleChallenge(
+                        sdk.current!,
+                        session.challengeId,
+                    );
+                const challenge = await postJson<{ challengeId: string }>(
+                    circlePay.url(paymentId),
+                    { consent: true },
+                );
+                await executeCircleChallenge(
+                    sdk.current!,
+                    challenge.challengeId,
+                );
+                toast.success('Approved in your Circle wallet.', {
+                    description: 'Checking Arc Testnet settlement…',
+                });
+                const status = await postJson<{
+                    posted: boolean;
+                    tx_hash?: string;
+                    state?: string;
+                }>(circleStatus.url(paymentId));
+                if (status.tx_hash)
+                    localStorage.setItem(
+                        `student-payment-${paymentId}`,
+                        status.tx_hash,
+                    );
+                if (!status.posted && !status.tx_hash) {
+                    toast.error(
+                        `Circle state: ${status.state ?? 'pending'}. Do not pay again.`,
+                    );
+                    setPayError(
+                        'Circle has not confirmed settlement. Re-check status later; never resend.',
+                    );
+                    router.reload({ only: ['tuitionAttempts'] });
+                }
+            } else {
+                const eth = await arcTestnetProvider();
+                const [sender] = await eth.request({
+                    method: 'eth_requestAccounts',
+                });
+                const quote = quoteOverride ?? payQuote;
+                if (
+                    !quote?.wallet_sender ||
+                    (sender as string).toLowerCase() !==
+                        quote.wallet_sender.toLowerCase()
+                ) {
+                    throw new Error(
+                        'Selected wallet differs from your verified student wallet.',
+                    );
+                }
+                await postJson(startControlled.url(paymentId), {
+                    consent: true,
+                });
+                const hash = await sendControlledTransfer(
+                    eth,
+                    sender as `0x${string}`,
+                    quote,
+                );
+                localStorage.setItem(`student-payment-${paymentId}`, hash);
+                toast.success('Transfer submitted to Arc Testnet.', {
+                    description: 'Verifying settlement…',
+                });
+                await postJson(confirmControlled.url(paymentId), {
+                    tx_hash: hash,
+                });
+            }
+
+            toast.success(
+                'Settlement verified. Tuition credited on Arc Testnet.',
+            );
+            setPayQuote(null);
+            router.reload({
+                only: ['tuitionAttempts', 'tuitionAccount', 'wallet'],
+            });
+        } catch (error: unknown) {
+            setPayError(
+                error instanceof Error
+                    ? error.message
+                    : 'Payment could not be completed.',
+            );
+            router.reload({ only: ['tuitionAttempts'] });
+        } finally {
+            setPaying(false);
+        }
     };
 
     const submitTuitionTransfer = async () => {
@@ -726,6 +1005,75 @@ export default function StudentPayPage({
 
         setPaying(true);
         setPayError(null);
+
+        if (studentRail) {
+            setPaying(true);
+            setPayError(null);
+            try {
+                const response = await fetch(studentQuote.url(), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': readCsrfToken(),
+                        Accept: 'application/json',
+                    },
+                    body: JSON.stringify({
+                        kind: 'tuition',
+                        account_id: tuitionAccount?.id,
+                        amount: (baseUnits / 1_000_000).toFixed(6),
+                    }),
+                });
+                const payload = (await response.json()) as
+                    | {
+                          id: string;
+                          snapshot: {
+                              amount_base_units: number;
+                              sender: `0x${string}`;
+                              recipient: `0x${string}`;
+                              token: `0x${string}`;
+                              data: `0x${string}`;
+                          };
+                          message?: string;
+                          errors?: Record<string, string[]>;
+                      }
+                    | undefined;
+
+                if (!response.ok) {
+                    const message =
+                        payload?.message ??
+                        (payload?.errors
+                            ? Object.values(payload.errors).flat().join(' ')
+                            : null) ??
+                        'Could not prepare the payment quote.';
+                    setPayError(message);
+
+                    return;
+                }
+
+                const scoped = payload!;
+                const quote: TuitionQuote = {
+                    ...buildInstantQuote(scoped.snapshot.amount_base_units),
+                    wallet_sender: scoped.snapshot.sender,
+                    wallet_recipient: scoped.snapshot.recipient,
+                    wallet_token: scoped.snapshot.token,
+                    wallet_data: scoped.snapshot.data,
+                    request_key: scoped.id,
+                };
+                setPayQuote(quote);
+                await submitStudentTransfer(baseUnits, scoped.id, quote);
+            } catch (err: unknown) {
+                setPayError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Could not prepare the payment quote.',
+                );
+            } finally {
+                setPaying(false);
+            }
+
+            return;
+        }
 
         try {
             const response = await fetch(tuitionPayStore.url(), {
@@ -1377,6 +1725,38 @@ export default function StudentPayPage({
                                                 message={payError ?? undefined}
                                                 className="mt-2"
                                             />
+                                            {tuition_payment_mode ===
+                                                'student_controlled' && (
+                                                <div className="mt-3 flex flex-col gap-2 rounded-xl border border-[var(--clay-border)] bg-[var(--clay-surface-soft)] p-4">
+                                                    <p className="text-xs font-semibold text-[var(--clay-text)]">
+                                                        Your wallet is yours, so
+                                                        this form cannot sign
+                                                        for it.
+                                                    </p>
+                                                    <p className="text-xs text-[var(--clay-text-muted)]">
+                                                        Pay from the
+                                                        student-controlled
+                                                        checkout, where you
+                                                        approve the transfer in
+                                                        your own wallet and
+                                                        settlement is verified
+                                                        on Arc Testnet.
+                                                    </p>
+                                                    <Button
+                                                        asChild
+                                                        size="sm"
+                                                        className="clay-focus w-fit rounded-full"
+                                                    >
+                                                        <Link
+                                                            href={studentControlledWallet.url()}
+                                                        >
+                                                            Open
+                                                            student-controlled
+                                                            checkout
+                                                        </Link>
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* 2. WALLET-TO-TREASURY ROUTE VISUALIZER */}

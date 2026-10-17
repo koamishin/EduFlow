@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Student;
+use App\Models\StudentWallet;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 use Yukazakiri\Lepton\Gateways\FakeLeptonGateway;
@@ -141,4 +142,16 @@ test('a student cannot link an address another student already uses', function (
 
     $this->patch(route('wallet.update'), ['wallet_address' => $address])
         ->assertSessionHasErrors('wallet_address');
+});
+
+test('legacy wallet update cannot replace a verified Circle payment wallet', function (): void {
+    $address = '0x'.str_repeat('a', 40);
+    $student = Student::factory()->create(['payout_address' => $address]);
+    $wallet = StudentWallet::factory()->create(['student_id' => $student->id, 'address' => $address, 'provider' => 'circle-user']);
+    $wallet->forceFill(['ownership_verified_at' => now()])->save();
+    actingAsStudent($student);
+
+    $this->patch(route('wallet.update'), ['wallet_address' => '0x'.str_repeat('b', 40)])->assertSessionHasErrors('wallet_address');
+    expect($student->fresh()->payout_address)->toBe($address)->and($wallet->fresh()->address)->toBe($address);
+    $this->get(route('student.wallet.show'))->assertInertia(fn ($page) => $page->where('walletLocked', true));
 });

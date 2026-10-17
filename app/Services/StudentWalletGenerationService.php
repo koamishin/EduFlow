@@ -55,7 +55,7 @@ class StudentWalletGenerationService
      */
     public function generate(Student $student): StudentWallet
     {
-        if ($student->wallet()->exists()) {
+        if (StudentWallet::query()->where('student_id', $student->id)->active()->exists()) {
             throw new RuntimeException('This student already has a generated wallet. Generating another would spend one of the five Circle agent-wallet slots.');
         }
 
