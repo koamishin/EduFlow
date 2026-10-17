@@ -370,7 +370,8 @@ test('a wallet already linked, or claimed with another wallet type, is refused',
 test('an unresolved payment blocks a wallet switch', function (): void {
     controlledWallet($this->student, $this->address);
     $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
-    app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 2000000);
+    $payment = app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 2000000);
+    $payment->forceFill(['approval_started_at' => now()])->save();
 
     expect(fn () => app(StudentControlledWallets::class)->link($this->student->fresh(), '0x'.str_repeat('f', 40), 'external'))
         ->toThrow(ValidationException::class);
@@ -402,4 +403,39 @@ test('asking Circle about a browser payment explains how to verify it instead', 
         ->postJson(route('student.controlled-wallet.circle-status', $payment->id))
         ->assertUnprocessable()
         ->assertJsonValidationErrors('circle');
+});
+
+test('unapproved quotes do not lock out new quotes or wallet switching', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $checkout = app(StudentControlledCheckout::class);
+
+    // Initial quote without starting approval
+    $first = $checkout->create($this->student, 'tuition', $account->id, 2000000);
+    expect(StudentControlledPayment::query()->where('student_id', $this->student->id)->count())->toBe(1);
+
+    // Re-quoting with another amount succeeds and supersedes the unstarted quote
+    $second = $checkout->create($this->student, 'tuition', $account->id, 5000000);
+    expect($second->id)->not->toBe($first->id)
+        ->and(StudentControlledPayment::query()->where('student_id', $this->student->id)->count())->toBe(1)
+        ->and(StudentControlledPayment::query()->find($first->id))->toBeNull();
+
+    // Switching wallets succeeds because the quote was never in-flight
+    $newWallet = app(StudentControlledWallets::class)->link($this->student->fresh(), '0x'.str_repeat('e', 40), 'external');
+    expect($newWallet->address)->toBe('0x'.str_repeat('e', 40));
+});
+
+test('allow multiple wallets migration rollback cleans up historical rows and restores unique index', function (): void {
+    controlledWallet($this->student, $this->address);
+    app(StudentControlledWallets::class)->link($this->student->fresh(), '0x'.str_repeat('f', 40), 'external');
+    expect($this->student->fresh()->wallets()->count())->toBe(2);
+
+    $migration = require database_path('migrations/2026_10_17_150226_allow_multiple_student_wallets.php');
+    $migration->down();
+
+    expect($this->student->fresh()->wallets()->count())->toBe(1)
+        ->and($this->student->fresh()->wallet->address)->toBe('0x'.str_repeat('f', 40));
+
+    // Re-running up succeeds as well
+    $migration->up();
 });

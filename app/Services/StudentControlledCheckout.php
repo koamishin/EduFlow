@@ -57,10 +57,19 @@ class StudentControlledCheckout
         }
         if (StudentControlledPayment::query()->where('student_id', $student->id)->whereNull('posted_at')
             ->where(function ($query): void {
-                $query->where('expires_at', '>', now())->orWhereNotNull('circle_challenge_id')->orWhereNotNull('tx_hash')->orWhereNotNull('approval_started_at');
+                $query->whereNotNull('circle_challenge_id')
+                    ->orWhereNotNull('tx_hash')
+                    ->orWhereNotNull('approval_started_at');
             })->exists()) {
             throw ValidationException::withMessages(['payment' => 'Reconcile your existing payment before creating another.']);
         }
+        StudentControlledPayment::query()
+            ->where('student_id', $student->id)
+            ->whereNull('posted_at')
+            ->whereNull('approval_started_at')
+            ->whereNull('circle_challenge_id')
+            ->whereNull('tx_hash')
+            ->delete();
         $id = (string) Str::uuid();
         $data = '0xa9059cbb'.str_pad(substr($recipient, 2), 64, '0', STR_PAD_LEFT)
             .str_pad(dechex($amount), 64, '0', STR_PAD_LEFT).bin2hex($id);

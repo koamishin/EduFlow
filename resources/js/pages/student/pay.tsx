@@ -385,8 +385,8 @@ export default function StudentPayPage({
                             symbol: 'USDC',
                             decimals: 18,
                         },
-                        rpcUrls: ['[REDACTED]'],
-                        blockExplorerUrls: ['[REDACTED]'],
+                        rpcUrls: ['https://rpc.testnet.arc.io'],
+                        blockExplorerUrls: ['https://testnet.arcscan.app'],
                     },
                 ],
             });
@@ -678,6 +678,13 @@ export default function StudentPayPage({
             if (!tuitionAccount?.id) {
                 return null;
             }
+            if (studentRail) {
+                const quote = buildInstantQuote(baseUnits);
+                setPayQuote(quote);
+                setPayError(null);
+
+                return quote;
+            }
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
@@ -690,33 +697,20 @@ export default function StudentPayPage({
 
             const promise = (async () => {
                 try {
-                    const response = await fetch(
-                        studentRail
-                            ? studentQuote.url()
-                            : tuitionPayQuote.url(),
-                        {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            signal: controller.signal,
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': readCsrfToken(),
-                                Accept: 'application/json',
-                            },
-                            body: studentRail
-                                ? JSON.stringify({
-                                      kind: 'tuition',
-                                      account_id: tuitionAccount.id,
-                                      amount: (baseUnits / 1_000_000).toFixed(
-                                          6,
-                                      ),
-                                  })
-                                : JSON.stringify({
-                                      tuition_account_id: tuitionAccount.id,
-                                      amount_base_units: baseUnits,
-                                  }),
+                    const response = await fetch(tuitionPayQuote.url(), {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        signal: controller.signal,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': readCsrfToken(),
+                            Accept: 'application/json',
                         },
-                    );
+                        body: JSON.stringify({
+                            tuition_account_id: tuitionAccount.id,
+                            amount_base_units: baseUnits,
+                        }),
+                    });
 
                     const payload = (await response.json()) as
                         | (TuitionQuote & {
@@ -741,35 +735,6 @@ export default function StudentPayPage({
                         setRequestKey(null);
 
                         return null;
-                    }
-
-                    if (studentRail) {
-                        const scoped = payload as unknown as {
-                            id: string;
-                            snapshot: {
-                                amount_base_units: number;
-                                sender: `0x${string}`;
-                                recipient: `0x${string}`;
-                                token: `0x${string}`;
-                                data: `0x${string}`;
-                            };
-                        };
-                        const quote: TuitionQuote = {
-                            ...buildInstantQuote(
-                                scoped.snapshot.amount_base_units,
-                            ),
-                            wallet_sender: scoped.snapshot.sender,
-                            wallet_recipient: scoped.snapshot.recipient,
-                            wallet_token: scoped.snapshot.token,
-                            wallet_data: scoped.snapshot.data,
-                            request_key: scoped.id,
-                            consent_text:
-                                'I approve this exact testnet USDC transfer from my own wallet to the institution treasury on Arc Testnet.',
-                        };
-                        setPayQuote(quote);
-                        setRequestKey(scoped.id);
-
-                        return quote;
                     }
 
                     const quote = payload as TuitionQuote;
@@ -859,6 +824,7 @@ export default function StudentPayPage({
     const submitStudentTransfer = async (
         baseUnits: number,
         paymentId: string | null,
+        quoteOverride?: TuitionQuote,
     ) => {
         if (!paymentId) {
             setPaying(false);
@@ -930,7 +896,7 @@ export default function StudentPayPage({
                 const [sender] = await eth.request({
                     method: 'eth_requestAccounts',
                 });
-                const quote = payQuote;
+                const quote = quoteOverride ?? payQuote;
                 if (
                     !quote?.wallet_sender ||
                     (sender as string).toLowerCase() !==
@@ -1041,7 +1007,70 @@ export default function StudentPayPage({
         setPayError(null);
 
         if (studentRail) {
-            await submitStudentTransfer(baseUnits, currentKey);
+            setPaying(true);
+            setPayError(null);
+            try {
+                const response = await fetch(studentQuote.url(), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': readCsrfToken(),
+                        Accept: 'application/json',
+                    },
+                    body: JSON.stringify({
+                        kind: 'tuition',
+                        account_id: tuitionAccount?.id,
+                        amount: (baseUnits / 1_000_000).toFixed(6),
+                    }),
+                });
+                const payload = (await response.json()) as
+                    | {
+                          id: string;
+                          snapshot: {
+                              amount_base_units: number;
+                              sender: `0x${string}`;
+                              recipient: `0x${string}`;
+                              token: `0x${string}`;
+                              data: `0x${string}`;
+                          };
+                          message?: string;
+                          errors?: Record<string, string[]>;
+                      }
+                    | undefined;
+
+                if (!response.ok) {
+                    const message =
+                        payload?.message ??
+                        (payload?.errors
+                            ? Object.values(payload.errors).flat().join(' ')
+                            : null) ??
+                        'Could not prepare the payment quote.';
+                    setPayError(message);
+
+                    return;
+                }
+
+                const scoped = payload!;
+                const quote: TuitionQuote = {
+                    ...buildInstantQuote(scoped.snapshot.amount_base_units),
+                    wallet_sender: scoped.snapshot.sender,
+                    wallet_recipient: scoped.snapshot.recipient,
+                    wallet_token: scoped.snapshot.token,
+                    wallet_data: scoped.snapshot.data,
+                    request_key: scoped.id,
+                };
+                setPayQuote(quote);
+                await submitStudentTransfer(baseUnits, scoped.id, quote);
+            } catch (err: unknown) {
+                setPayError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Could not prepare the payment quote.',
+                );
+            } finally {
+                setPaying(false);
+            }
 
             return;
         }

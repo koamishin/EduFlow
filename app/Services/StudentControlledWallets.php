@@ -80,10 +80,18 @@ class StudentControlledWallets
             $active = StudentWallet::query()->where('student_id', $locked->id)->active()->lockForUpdate()->first();
             $address = strtolower($address);
 
+            // Prune unstarted quotes: an unapproved quote is not a committed payment.
+            StudentControlledPayment::query()
+                ->where('student_id', $student->id)
+                ->whereNull('posted_at')
+                ->whereNull('approval_started_at')
+                ->whereNull('circle_challenge_id')
+                ->whereNull('tx_hash')
+                ->delete();
+
             if (StudentControlledPayment::query()->where('student_id', $student->id)->whereNull('posted_at')
                 ->where(function ($query): void {
-                    $query->where('expires_at', '>', now())
-                        ->orWhereNotNull('circle_challenge_id')
+                    $query->whereNotNull('circle_challenge_id')
                         ->orWhereNotNull('tx_hash')
                         ->orWhereNotNull('approval_started_at');
                 })->exists()) {

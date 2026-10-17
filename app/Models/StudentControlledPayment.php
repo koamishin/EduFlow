@@ -24,6 +24,7 @@ use LogicException;
  * @property int $applied_base_units
  * @property int $overpayment_base_units
  * @property Carbon $expires_at
+ * @property Carbon|null $approval_started_at
  * @property Carbon|null $posted_at
  */
 class StudentControlledPayment extends Model
@@ -53,8 +54,10 @@ class StudentControlledPayment extends Model
                 throw new LogicException('Payment identity and posted settlement are immutable.');
             }
         });
-        static::deleting(function (): never {
-            throw new LogicException('Payment evidence cannot be deleted.');
+        static::deleting(function (self $payment): void {
+            if ($payment->posted_at !== null || $payment->approval_started_at !== null || $payment->circle_challenge_id !== null || $payment->tx_hash !== null) {
+                throw new LogicException('Payment evidence cannot be deleted.');
+            }
         });
     }
 }
