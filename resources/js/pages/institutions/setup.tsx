@@ -511,3 +511,5 @@ export default function InstitutionSetup({
         </div>
     );
 }
+
+InstitutionSetup.layout = (page: React.ReactNode) => page;

@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
+    ArrowLeft,
     Building2,
     CheckCircle2,
     Globe,
@@ -125,11 +126,19 @@ export default function InstitutionRegister({
 
                     <div className="flex items-center gap-3">
                         <Link
+                            href="/"
+                            className="inline-flex items-center gap-1.5 text-xs text-[#b8b0a2] hover:text-[#f5f1e8] transition-colors"
+                        >
+                            <ArrowLeft className="size-3.5" />
+                            Back to Home
+                        </Link>
+                        <span className="text-xs text-[#52493e]">·</span>
+                        <Link
                             href="/finance"
                             className="inline-flex items-center gap-1.5 text-xs text-[#b8b0a2] hover:text-[#f5f1e8] transition-colors"
                         >
                             <Shield className="size-3.5" />
-                            Return to Finance
+                            Finance Console
                         </Link>
                     </div>
                 </div>
@@ -459,3 +468,5 @@ export default function InstitutionRegister({
         </div>
     );
 }
+
+InstitutionRegister.layout = (page: React.ReactNode) => page;
