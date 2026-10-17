@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { AgentHealthStatus, type JevAiHealth } from '@/components/jev/agent-health-status';
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert';
 import { Badge } from '@/components/reui/badge';
 import {
@@ -35,6 +36,7 @@ import {
     FramePanel,
     FrameTitle,
 } from '@/components/reui/frame';
+import { IconTile } from '@/components/reui/icon-tile';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -172,6 +174,7 @@ type Props = {
     financeUrl: string;
     queueReady: boolean;
     templates?: PolicyTemplate[];
+    health?: JevAiHealth | null;
 };
 
 const sections = [
@@ -370,6 +373,7 @@ export default function InstitutionPolicies({
     financeUrl,
     queueReady,
     templates = [],
+    health,
 }: Props) {
     const user = usePage<{ auth: { user: { id: number } } }>().props.auth.user;
     const [selected, setSelected] = useState<Version | null>(
@@ -732,9 +736,9 @@ export default function InstitutionPolicies({
                                 size="sm"
                                 variant={section === 'templates' ? 'default' : 'outline'}
                                 onClick={() => setSection('templates')}
-                                className={section !== 'templates' ? 'border-[#c4a46c]/40 text-[#c4a46c] hover:bg-[#c4a46c]/10' : ''}
+                                className={section !== 'templates' ? 'border-primary/40 text-primary hover:bg-primary/10' : ''}
                             >
-                                <Sparkles className="size-4 mr-1 text-amber-400" />
+                                <Sparkles className="size-4 mr-1 text-primary" />
                                 1-Click Blueprints
                             </Button>
                             <Button
@@ -742,9 +746,9 @@ export default function InstitutionPolicies({
                                 size="sm"
                                 variant={section === 'simulator' ? 'default' : 'outline'}
                                 onClick={() => setSection('simulator')}
-                                className={section !== 'simulator' ? 'border-sky-500/40 text-sky-400 hover:bg-sky-500/10' : ''}
+                                className={section !== 'simulator' ? 'border-sky-500/40 text-sky-600 dark:text-sky-400 hover:bg-sky-500/10' : ''}
                             >
-                                <FlaskConical className="size-4 mr-1 text-sky-400" />
+                                <FlaskConical className="size-4 mr-1 text-sky-500" />
                                 JEV Simulator
                             </Button>
                             <Button
@@ -759,56 +763,12 @@ export default function InstitutionPolicies({
                         </div>
                     </div>
 
-                    {/* Interactive Policy Status & Assistant Header Banner */}
-                    <div className="rounded-xl border border-border bg-card/60 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <Bot className="size-4 text-[#c4a46c]" />
-                                <span className="text-xs font-mono font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Autonomous JEV Policy Status
-                                </span>
-                                {current?.controls_active ? (
-                                    <Badge variant="success-light" className="text-[10px]">
-                                        Active in Production
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="warning-light" className="text-[10px]">
-                                        Setup Recommended
-                                    </Badge>
-                                )}
-                            </div>
-                            <h3 className="text-sm sm:text-base font-semibold text-foreground">
-                                {current
-                                    ? `In Force: Revision #${current.institution_policy_version_id} · ${
-                                          versions.find((v) => v.id === current.institution_policy_version_id)?.title || 'Institution Policy'
-                                      }`
-                                    : 'No policy currently published. JEV will hold transactions for human bursar review.'}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                                {current?.controls_active
-                                    ? 'Financial safeguards, category classifications, and auto-settlement caps are actively enforced.'
-                                    : 'Choose a pre-configured 1-click template or author custom clauses to automate your transaction pipeline.'}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setSection('templates')}
-                                className="text-xs h-8"
-                            >
-                                Change Blueprint
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setSection('simulator')}
-                                className="text-xs h-8"
-                            >
-                                Test Transaction
-                            </Button>
-                        </div>
-                    </div>
+                    {/* Interactive JEV & AI Agent Operational Telemetry Header */}
+                    <AgentHealthStatus
+                        initialHealth={health}
+                        mode="compact"
+                        className="w-full justify-between py-2 px-3.5 border-border/80 bg-card/70"
+                    />
                     {notice && (
                         <Alert role="status" variant="success">
                             <CheckCheck />
@@ -923,10 +883,10 @@ export default function InstitutionPolicies({
                                             >
                                                 <div className="space-y-3">
                                                     <div className="flex items-start justify-between gap-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="size-8 rounded-lg bg-[#c4a46c]/10 flex items-center justify-center text-[#c4a46c] font-semibold text-sm">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <IconTile variant="soft" className="size-8 text-primary shrink-0">
                                                                 <Sparkles className="size-4" />
-                                                            </div>
+                                                            </IconTile>
                                                             <div>
                                                                 <h4 className="font-semibold text-sm text-foreground">
                                                                     {tpl.name}
@@ -1028,12 +988,15 @@ export default function InstitutionPolicies({
                                             size="sm"
                                             onClick={() => setSection('templates')}
                                         >
-                                            <Sparkles className="size-3.5 mr-1 text-[#c4a46c]" />
+                                            <Sparkles className="size-3.5 mr-1 text-primary" />
                                             Browse Blueprints
                                         </Button>
                                     }
                                 >
                                     <div className="space-y-4">
+                                        {/* Real-time Pre-Flight Readiness & AI Agent Health */}
+                                        <AgentHealthStatus initialHealth={health} mode="simulator-banner" />
+
                                         {/* Preset chips */}
                                         <div className="space-y-2">
                                             <Label className="text-xs font-medium text-muted-foreground">

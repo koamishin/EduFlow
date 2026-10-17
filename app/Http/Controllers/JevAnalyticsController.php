@@ -8,6 +8,7 @@ use App\Models\InstitutionPolicyEvaluation;
 use App\Models\User;
 use App\Services\InstallationInstitution;
 use App\Services\JevAnalyticsService;
+use App\Services\JevHealthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -16,8 +17,12 @@ use Inertia\Response;
 
 final class JevAnalyticsController extends Controller
 {
-    public function index(Request $request, InstallationInstitution $institutions, JevAnalyticsService $analytics): Response
-    {
+    public function index(
+        Request $request,
+        InstallationInstitution $institutions,
+        JevAnalyticsService $analytics,
+        JevHealthService $healthService
+    ): Response {
         $actor = $request->user();
         abort_unless(
             $actor instanceof User && (
@@ -43,6 +48,7 @@ final class JevAnalyticsController extends Controller
         $approvals = $analytics->approvalAnalytics($institution->id, $period, $sourceType);
         $trends = array_values($analytics->decisionTrends($institution->id, 14, $sourceType));
         $recentAudit = $analytics->recentAuditLog($institution->id, 25)->all();
+        $health = $healthService->inspect($institution, false);
 
         return Inertia::render('finance/analytics', [
             'institution' => [
@@ -57,6 +63,7 @@ final class JevAnalyticsController extends Controller
             'approvals' => $approvals,
             'trends' => $trends,
             'recentAudit' => $recentAudit,
+            'health' => $health,
             'urls' => [
                 'evaluationsUrl' => route('finance.policy-evaluations.index'),
                 'policiesUrl' => route('finance.policies.index'),

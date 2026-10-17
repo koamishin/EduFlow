@@ -15,6 +15,7 @@ use App\Services\InstallationInstitution;
 use App\Services\InstitutionPolicyDocuments;
 use App\Services\InstitutionPolicyTemplates;
 use App\Services\InstitutionPolicyWorkspace;
+use App\Services\JevHealthService;
 use App\Settings\AiSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,8 +37,14 @@ class InstitutionPolicyController extends Controller
         return response()->json(['data' => $documents->extract($request->file('document'))])->header('Cache-Control', 'no-store, private');
     }
 
-    public function index(Request $request, InstallationInstitution $institutions, InstitutionPolicyWorkspace $workspace, AiSettings $settings, InstitutionPolicyTemplates $templates): Response
-    {
+    public function index(
+        Request $request,
+        InstallationInstitution $institutions,
+        InstitutionPolicyWorkspace $workspace,
+        AiSettings $settings,
+        InstitutionPolicyTemplates $templates,
+        JevHealthService $healthService
+    ): Response {
         Gate::forUser($request->user())->authorize('viewAny', InstitutionPolicyVersion::class);
         $institution = $institutions->require();
         $versions = InstitutionPolicyVersion::query()->where('organization_id', $institution->id)->latest('id')->limit(100)->get();
@@ -51,6 +58,7 @@ class InstitutionPolicyController extends Controller
         // describes evidence this person never typed.
         $playground = InstitutionPolicyAssessment::query()->where('organization_id', $institution->id)
             ->where('requested_by', $request->user()->id)->latest('id')->limit(50)->get();
+        $health = $healthService->inspect($institution, false);
 
         return Inertia::render('finance/policies/index', [
             'institution' => ['id' => $institution->id, 'name' => $institution->name],
@@ -65,6 +73,7 @@ class InstitutionPolicyController extends Controller
                 && (int) config('queue.connections.'.config('queue.default', 'database').'.retry_after', 0) > 180,
             'canPublish' => $request->user()->hasAnyRole(['admin', 'super_admin']),
             'aiEnabled' => $settings->mayCallProvider(),
+            'health' => $health,
         ]);
     }
 

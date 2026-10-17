@@ -18,6 +18,7 @@ use App\Http\Controllers\InstitutionRegistrationController;
 use App\Http\Controllers\InstitutionSetupController;
 use App\Http\Controllers\InvoiceVersionController;
 use App\Http\Controllers\JevAnalyticsController;
+use App\Http\Controllers\JevHealthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentAuthorizationController;
 use App\Http\Controllers\PaymentIntentChangeController;
@@ -75,6 +76,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('finance/policy-evaluations/{institutionPolicyEvaluation}', [InstitutionPolicyEvaluationController::class, 'show'])
         ->middleware('throttle:60,1')->name('finance.policy-evaluations.show');
     Route::get('finance/policies', [InstitutionPolicyController::class, 'index'])->name('finance.policies.index');
+    Route::match(['get', 'post'], 'finance/ai/health', [JevHealthController::class, 'check'])->middleware('throttle:30,1')->name('finance.ai.health');
+    Route::post('finance/ai/toggle-advisory', [JevHealthController::class, 'toggleAdvisory'])->middleware('throttle:10,1')->name('finance.ai.toggle-advisory');
     Route::post('finance/policies/import', [InstitutionPolicyController::class, 'import'])->middleware('throttle:5,1')->name('finance.policies.import');
     Route::post('finance/policies', [InstitutionPolicyController::class, 'store'])->middleware('throttle:20,1')->name('finance.policies.store');
     Route::post('finance/policies/apply-template', [InstitutionPolicyController::class, 'applyTemplate'])->middleware('throttle:10,1')->name('finance.policies.apply-template');
