@@ -98,6 +98,8 @@ class EducationDemoSeeder extends Seeder
                 $user->assignRole($staff['role']);
             }
 
+            User::query()->where('email', 'admin@admin.com')->whereNull('organization_id')->update(['organization_id' => $org->id]);
+
             // 2. Academic Term
             $term = AcademicTerm::firstOrCreate(['name' => 'Academic Term '.today()->year], [
                 'starts_on' => today()->startOfYear(),
