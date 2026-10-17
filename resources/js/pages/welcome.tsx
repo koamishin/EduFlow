@@ -324,9 +324,8 @@ export default function Welcome({
                                 </Link>
                                 <a href="/console">
                                     <Button
-                                        variant="outline"
                                         size="sm"
-                                        className="rounded-full text-xs font-semibold px-4 h-8.5 border-stone-300 text-stone-800 hover:bg-stone-100"
+                                        className="rounded-full text-xs font-semibold px-4 h-8.5 bg-[#1C1917] text-white hover:bg-stone-800 shadow-xs"
                                     >
                                         Open Console
                                     </Button>
@@ -347,7 +346,7 @@ export default function Welcome({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="rounded-full text-xs font-medium h-8.5 px-3 border-stone-300 text-stone-700 hover:bg-stone-100"
+                                        className="rounded-full text-xs font-medium h-8.5 px-3 border-stone-300 bg-white text-stone-700 hover:bg-stone-100 hover:text-stone-900"
                                     >
                                         Add School
                                     </Button>
