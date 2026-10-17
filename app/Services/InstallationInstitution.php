@@ -17,8 +17,19 @@ use Spatie\LaravelSettings\Models\SettingsProperty;
 #[Scoped]
 class InstallationInstitution
 {
+    private ?Organization $explicitOrganization = null;
+
+    public function setExplicitOrganization(?Organization $organization): void
+    {
+        $this->explicitOrganization = $organization;
+    }
+
     public function current(?User $forUser = null): ?Organization
     {
+        if ($this->explicitOrganization instanceof Organization) {
+            return $this->explicitOrganization;
+        }
+
         // 0. Explicit configuration lock (e.g. tests or dedicated single-institution environment)
         $configuredId = config('eduflow.institution_id');
         if ($configuredId !== null && $configuredId !== '') {
@@ -98,59 +109,30 @@ class InstallationInstitution
             }
         }
 
-        // 3. Single-institution installation fallback / configured environment identity
-        // In a multi-school database, static config alone cannot make requests safe; dynamic tenancy context is required.
-        $institutions = Organization::query()->limit(2)->get();
-        if ($institutions->count() !== 1) {
-            return null;
-        }
-
-        $soleInstitution = $institutions->first();
-        if (! $soleInstitution instanceof Organization) {
-            return null;
-        }
-
-        $id = config('eduflow.institution_id');
-        $configured = $id !== null && $id !== '';
-        $storedId = null;
-
+        // 3. Stored institution from settings
         if (Schema::hasTable((new SettingsProperty)->getTable())) {
             $payload = SettingsProperty::query()->where('group', InstallationSettings::group())
                 ->where('name', 'institution_id')->value('payload');
-            $storedId = $payload === null ? null : json_decode((string) $payload, true);
-
-            if ($payload !== null && json_last_error() !== JSON_ERROR_NONE) {
-                return null;
-            }
-
-            if ($storedId !== null && (! is_int($storedId) || $storedId < 1)) {
-                return null;
+            $decoded = $payload === null ? null : json_decode((string) $payload, true);
+            if (is_int($decoded) && $decoded > 0) {
+                $org = Organization::query()->find($decoded);
+                if ($org instanceof Organization) {
+                    return $org;
+                }
             }
         }
 
-        if (! $configured && $storedId !== null) {
-            $id = $storedId;
-            $configured = true;
+        // 4. Single-institution installation fallback / CLI & queue fallback
+        $institutions = Organization::query()->limit(2)->get();
+        if ($institutions->count() === 1) {
+            return $institutions->first();
         }
 
-        if ($configured) {
-            if (! is_int($id) && ! is_string($id) || filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false) {
-                return null;
-            }
-
-            if ($soleInstitution->id === (int) $id) {
-                return $soleInstitution;
-            }
-
-            return null;
+        if (app()->runningInConsole() || app()->environment(['local', 'testing'])) {
+            return Organization::query()->first();
         }
 
-        if (! app()->environment(['local', 'testing'])) {
-            return null;
-        }
-
-        // 4. Fallback to primary organization for existing CLI / test suites in single-institution setup
-        return $soleInstitution;
+        return null;
     }
 
     public function require(?User $forUser = null): Organization

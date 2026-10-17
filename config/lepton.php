@@ -58,7 +58,7 @@ return [
     ],
 
     'rpc' => [
-        'mainnet' => env('ARC_MAINNET_RPC', 'https://rpc.arc.network'),
-        'testnet' => env('ARC_TESTNET_RPC', 'https://testnet-rpc.arc.network'),
+        'mainnet' => env('ARC_MAINNET_RPC', 'https://rpc.mainnet.arc.io'),
+        'testnet' => env('ARC_TESTNET_RPC', 'https://rpc.testnet.arc.io'),
     ],
 ];

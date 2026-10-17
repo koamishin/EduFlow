@@ -14606,16 +14606,16 @@
         },
         {
             "name": "yukazakiri/lepton-agent",
-            "version": "v3.0.0-rc.1",
+            "version": "v3.0.0-rc.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/yukazakiri/lepton-agent.git",
-                "reference": "141e3b7dde7e8fef1231962c80937eae8149fdff"
+                "reference": "39fb1ca9db887f5f1b2d57885b5fb608dea47558"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/yukazakiri/lepton-agent/zipball/141e3b7dde7e8fef1231962c80937eae8149fdff",
-                "reference": "141e3b7dde7e8fef1231962c80937eae8149fdff",
+                "url": "https://api.github.com/repos/yukazakiri/lepton-agent/zipball/39fb1ca9db887f5f1b2d57885b5fb608dea47558",
+                "reference": "39fb1ca9db887f5f1b2d57885b5fb608dea47558",
                 "shasum": ""
             },
             "require": {
@@ -14669,9 +14669,9 @@
             ],
             "support": {
                 "issues": "https://github.com/yukazakiri/lepton-agent/issues",
-                "source": "https://github.com/yukazakiri/lepton-agent/tree/v3.0.0-rc.1"
+                "source": "https://github.com/yukazakiri/lepton-agent/tree/v3.0.0-rc.2"
             },
-            "time": "2026-10-16T08:17:15+00:00"
+            "time": "2026-10-17T01:47:02+00:00"
         },
         {
             "name": "yukazakiri/shadcthemes-tools",

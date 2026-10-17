@@ -7,16 +7,17 @@ namespace App\Http\Controllers;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\InstallationInstitution;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 
 class ConsoleRedirectController extends Controller
 {
     /**
      * Handle the console redirection.
      */
-    public function __invoke(Request $request): RedirectResponse
+    public function __invoke(Request $request): Response
     {
         // 1. If no institutions exist, direct to institution registration
         if (Organization::query()->count() === 0) {
@@ -54,6 +55,10 @@ class ConsoleRedirectController extends Controller
         }
 
         // 6. Otherwise, launch finance console
+        if ($request->header('X-Inertia')) {
+            return Inertia::location(url('/finance'));
+        }
+
         return redirect()->to('/finance');
     }
 }

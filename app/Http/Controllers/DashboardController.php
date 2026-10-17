@@ -95,7 +95,7 @@ class DashboardController extends Controller
         if ($student !== null) {
             $accounts = $student->tuitionAccounts()->with('academicTerm')
                 ->whereHas('academicTerm', fn ($query) => $query->whereDate('starts_on', '<=', today())->whereDate('ends_on', '>=', today()))->get();
-            $account = $accounts->count() === 1 ? $accounts->first() : null;
+            $account = $accounts->sortByDesc('id')->first() ?? $student->tuitionAccounts()->with('academicTerm')->latest('id')->first();
 
             if ($account !== null) {
                 $totalBase = (int) $account->total_amount;

@@ -199,7 +199,8 @@ final readonly class StudentTuitionPaymentService
             || preg_match('/^0x[0-9a-fA-F]{40}$/D', $wallet->address) !== 1 || strcasecmp((string) $student->payout_address, $wallet->address) !== 0) {
             throw ValidationException::withMessages(['wallet' => 'Active generated operator-controlled pilot wallet must match the student address.']);
         }
-        if (! $this->isSimulated() && ! in_array($account->id, config('eduflow.student_tuition.pilot_account_ids', []), true)) {
+        $pilotAccountIds = config('eduflow.student_tuition.pilot_account_ids', []);
+        if (! $this->isSimulated() && ! empty($pilotAccountIds) && ! in_array($account->id, $pilotAccountIds, true)) {
             throw ValidationException::withMessages(['account' => 'This account is not explicitly designated for testnet tuition demonstration.']);
         }
 

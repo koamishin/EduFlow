@@ -66,11 +66,7 @@ class StudentTuitionPaymentController extends Controller
             $accounts = $student->tuitionAccounts()->with('academicTerm')
                 ->whereHas('academicTerm', fn ($query) => $query->whereDate('starts_on', '<=', today())->whereDate('ends_on', '>=', today()))
                 ->get();
-            $account = $accounts->count() === 1 ? $accounts->first() : null;
-        }
-
-        if ($account === null) {
-            $account = $student->tuitionAccounts()->with('academicTerm')->latest('id')->first();
+            $account = $accounts->sortByDesc('id')->first() ?? $student->tuitionAccounts()->with('academicTerm')->latest('id')->first();
         }
 
         $displayCurrency = CurrencyCode::tryFrom(strtoupper((string) config('eduflow.display_currency', 'PHP'))) ?? CurrencyCode::PHP;
@@ -150,7 +146,7 @@ class StudentTuitionPaymentController extends Controller
                 'remaining_base_units' => (string) $bill->remainingAmount(),
                 'due_date' => $bill->due_date?->toDateString(),
                 'status' => $bill->status,
-                'is_pilot' => in_array($bill->id, config('eduflow.student_bills.pilot_bill_ids', []), true),
+                'is_pilot' => empty(config('eduflow.student_bills.pilot_bill_ids', [])) || in_array($bill->id, config('eduflow.student_bills.pilot_bill_ids', []), true),
             ])
             ->all();
 

@@ -27,14 +27,14 @@ use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
 
 class StudentDashboardController extends Controller
 {
-    public function index(Request $request): Response|RedirectResponse
+    public function index(Request $request): Response|RedirectResponse|\Symfony\Component\HttpFoundation\Response
     {
         if ($request->user()->hasRole('student')) {
             return to_route('student.dashboard');
         }
 
         if ($request->user()->hasAnyRole(['finance_officer', 'admin', 'super_admin'])) {
-            return redirect()->route('filament.finance.resources.assistance-requests.index');
+            return Inertia::location(url('/finance'));
         }
 
         return app(DashboardController::class)->index($request, app(CurrencyConverter::class));
@@ -46,7 +46,7 @@ class StudentDashboardController extends Controller
         $student = $request->user()->student()->firstOrFail();
         $accounts = $student->tuitionAccounts()->with('academicTerm')
             ->whereHas('academicTerm', fn ($query) => $query->whereDate('starts_on', '<=', today())->whereDate('ends_on', '>=', today()))->get();
-        $account = $accounts->count() === 1 ? $accounts->first() : null;
+        $account = $accounts->sortByDesc('id')->first() ?? $student->tuitionAccounts()->with('academicTerm')->latest('id')->first();
 
         $displayCurrency = CurrencyCode::tryFrom(strtoupper((string) config('eduflow.display_currency', 'PHP'))) ?? CurrencyCode::PHP;
         $quote = $converter->lockQuote($displayCurrency);

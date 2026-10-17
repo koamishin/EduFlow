@@ -16,9 +16,9 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
 {
     private bool $networkVerified = false;
 
-    public const MAINNET_RPC_URL = 'https://rpc.arc.network';
+    public const MAINNET_RPC_URL = 'https://rpc.mainnet.arc.io';
 
-    public const TESTNET_RPC_URL = 'https://testnet-rpc.arc.network';
+    public const TESTNET_RPC_URL = 'https://rpc.testnet.arc.io';
 
     public const MAINNET_EXPLORER = 'https://explorer.arc.network';
 
@@ -27,6 +27,8 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
     public const MAINNET_CHAIN_ID = 5040;
 
     public const TESTNET_CHAIN_ID = 5042;
+
+    public const TESTNET_CHAIN_ID_ALT = 5042002;
 
     public function __construct(
         private readonly ?CliRunner $arc = null,
@@ -128,13 +130,16 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
 
             $validPairs = [
                 ['ARC', 5040],
+                ['ARC', 5040001],
                 ['ARC-MAINNET', 5040],
                 ['ARC', 5042],
                 ['ARC-TESTNET', 5042],
                 ['ARC-TESTNET', 5042002],
             ];
 
-            $matchesConfigured = $actualChainId === $this->chainId;
+            $isTestnetMatch = in_array($this->chainId, [5042, 5042002], true) && in_array($actualChainId, [5042, 5042002], true);
+            $isMainnetMatch = in_array($this->chainId, [5040, 5040001, 5042], true) && in_array($actualChainId, [5040, 5040001, 5042], true);
+            $matchesConfigured = ($this->isMainnet() && $isMainnetMatch) || (! $this->isMainnet() && $isTestnetMatch);
             $isValidNetwork = in_array([$this->chainCode, $this->chainId], $validPairs, true);
 
             if (! is_string($network) || ! $matchesConfigured || ! $isValidNetwork) {
@@ -160,13 +165,21 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
                 'params' => $params,
             ];
 
-            $response = $this->transport->post($rpcUrl, $payload);
-            if (isset($response['error'])) {
-                $errorMsg = is_array($response['error']) ? ($response['error']['message'] ?? 'JSON-RPC Error') : (string) $response['error'];
+            $response = $this->transport->request(
+                'POST',
+                $rpcUrl,
+                ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+                $payload
+            );
+            $data = $response->data;
+            if ($response->status !== 200 || ! is_array($data) || isset($data['error'])) {
+                $errorMsg = is_array($data['error'] ?? null)
+                    ? ($data['error']['message'] ?? 'JSON-RPC Error')
+                    : (string) ($data['error'] ?? ('HTTP status '.$response->status));
                 throw new LeptonRuntimeException("RPC error: {$errorMsg}");
             }
 
-            return $response['result'] ?? null;
+            return $data['result'] ?? null;
         }
 
         try {

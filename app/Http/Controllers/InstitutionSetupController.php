@@ -89,7 +89,7 @@ class InstitutionSetupController extends Controller
     /**
      * Mark the first-time application setup as completed and launch the console.
      */
-    public function complete(Request $request): RedirectResponse
+    public function complete(Request $request): \Symfony\Component\HttpFoundation\Response
     {
         /** @var User|null $user */
         $user = Auth::user();
@@ -176,7 +176,8 @@ class InstitutionSetupController extends Controller
             report($e);
         }
 
-        return redirect()->to('/finance')
-            ->with('status', 'Institution setup completed successfully! Welcome to your OpenSinop Finance Console.');
+        session()->flash('status', 'Institution setup completed successfully! Welcome to your OpenSinop Finance Console.');
+
+        return Inertia::location(url('/finance'));
     }
 }

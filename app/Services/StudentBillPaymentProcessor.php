@@ -382,7 +382,8 @@ final readonly class StudentBillPaymentProcessor
      */
     private function assertAuthority(StudentBillPayment $payment): void
     {
-        if (! in_array($payment->student_bill_id, config('eduflow.student_bills.pilot_bill_ids', []), true)) {
+        $pilotBillIds = config('eduflow.student_bills.pilot_bill_ids', []);
+        if (! empty($pilotBillIds) && ! in_array($payment->student_bill_id, $pilotBillIds, true)) {
             throw ValidationException::withMessages(['pilot' => 'This bill is not explicitly designated for the testnet tuition pilot. No signer called.']);
         }
 

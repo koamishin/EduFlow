@@ -163,6 +163,9 @@ export default function InstitutionSetup({
                 allocated_amount: b.allocated_amount,
             })),
         }, {
+            onSuccess: () => {
+                window.location.href = '/finance';
+            },
             onFinish: () => setSubmitting(false),
         });
     };

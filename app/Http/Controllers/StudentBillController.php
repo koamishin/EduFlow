@@ -215,7 +215,7 @@ class StudentBillController extends Controller
             'remaining_base_units' => (string) $bill->remainingAmount(),
             'due_date' => $bill->due_date?->toDateString(),
             'status' => $bill->status,
-            'is_pilot' => in_array($bill->id, config('eduflow.student_bills.pilot_bill_ids', []), true),
+            'is_pilot' => empty(config('eduflow.student_bills.pilot_bill_ids', [])) || in_array($bill->id, config('eduflow.student_bills.pilot_bill_ids', []), true),
         ];
     }
 
