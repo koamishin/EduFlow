@@ -165,7 +165,7 @@ class FinanceDashboard extends BaseDashboard
                             if ($live === null) {
                                 Notification::make()
                                     ->title('Sync failed')
-                                    ->body('Could not read a live balance from Lepton Arc gateway.')
+                                    ->body(app(LeptonTreasuryService::class)->status($wallet)['error'] ?? 'Could not read a live balance from the Arc RPC endpoint.')
                                     ->danger()
                                     ->send();
 

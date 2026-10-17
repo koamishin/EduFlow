@@ -6,7 +6,6 @@ namespace App\Services;
 
 use App\Models\Wallet;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Throwable;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway as ArcNetworkGatewayContract;
 use Yukazakiri\Lepton\Gateways\FakeLeptonGateway;
@@ -106,49 +105,15 @@ class LeptonTreasuryService
             $base['rpc_host'] = parse_url($rpc, PHP_URL_HOST) ?: $rpc;
         }
 
-        $block = null;
-        $wei = null;
+        try {
+            $wei = $this->arc->rpc('eth_getBalance', [$address, 'latest']);
+        } catch (Throwable $exception) {
+            $base['error'] = $this->balanceReadError($exception);
 
-        // On real network gateways, query JSON-RPC via HTTP pool with strict timeout to avoid CLI process and pipe stalls.
-        if (! $isFake && is_string($rpc) && filter_var($rpc, FILTER_VALIDATE_URL) !== false) {
-            try {
-                $responses = Http::pool(fn ($pool): array => [
-                    $pool->as('block')->timeout(4)->post($rpc, [
-                        'jsonrpc' => '2.0',
-                        'id' => 1,
-                        'method' => 'eth_blockNumber',
-                        'params' => [],
-                    ]),
-                    $pool->as('balance')->timeout(4)->post($rpc, [
-                        'jsonrpc' => '2.0',
-                        'id' => 2,
-                        'method' => 'eth_getBalance',
-                        'params' => [$address, 'latest'],
-                    ]),
-                ]);
-
-                if (isset($responses['block']) && $responses['block']->successful()) {
-                    $block = $responses['block']->json('result');
-                }
-                if (isset($responses['balance']) && $responses['balance']->successful()) {
-                    $wei = $responses['balance']->json('result');
-                }
-            } catch (Throwable) {
-                // Fall back to CLI gateway below
-            }
+            return $base;
         }
 
-        // String arithmetic, not hexdec(), which degrades to float past
-        // PHP_INT_MAX and silently corrupts. ChainQuantity also strips the
-        // CLI's ANSI colour and returns null for an unreadable quantity: this
-        // method reports health, so it must never throw and 500 the panel.
-        $base['block'] = $block !== null
-            ? ChainQuantity::toInt($block)
-            : ChainQuantity::toInt($this->safe(fn (): string => $this->arc->blockNumber()));
-
-        if ($wei === null) {
-            $wei = $this->safe(fn (): mixed => $this->arc->rpc('eth_getBalance', [$address, 'latest']));
-        }
+        $base['block'] = ChainQuantity::toInt($this->safe(fn (): string => $this->arc->blockNumber()));
 
         // Native Arc USDC is 18 decimals, unlike the 6-decimal Circle USDC.
         // String arithmetic: 20 USDC is 2e19 wei, which overflows a 64-bit int.
@@ -157,9 +122,9 @@ class LeptonTreasuryService
         if ($native === null) {
             // A `0x` we could see but not parse is a formatting fault; its
             // absence means the RPC never gave us a balance at all.
-            $base['error'] ??= str_contains(strtolower((string) $wei), '0x')
+            $base['error'] = is_string($wei) && str_contains(strtolower($wei), '0x')
                 ? 'Unreadable balance quantity from the RPC endpoint.'
-                : 'Live balance unavailable on '.strtoupper($base['chain']).'. Run: circle wallet login <email> --testnet --init';
+                : 'RPC endpoint returned no usable balance. Check LEPTON_RPC_URL and the configured Arc network. No CLI login is required.';
 
             return $base;
         }
@@ -172,6 +137,37 @@ class LeptonTreasuryService
         $base['in_sync'] = abs($ledger - $balance) < 0.01;
 
         return $base;
+    }
+
+    private function balanceReadError(Throwable $exception): string
+    {
+        $message = $exception->getMessage();
+
+        if ($message === 'Arc RPC chain ID does not match the configured network.') {
+            return $message.' Check LEPTON_RPC_URL, LEPTON_CHAIN and LEPTON_CHAIN_ID.';
+        }
+
+        if (preg_match('/(?:HTTP error: status |HTTP status )(\d{3})/', $message, $matches) === 1) {
+            return 'Arc RPC returned HTTP '.$matches[1].'. Check endpoint access and availability. No CLI login is required.';
+        }
+
+        if ($message === 'SDK HTTP endpoints must use HTTPS without embedded credentials.') {
+            return 'Arc RPC URL must use HTTPS without embedded credentials. Check LEPTON_RPC_URL or ARC_TESTNET_RPC / ARC_MAINNET_RPC.';
+        }
+
+        if (str_contains($message, 'invalid JSON') || str_contains($message, 'unexpected JSON shape')) {
+            return 'Arc RPC returned an invalid JSON response. Configure a JSON-RPC endpoint, not a REST API or explorer URL.';
+        }
+
+        if (str_contains($message, 'SDK HTTP transport failed')) {
+            return 'Arc RPC HTTPS connection failed or timed out. Check DNS, TLS certificates and outbound connectivity from the PHP server.';
+        }
+
+        if (str_starts_with($message, 'RPC error:')) {
+            return 'Arc RPC rejected the balance request. Check endpoint permissions and the treasury address. No CLI login is required.';
+        }
+
+        return 'Could not read the balance over HTTP JSON-RPC. Check LEPTON_RPC_URL and endpoint connectivity. No CLI login is required.';
     }
 
     public function forgetStatus(?Wallet $wallet = null): void

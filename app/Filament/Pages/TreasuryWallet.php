@@ -300,7 +300,7 @@ class TreasuryWallet extends Page implements HasTable
                         if ($live === null) {
                             Notification::make()
                                 ->title('Sync failed')
-                                ->body('Could not read a live balance. Confirm the Lepton CLI is authenticated.')
+                                ->body(app(LeptonTreasuryService::class)->status($wallet)['error'] ?? 'Could not read a live balance from the Arc RPC endpoint.')
                                 ->danger()
                                 ->send();
 

@@ -107,7 +107,7 @@ class LeptonNetworkWidget extends BaseWidget
                         if ($live === null) {
                             Notification::make()
                                 ->title('Sync failed')
-                                ->body('Could not read a live balance. Confirm the Lepton CLI is authenticated for '.strtoupper((string) config('lepton.arc.chain', 'ARC-TESTNET')).'.')
+                                ->body(app(LeptonTreasuryService::class)->status($wallet)['error'] ?? 'Could not read a live balance from the Arc RPC endpoint.')
                                 ->danger()
                                 ->send();
 
