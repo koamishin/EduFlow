@@ -42,7 +42,7 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
 
     public function rpcUrl(): string
     {
-        if (is_string($this->configuredRpcUrl) && $this->configuredRpcUrl !== '') {
+        if (is_string($this->configuredRpcUrl) && trim($this->configuredRpcUrl) !== '') {
             return trim($this->configuredRpcUrl);
         }
 

@@ -14,6 +14,7 @@ use App\Models\Wallet;
 use App\Services\ArcNetworkGateway as AppArcNetworkGateway;
 use App\Services\LeptonTreasuryService;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Mockery\MockInterface;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
 use Yukazakiri\Lepton\Contracts\AuthGateway;
 use Yukazakiri\Lepton\Contracts\JsonTransport;
@@ -269,6 +270,7 @@ test('treasury sync uses HTTP RPC without wallet authentication', function (stri
     $auth->shouldNotReceive('authStatus', 'isAuthenticatedFor', 'beginLogin', 'completeLogin');
     $this->app->instance(AuthGateway::class, $auth);
 
+    /** @var JsonTransport&MockInterface $transport */
     $transport = Mockery::mock(JsonTransport::class);
     mockExpectation($transport, 'request')->times(3)->andReturnUsing(
         function (string $method, string $url, array $headers, ?array $body) use ($quantity): HttpResponse {
@@ -283,6 +285,7 @@ test('treasury sync uses HTTP RPC without wallet authentication', function (stri
                 'eth_chainId' => '0x13b2',
                 'eth_getBalance' => $quantity,
                 'eth_blockNumber' => '0x10',
+                default => throw new RuntimeException('Unexpected RPC method in treasury sync test.'),
             }]);
         },
     );
@@ -302,6 +305,7 @@ test('treasury sync uses HTTP RPC without wallet authentication', function (stri
 ]);
 
 test('failed HTTP RPC reads preserve the ledger and return safe diagnostics', function (HttpResponse|Throwable $response, string $error): void {
+    /** @var JsonTransport&MockInterface $transport */
     $transport = Mockery::mock(JsonTransport::class);
     mockExpectation($transport, 'request')->andReturnUsing(
         static function (string $method, string $url, array $headers, ?array $body) use ($response): HttpResponse {
@@ -358,7 +362,22 @@ test('arc gateway honors network-specific RPC configuration', function (string $
     'mainnet' => ['ARC-MAINNET', 5040, 'https://mainnet.example.com/rpc'],
 ]);
 
+test('blank RPC overrides fall back without returning an empty endpoint', function (?string $override): void {
+    config(['lepton.rpc.testnet' => '  https://testnet.example.com/rpc  ']);
+    $gateway = new AppArcNetworkGateway(
+        chainCode: 'ARC-TESTNET',
+        chainId: 5042002,
+        configuredRpcUrl: $override,
+    );
+
+    expect($gateway->rpcUrl())->toBe('https://testnet.example.com/rpc');
+
+    config(['lepton.rpc.testnet' => " \t\n"]);
+    expect($gateway->rpcUrl())->toBe(AppArcNetworkGateway::TESTNET_RPC_URL);
+})->with([null, '', '   ', "\t\n"]);
+
 test('treasury sync rejects a balance from the wrong network', function (): void {
+    /** @var JsonTransport&MockInterface $transport */
     $transport = Mockery::mock(JsonTransport::class);
     mockExpectation($transport, 'request')->once()->andReturn(new HttpResponse(200, ['result' => '0x13b0']));
     $service = new LeptonTreasuryService(new AppArcNetworkGateway(
