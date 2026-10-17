@@ -1,5 +1,8 @@
 <?php
 
+declare(strict_types=1);
+
+use App\Http\Middleware\EnforceHttps;
 use App\Http\Middleware\EnforceSchoolRegistration;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleColorTheme;
@@ -16,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(EnforceHttps::class);
         $middleware->encryptCookies(except: ['appearance', 'color-theme', 'sidebar_state']);
         // One unauthenticated POST route only. A wildcard here would exempt every
         // future webhook from CSRF without anyone deciding that at review time.

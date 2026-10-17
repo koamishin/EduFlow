@@ -14,6 +14,7 @@ use Filament\Panel;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Ai\Contracts\ConversationStore;
@@ -62,6 +63,11 @@ class AppServiceProvider extends ServiceProvider
 
     protected function configureDefaults(): void
     {
+        if (app()->isProduction()) {
+            URL::forceHttps();
+            config(['session.secure' => true]);
+        }
+
         Date::use(CarbonImmutable::class);
 
         DB::prohibitDestructiveCommands(
