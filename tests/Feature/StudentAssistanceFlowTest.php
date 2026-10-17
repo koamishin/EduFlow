@@ -6,11 +6,14 @@ use App\Models\Budget;
 use App\Models\Organization;
 use App\Models\Student;
 use App\Models\StudentTuitionPayment;
+use App\Models\StudentWallet;
 use App\Models\Transaction;
 use App\Models\TuitionAccount;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\StudentControlledWallets;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 
 test('financial assistance page renders policy and history for students', function (): void {
     $user = User::factory()->create();
@@ -282,4 +285,34 @@ test('payments page lists official e-receipts for the students verified tuition 
             ->where('receipts.0.student_number', $student->student_number)
             ->where('totals.tuition_paid', 10)
         );
+});
+
+test('payment history follows every wallet a student has ever linked', function (): void {
+    $address = '0xa1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+    $next = '0x7d41e0AA33A4850E20ECa993dF6F0403d6527C6E';
+    $role = Role::query()->firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
+    /** @var Organization $organization */
+    $organization = Organization::factory()->create();
+    /** @var Wallet $treasury */
+    $treasury = Wallet::factory()->create(['organization_id' => $organization->id]);
+    /** @var Student $student */
+    $student = Student::factory()->create(['payout_address' => $address, 'organization_id' => $organization->id]);
+    StudentWallet::factory()->create(['student_id' => $student->id, 'address' => $address]);
+    app(StudentControlledWallets::class)->link($student->fresh(), $next, 'external');
+    Transaction::factory()->create([
+        'organization_id' => $organization->id,
+        'wallet_id' => $treasury->id,
+        'type' => 'student_assistance',
+        'recipient_address' => $address,
+        'amount' => 30.00,
+        'status' => 'confirmed',
+    ]);
+
+    $student->user->assignRole($role);
+    $this->actingAs($student->user)
+        ->get(route('payments.index'))
+        ->assertInertia(fn ($page) => $page->where('wallet.address', strtolower($next))
+            ->where('transactions.total', 1)
+            ->where('totals.confirmed', 30)
+            ->etc());
 });

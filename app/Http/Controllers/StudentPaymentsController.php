@@ -23,9 +23,11 @@ class StudentPaymentsController extends Controller
         $user = $request->user();
         $student = $user->student()->firstOrFail();
         $walletAddress = app(StudentWalletService::class)->addressFor($student);
+        // Receipts stay readable after a deliberate wallet switch.
+        $knownAddresses = $student->wallets()->pluck('address')->push($walletAddress)->filter()->all();
 
         $transactions = Transaction::query()
-            ->paidTo($walletAddress)
+            ->paidToAny($knownAddresses)
             ->whereIn('type', ['student_assistance', 'refund'])
             ->latest('executed_at')
             ->paginate(self::PER_PAGE)
@@ -44,7 +46,7 @@ class StudentPaymentsController extends Controller
             ]);
 
         $confirmedTotal = (float) Transaction::query()
-            ->paidTo($walletAddress)
+            ->paidToAny($knownAddresses)
             ->whereIn('type', ['student_assistance', 'refund'])
             ->where('status', 'confirmed')
             ->sum('amount');

@@ -13,7 +13,6 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Support\Icons\Heroicon;
@@ -102,12 +101,7 @@ class TuitionAccountsRelationManager extends RelationManager
                     ->label('New tuition account')
                     ->modalHeading('Create Tuition Account for Student')
                     ->schema([
-                        Select::make('academic_term_id')
-                            ->label('Academic Term')
-                            ->relationship('academicTerm', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->required(),
+                        TuitionAccountResource::academicTermSelect(),
 
                         TextInput::make('total_amount')
                             ->label('Total tuition (USDC)')

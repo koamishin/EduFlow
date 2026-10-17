@@ -6,6 +6,7 @@ namespace Database\Seeders;
 
 use App\Enums\RoleEnums;
 use App\Models\Organization;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class DemoUsersSeeder extends Seeder
 
         DB::transaction(function (): void {
             $adminRole = Role::query()->firstOrCreate(['name' => RoleEnums::SUPER_ADMIN->value, 'guard_name' => 'web']);
-            $userRole = Role::query()->firstOrCreate(['name' => RoleEnums::USER->value, 'guard_name' => 'web']);
+            $studentRole = Role::query()->firstOrCreate(['name' => RoleEnums::STUDENT->value, 'guard_name' => 'web']);
 
             $org = Organization::query()->first();
 
@@ -49,7 +50,18 @@ class DemoUsersSeeder extends Seeder
             if ($org && empty($user->organization_id)) {
                 $user->update(['organization_id' => $org->id]);
             }
-            $user->assignRole($userRole);
+            $user->assignRole($studentRole);
+            $user->removeRole(RoleEnums::USER->value);
+
+            Student::query()->firstOrCreate(['user_id' => $user->id], [
+                'organization_id' => $user->organization_id,
+                'student_number' => 'DEMO-STUDENT-'.$user->id,
+                'program' => 'Demo student',
+                'year_level' => 1,
+                'enrollment_status' => 'enrolled',
+                'academic_status' => 'qualified',
+                'payout_address' => null,
+            ]);
         });
     }
 }

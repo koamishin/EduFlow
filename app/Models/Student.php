@@ -130,15 +130,29 @@ class Student extends Model
         return $this->hasMany(StudentBill::class);
     }
 
+    /**
+     * The active wallet. A student may own several over time, so this reads the
+     * one marked active rather than whichever row a lookup happens to return.
+     */
     /** @return HasOne<StudentWallet, $this> */
     public function wallet(): HasOne
     {
-        return $this->hasOne(StudentWallet::class);
+        return $this->hasOne(StudentWallet::class)->where('status', StudentWallet::STATUS_ACTIVE)->latestOfMany();
     }
 
     /**
-     * The wallet is minted once per student, so this reads through it rather
-     * than keeping a second address on the student row.
+     * Every wallet the student has ever verified, so past receipts and funding
+     * history remain readable after a switch.
+     *
+     * @return HasMany<StudentWallet, $this>
+     */
+    public function wallets(): HasMany
+    {
+        return $this->hasMany(StudentWallet::class);
+    }
+
+    /**
+     * Fundings read through every wallet, replaced ones included.
      *
      * @return HasManyThrough<StudentWalletFunding, StudentWallet, $this>
      */

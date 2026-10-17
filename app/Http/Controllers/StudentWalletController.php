@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,6 +30,7 @@ class StudentWalletController extends Controller
         $student = $this->studentFor($request);
 
         return Inertia::render('student/wallet', [
+            'walletLocked' => $student->wallet?->getAttribute('ownership_verified_at') !== null,
             'snapshot' => $this->wallets->snapshot($student)->toArray(),
             'tuitionAttempts' => StudentTuitionPaymentAttempt::query()
                 ->where('student_id', $student->id)
@@ -71,6 +73,11 @@ class StudentWalletController extends Controller
         ], [
             'wallet_address.regex' => 'Enter a wallet address: 0x followed by exactly 40 hexadecimal characters.',
         ]);
+
+        if ($student->wallet?->getAttribute('ownership_verified_at') !== null
+            && strcasecmp($student->wallet->address, $validated['wallet_address']) !== 0) {
+            throw ValidationException::withMessages(['wallet_address' => 'Verified payment wallet cannot be replaced here. Reconnect your existing wallet; balances remain at their original address.']);
+        }
 
         $this->wallets->setAddress($student, (string) $validated['wallet_address']);
 

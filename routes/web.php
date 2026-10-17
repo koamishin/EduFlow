@@ -26,6 +26,7 @@ use App\Http\Controllers\PaymentReservationController;
 use App\Http\Controllers\PaymentReviewerEnrollmentController;
 use App\Http\Controllers\StudentAssistanceController;
 use App\Http\Controllers\StudentBillController;
+use App\Http\Controllers\StudentControlledWalletController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentPaymentsController;
 use App\Http\Controllers\StudentProfileController;
@@ -98,6 +99,20 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('financial-assistance', [StudentAssistanceController::class, 'index'])->name('financial-assistance.index');
     Route::post('financial-assistance', [StudentAssistanceController::class, 'store'])->name('financial-assistance.store');
     Route::get('payments', [StudentPaymentsController::class, 'index'])->name('payments.index');
+    Route::prefix('student/controlled-wallet')->name('student.controlled-wallet.')->controller(StudentControlledWalletController::class)->group(function (): void {
+        Route::get('/', 'show')->name('show');
+        Route::post('challenge', 'challenge')->middleware('throttle:10,1')->name('challenge');
+        Route::post('connect', 'connect')->middleware('throttle:10,1')->name('connect');
+        Route::post('social-device', 'socialDevice')->middleware('throttle:10,1')->name('social-device');
+        Route::post('social-complete', 'socialComplete')->middleware('throttle:10,1')->name('social-complete');
+        Route::post('circle-session', 'circleSession')->middleware('throttle:5,1')->name('circle-session');
+        Route::post('circle-connect', 'circleConnect')->middleware('throttle:10,1')->name('circle-connect');
+        Route::post('quote', 'quote')->middleware('throttle:10,1')->name('quote');
+        Route::post('{payment}/start', 'start')->middleware('throttle:5,1')->name('start');
+        Route::post('{payment}/circle-pay', 'circlePay')->middleware('throttle:5,1')->name('circle-pay');
+        Route::post('{payment}/circle-status', 'circleStatus')->middleware('throttle:20,1')->name('circle-status');
+        Route::post('{payment}/confirm', 'confirm')->middleware('throttle:20,1')->name('confirm');
+    });
     Route::get('student/wallet', [StudentWalletController::class, 'show'])->name('student.wallet.show');
     Route::post('student/wallet/refresh', [StudentWalletController::class, 'refresh'])->middleware('throttle:10,1')->name('student.wallet.refresh');
     Route::get('student/pay', [StudentTuitionPaymentController::class, 'create'])->name('student.pay');

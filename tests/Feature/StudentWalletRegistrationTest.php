@@ -113,3 +113,17 @@ test('standard user registration without student fields creates non-student user
         ->and($user->hasRole('user'))->toBeTrue()
         ->and($user->student)->toBeNull();
 });
+
+test('students can register without an extension and create their embedded wallet later', function (): void {
+    $this->post(route('register.store'), [
+        'name' => 'Embedded Student', 'email' => 'embedded@student.edu',
+        'password' => 'SecurePass123!@#', 'password_confirmation' => 'SecurePass123!@#',
+        'institution_id' => $this->org->id, 'student_id_number' => 'EMBEDDED-001', 'department' => 'Computing',
+    ])->assertSessionHasNoErrors()->assertRedirect();
+
+    $user = User::query()->where('email', 'embedded@student.edu')->firstOrFail();
+    $student = $user->student()->firstOrFail();
+    expect($user->hasRole('student'))->toBeTrue()
+        ->and($student->payout_address)->toBeNull()
+        ->and($student->wallet)->toBeNull();
+});

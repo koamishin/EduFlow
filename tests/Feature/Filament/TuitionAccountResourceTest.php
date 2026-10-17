@@ -15,7 +15,10 @@ use App\Models\Student;
 use App\Models\StudentTuitionPayment;
 use App\Models\TuitionAccount;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
+use Illuminate\Auth\Access\AuthorizationException;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function (): void {
@@ -71,6 +74,56 @@ test('staff can set a tuition balance with exact base-unit storage', function ()
     expect($account->total_amount)->toBe(300000000)
         ->and($account->paid_amount)->toBe(25500000)
         ->and($account->remainingAmount())->toBe(274500000);
+});
+
+test('staff can create and select an academic term from the tuition form', function (): void {
+    $permission = Permission::findOrCreate('Create:TuitionAccount', 'web');
+    $viewPermission = Permission::findOrCreate('ViewAny:TuitionAccount', 'web');
+    $this->actingAs(User::factory()->create()->assignRole('super_admin')->givePermissionTo([$permission, $viewPermission]));
+    filament()->setCurrentPanel('admin');
+
+    $test = Livewire::test(CreateTuitionAccount::class);
+    $test->__call('callAction', [TestAction::make('createOption')->schemaComponent('academic_term_id'), [
+        'name' => '2027 First Semester',
+        'starts_on' => '2027-01-01',
+        'ends_on' => '2027-06-30',
+    ]]);
+
+    $term = AcademicTerm::query()->where('name', '2027 First Semester')->firstOrFail();
+    $test->__call('assertSchemaStateSet', [['academic_term_id' => $term->id]]);
+    expect($term->starts_on->toDateString())->toBe('2027-01-01')
+        ->and($term->ends_on->toDateString())->toBe('2027-06-30');
+});
+
+test('academic term creation rejects an end date before its start', function (): void {
+    $permission = Permission::findOrCreate('Create:TuitionAccount', 'web');
+    $viewPermission = Permission::findOrCreate('ViewAny:TuitionAccount', 'web');
+    $this->actingAs(User::factory()->create()->assignRole('super_admin')->givePermissionTo([$permission, $viewPermission]));
+    filament()->setCurrentPanel('admin');
+
+    $test = Livewire::test(CreateTuitionAccount::class);
+    $test->__call('callAction', [TestAction::make('createOption')->schemaComponent('academic_term_id'), [
+        'name' => 'Invalid term',
+        'starts_on' => '2027-06-30',
+        'ends_on' => '2027-01-01',
+    ]]);
+    $test->__call('assertHasActionErrors', [['ends_on' => 'after_or_equal']]);
+
+    expect(AcademicTerm::query()->where('name', 'Invalid term')->exists())->toBeFalse();
+});
+
+test('academic term creation requires tuition creation permission on the server', function (): void {
+    $this->actingAs(User::factory()->create()->assignRole('user'));
+    $create = TuitionAccountResource::academicTermSelect()->getCreateOptionUsing();
+
+    expect($create)->not->toBeNull();
+    expect(fn () => $create([
+        'name' => 'Unauthorized term',
+        'starts_on' => '2027-01-01',
+        'ends_on' => '2027-06-30',
+    ]))->toThrow(AuthorizationException::class);
+
+    expect(AcademicTerm::query()->where('name', 'Unauthorized term')->exists())->toBeFalse();
 });
 
 test('paid amount cannot exceed total tuition', function (): void {

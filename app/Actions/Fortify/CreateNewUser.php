@@ -90,13 +90,13 @@ class CreateNewUser implements CreatesNewUsers
             'student_number' => ['required_without:student_id_number', 'nullable', 'string', 'max:50'],
             'department' => ['required_without:program', 'nullable', 'string', 'max:100'],
             'program' => ['required_without:department', 'nullable', 'string', 'max:100'],
-            'wallet_address' => ['required_without:payout_address', 'nullable', 'string', 'regex:/^0x[0-9a-fA-F]{40}$/'],
-            'payout_address' => ['required_without:wallet_address', 'nullable', 'string', 'regex:/^0x[0-9a-fA-F]{40}$/'],
+            'wallet_address' => ['nullable', 'string', 'regex:/^0x[0-9a-fA-F]{40}$/'],
+            'payout_address' => ['nullable', 'string', 'regex:/^0x[0-9a-fA-F]{40}$/'],
         ])->validate();
 
         $studentNumber = (string) ($input['student_id_number'] ?? $input['student_number']);
         $department = (string) ($input['department'] ?? $input['program']);
-        $walletAddress = (string) ($input['wallet_address'] ?? $input['payout_address']);
+        $walletAddress = $input['wallet_address'] ?? $input['payout_address'] ?? null;
 
         return DB::transaction(function () use ($input, $resolvedOrgId, $studentNumber, $department, $walletAddress): User {
             $user = User::create([
@@ -127,15 +127,18 @@ class CreateNewUser implements CreatesNewUsers
                 'academic_status' => 'qualified',
             ]);
 
-            StudentWallet::create([
-                'student_id' => $student->id,
-                'address' => $walletAddress,
-                'provider' => 'external',
-                'network' => 'arc',
-                'chain' => 'ARC',
-                'status' => 'active',
-                'generated_at' => now(),
-            ]);
+            if (is_string($walletAddress) && $walletAddress !== '') {
+                StudentWallet::create([
+                    'student_id' => $student->id,
+                    'address' => $walletAddress,
+                    'provider' => 'external',
+                    'network' => 'arc',
+                    'chain' => 'ARC-TESTNET',
+                    'status' => 'active',
+                    'generated_at' => now(),
+                ]);
+
+            }
 
             $term = AcademicTerm::query()
                 ->where('starts_on', '<=', today())

@@ -14,6 +14,7 @@ use App\Filament\Resources\TuitionAccounts\Pages\ViewTuitionAccount;
 use App\Filament\Resources\TuitionAccounts\RelationManagers\PaymentAttemptsRelationManager;
 use App\Filament\Resources\TuitionAccounts\RelationManagers\PaymentsRelationManager;
 use App\Filament\Resources\TuitionAccounts\Schemas\TuitionAccountInfolist;
+use App\Models\AcademicTerm;
 use App\Models\Student;
 use App\Models\TuitionAccount;
 use BackedEnum;
@@ -23,6 +24,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -52,6 +54,31 @@ class TuitionAccountResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = 'Student Services';
 
     protected static ?int $navigationSort = 2;
+
+    public static function academicTermSelect(): Select
+    {
+        return Select::make('academic_term_id')
+            ->label('Academic Term')
+            ->relationship('academicTerm', 'name')
+            ->searchable()
+            ->preload()
+            ->required()
+            ->prefixIcon(Heroicon::CalendarDays)
+            ->helperText('Use the + button to create an academic term without leaving this form.')
+            ->createOptionForm([
+                TextInput::make('name')->required()->maxLength(255),
+                DatePicker::make('starts_on')->label('Starts on')->required(),
+                DatePicker::make('ends_on')->label('Ends on')->required()->afterOrEqual('starts_on'),
+            ])
+            ->createOptionModalHeading('Create academic term')
+            ->createOptionAction(fn (Action $action): Action => $action
+                ->authorize(fn (): bool => Gate::allows('create', TuitionAccount::class)))
+            ->createOptionUsing(function (array $data): int {
+                Gate::authorize('create', TuitionAccount::class);
+
+                return AcademicTerm::query()->create($data)->id;
+            });
+    }
 
     public static function getNavigationBadge(): ?string
     {
@@ -114,13 +141,7 @@ class TuitionAccountResource extends Resource
                             ->createOptionForm(fn (): array => StudentResource::formFields())
                             ->createOptionModalHeading('New student profile'),
 
-                        Select::make('academic_term_id')
-                            ->label('Academic Term')
-                            ->relationship('academicTerm', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->required()
-                            ->prefixIcon(Heroicon::CalendarDays),
+                        self::academicTermSelect(),
                     ])
                     ->columns(2),
 

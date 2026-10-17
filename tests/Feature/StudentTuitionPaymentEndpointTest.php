@@ -332,3 +332,40 @@ test('an unsigned circle webhook cannot record a candidate txHash or advance a t
         ->and($attempt->fresh()->state)->toBe('accepted')
         ->and($attempt->fresh()->posted_at)->toBeNull();
 });
+
+test('the pay page routes tuition to the student-owned wallet the student controls', function (): void {
+    [$student, $account] = payEndpointStudent();
+    $student->wallets()->active()->first()?->forceFill([
+        'provider' => 'circle-user',
+        'ownership_verified_at' => now(),
+        'circle_user_id' => '22222222-2222-4222-8222-222222222222',
+        'circle_wallet_id' => '11111111-1111-4111-8111-111111111111',
+    ])->save();
+    config(['student-wallets.enabled' => true, 'student-wallets.circle_api_key' => 'TEST_API_KEY:test:secret',
+        'student-wallets.circle_app_id' => 'test-app']);
+
+    $this->actingAs($student->user->assignRole('student'));
+
+    $this->get(route('student.pay', ['mode' => 'tuition']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('tuition_payment_mode', 'student_controlled')
+            ->where('student_wallets_enabled', true)
+            ->where('circleAppId', 'test-app')
+            ->where('wallet.provider', 'circle-user')
+            ->where('wallet.controlled_by_student', true)
+        );
+});
+
+test('an operator-minted wallet keeps the operator tuition rail', function (): void {
+    [$student, $account, $wallet] = payEndpointStudent();
+
+    $this->actingAs($student->user->assignRole('student'));
+
+    $this->get(route('student.pay', ['mode' => 'tuition']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('tuition_payment_mode', 'operator_pilot')
+            ->where('wallet.provider', 'circle')
+        );
+});
