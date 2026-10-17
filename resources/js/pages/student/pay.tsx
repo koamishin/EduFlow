@@ -41,7 +41,6 @@ import {
     circleStatus,
     confirm as confirmControlled,
     quote as studentQuote,
-    show as studentControlledWallet,
     start as startControlled,
 } from '@/actions/App/Http/Controllers/StudentControlledWalletController';
 import { Badge } from '@/components/ui/badge';
@@ -287,7 +286,7 @@ export default function StudentPayPage({
     billPayments = [],
     pilot_enabled,
     tuition_payment_mode = 'operator_pilot',
-    student_wallets_enabled = false,
+    student_wallets_enabled: _student_wallets_enabled = false,
     circleAppId: circleAppIdProp = null,
     currency,
 }: StudentPayPageProps) {
@@ -322,9 +321,7 @@ export default function StudentPayPage({
     const snapshot = wallet?.snapshot;
     const walletAddress = wallet?.address ?? null;
     const hasWallet = Boolean(walletAddress);
-    const studentRail =
-        tuition_payment_mode === 'student_controlled' &&
-        student_wallets_enabled;
+    const studentRail = tuition_payment_mode === 'student_controlled';
     const circleWallet = wallet?.provider === 'circle-user';
     const circleAppId = circleAppIdProp;
     const sdk = useRef<import('@circle-fin/w3s-pw-web-sdk').W3SSdk | null>(
@@ -944,7 +941,7 @@ export default function StudentPayPage({
 
     const submitTuitionTransfer = async () => {
         const baseUnits = parseBaseUnits(payAmount);
-        if (baseUnits === null) {
+        if (baseUnits === null || baseUnits <= 0) {
             setPayError(
                 'Enter a valid USDC amount with at most 6 decimal places.',
             );
@@ -952,59 +949,13 @@ export default function StudentPayPage({
             return;
         }
 
-        let currentQuote = payQuote;
-        let currentKey = requestKey;
-
-        const isCurrentQuoteMatching =
-            currentQuote &&
-            currentQuote.amount_base_units === baseUnits &&
-            currentKey &&
-            (!currentQuote.expires_at ||
-                new Date(currentQuote.expires_at).getTime() > Date.now());
-
-        if (!isCurrentQuoteMatching) {
-            setPaying(true);
-            setPayError(null);
-
-            let quotePromise = inFlightQuotePromiseRef.current;
-            if (!quotePromise) {
-                quotePromise = requestTuitionQuote(baseUnits);
-            }
-
-            try {
-                const quoteResult = await quotePromise;
-                if (!quoteResult) {
-                    setPaying(false);
-
-                    return;
-                }
-                currentQuote = quoteResult;
-                currentKey = quoteResult.request_key ?? null;
-            } catch {
-                setPaying(false);
-
-                return;
-            }
-        }
-
-        if (!currentQuote || !currentKey) {
-            setPaying(false);
-            setPayError('Lock a fresh network quote before signing.');
-
-            return;
-        }
-
         if (!consent) {
-            setPaying(false);
             setPayError(
                 'Check the cryptographic consent box before broadcasting.',
             );
 
             return;
         }
-
-        setPaying(true);
-        setPayError(null);
 
         if (studentRail) {
             setPaying(true);
@@ -1074,6 +1025,51 @@ export default function StudentPayPage({
 
             return;
         }
+
+        let currentQuote = payQuote;
+        let currentKey = requestKey;
+
+        const isCurrentQuoteMatching =
+            currentQuote &&
+            currentQuote.amount_base_units === baseUnits &&
+            currentKey &&
+            (!currentQuote.expires_at ||
+                new Date(currentQuote.expires_at).getTime() > Date.now());
+
+        if (!isCurrentQuoteMatching) {
+            setPaying(true);
+            setPayError(null);
+
+            let quotePromise = inFlightQuotePromiseRef.current;
+            if (!quotePromise) {
+                quotePromise = requestTuitionQuote(baseUnits);
+            }
+
+            try {
+                const quoteResult = await quotePromise;
+                if (!quoteResult) {
+                    setPaying(false);
+
+                    return;
+                }
+                currentQuote = quoteResult;
+                currentKey = quoteResult.request_key ?? null;
+            } catch {
+                setPaying(false);
+
+                return;
+            }
+        }
+
+        if (!currentQuote || !currentKey) {
+            setPaying(false);
+            setPayError('Lock a fresh network quote before signing.');
+
+            return;
+        }
+
+        setPaying(true);
+        setPayError(null);
 
         try {
             const response = await fetch(tuitionPayStore.url(), {
@@ -1725,36 +1721,14 @@ export default function StudentPayPage({
                                                 message={payError ?? undefined}
                                                 className="mt-2"
                                             />
-                                            {tuition_payment_mode ===
-                                                'student_controlled' && (
-                                                <div className="mt-3 flex flex-col gap-2 rounded-xl border border-[var(--clay-border)] bg-[var(--clay-surface-soft)] p-4">
-                                                    <p className="text-xs font-semibold text-[var(--clay-text)]">
-                                                        Your wallet is yours, so
-                                                        this form cannot sign
-                                                        for it.
-                                                    </p>
-                                                    <p className="text-xs text-[var(--clay-text-muted)]">
-                                                        Pay from the
-                                                        student-controlled
-                                                        checkout, where you
-                                                        approve the transfer in
-                                                        your own wallet and
-                                                        settlement is verified
-                                                        on Arc Testnet.
-                                                    </p>
-                                                    <Button
-                                                        asChild
-                                                        size="sm"
-                                                        className="clay-focus w-fit rounded-full"
-                                                    >
-                                                        <Link
-                                                            href={studentControlledWallet.url()}
-                                                        >
-                                                            Open
-                                                            student-controlled
-                                                            checkout
-                                                        </Link>
-                                                    </Button>
+                                            {studentRail && (
+                                                <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-400">
+                                                    <ShieldCheck className="size-4 shrink-0 text-emerald-400" />
+                                                    <span>
+                                                        {circleWallet
+                                                            ? 'Your student-owned Circle wallet will prompt for your PIN to authorize this transfer.'
+                                                            : 'Your browser wallet (MetaMask) will prompt for your signature on Arc Testnet.'}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
@@ -2170,8 +2144,11 @@ export default function StudentPayPage({
                                                 {paying ? (
                                                     <>
                                                         <Loader2 className="mr-2 size-4 animate-spin" />
-                                                        Signing & Broadcasting
-                                                        via Circle W3S…
+                                                        {studentRail
+                                                            ? circleWallet
+                                                                ? 'Authorizing in Circle PIN…'
+                                                                : 'Awaiting MetaMask approval…'
+                                                            : 'Signing & Broadcasting via Circle W3S…'}
                                                     </>
                                                 ) : hasTuitionInFlight ? (
                                                     <>
@@ -2183,7 +2160,9 @@ export default function StudentPayPage({
                                                     <>
                                                         <ArrowUpRight className="mr-1.5 size-4" />
                                                         {consent
-                                                            ? `Sign & Send ${payQuote?.payer_debit ?? payAmount} USDC`
+                                                            ? studentRail
+                                                                ? `Approve & Pay ${payAmount} USDC`
+                                                                : `Sign & Send ${payQuote?.payer_debit ?? payAmount} USDC`
                                                             : 'Check Consent Box Above to Sign'}
                                                     </>
                                                 )}
