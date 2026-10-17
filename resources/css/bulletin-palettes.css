@@ -207,6 +207,7 @@ html:not(.dark).theme-ocean .bulletin {
     --status-urgent: #e47070;
 
     --clay-edge: rgb(234 245 238 / 0.07);
+    --font-sans: Antic, ui-sans-serif, sans-serif;
 }
 
 html:not(.dark).theme-sage-garden .bulletin {
@@ -267,6 +268,7 @@ html:not(.dark).theme-sage-garden .bulletin {
     --status-urgent: #ea6c64;
 
     --clay-edge: rgb(247 239 231 / 0.07);
+    --font-sans: ui-sans-serif, system-ui, sans-serif;
 }
 
 html:not(.dark).theme-claude .bulletin {

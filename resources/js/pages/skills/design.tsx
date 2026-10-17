@@ -179,48 +179,48 @@ export default function DesignSkillsLanding() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-[#181818] text-[#F3F3F3] antialiased selection:bg-white selection:text-black">
+        <div className="min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
             <Head title="Agent Design Skills — Distinctive Web Frontends Without Generic Slop" />
 
             {/* B7 Fluid Island Navigation Bar */}
             <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center p-4">
-                <div className="mt-2 flex w-max items-center justify-between gap-6 rounded-full border border-[#313131] bg-[#1F1F1F]/90 px-6 py-2.5 backdrop-blur-3xl shadow-lg transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]">
+                <div className="mt-2 flex w-max items-center justify-between gap-6 rounded-full border border-border bg-card/90 px-6 py-2.5 backdrop-blur-3xl shadow-lg transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]">
                     <Link
                         href="/"
-                        className="flex items-center gap-2 text-sm font-semibold text-white"
+                        className="flex items-center gap-2 text-sm font-semibold text-foreground"
                     >
-                        <Sparkles className="size-4 text-[#F3F3F3]" />
+                        <Sparkles className="size-4 text-primary" />
                         <span>Design Skills</span>
                     </Link>
 
-                    <div className="hidden sm:flex items-center gap-5 text-sm text-[#9B9B9B]">
+                    <div className="hidden sm:flex items-center gap-5 text-sm text-muted-foreground">
                         <a
                             href="#manifesto"
-                            className="hover:text-white transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Manifesto
                         </a>
                         <a
                             href="#benefits"
-                            className="hover:text-white transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Benefits
                         </a>
                         <a
                             href="#workflow"
-                            className="hover:text-white transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Workflow
                         </a>
                         <a
                             href="#studio"
-                            className="hover:text-white transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Playground
                         </a>
                         <a
                             href="#faq"
-                            className="hover:text-white transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Questions
                         </a>
@@ -230,11 +230,11 @@ export default function DesignSkillsLanding() {
                         <button
                             type="button"
                             onClick={handleCopyInstall}
-                            className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-[#E5E5E5] active:scale-[0.98] transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                            className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]"
                         >
                             {copiedInstall ? (
                                 <>
-                                    <Check className="size-3.5 text-black" />
+                                    <Check className="size-3.5 text-primary-foreground" />
                                     <span>Copied Command</span>
                                 </>
                             ) : (
@@ -283,7 +283,7 @@ export default function DesignSkillsLanding() {
                         <button
                             type="button"
                             onClick={handleCopyInstall}
-                            className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-base font-semibold text-black hover:bg-[#E5E5E5] active:scale-[0.98] transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]"
                         >
                             <Terminal className="size-4" />
                             <span>Install Design Skills</span>
@@ -669,7 +669,7 @@ export default function DesignSkillsLanding() {
                                     onClick={() => setActiveSkill('frontend')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${
                                         activeSkill === 'frontend'
-                                            ? 'bg-white text-black'
+                                            ? 'bg-primary text-primary-foreground'
                                             : 'border border-[#313131] bg-transparent text-[#9B9B9B] hover:text-white'
                                     }`}
                                 >
@@ -680,7 +680,7 @@ export default function DesignSkillsLanding() {
                                     onClick={() => setActiveSkill('landing')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${
                                         activeSkill === 'landing'
-                                            ? 'bg-white text-black'
+                                            ? 'bg-primary text-primary-foreground'
                                             : 'border border-[#313131] bg-transparent text-[#9B9B9B] hover:text-white'
                                     }`}
                                 >
@@ -881,7 +881,7 @@ export default function DesignSkillsLanding() {
                             <button
                                 type="button"
                                 onClick={handleCopyInstall}
-                                className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-base font-semibold text-black hover:bg-[#E5E5E5] active:scale-[0.98] transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-base font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]"
                             >
                                 <Terminal className="size-4" />
                                 <span>Copy Installation Command</span>

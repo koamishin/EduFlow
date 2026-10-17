@@ -239,63 +239,63 @@ export default function Welcome({
         SAMPLE_STUDENTS[0];
 
     return (
-        <div className="min-h-screen bg-[#FAFAF9] text-[#1C1917] font-sans antialiased selection:bg-[#1C1917] selection:text-white relative">
+        <div className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-primary selection:text-primary-foreground relative">
             <Head title="OpenSinop — Simple School Finance and Bill Payments" />
 
             {/* Radiant Ambient Light Background */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[550px] bg-gradient-to-b from-stone-200/40 via-amber-50/20 to-transparent blur-3xl rounded-full" />
-                <div className="absolute top-[800px] left-1/2 -translate-x-1/2 w-[850px] h-[450px] bg-gradient-to-b from-stone-200/30 via-stone-100/10 to-transparent blur-3xl rounded-full" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[550px] bg-gradient-to-b from-primary/10 via-accent/5 to-transparent blur-3xl rounded-full" />
+                <div className="absolute top-[800px] left-1/2 -translate-x-1/2 w-[850px] h-[450px] bg-gradient-to-b from-primary/5 via-accent/5 to-transparent blur-3xl rounded-full" />
             </div>
 
             {/* Elevated Light Navigation Header */}
-            <header className="sticky top-0 z-50 border-b border-stone-200/70 bg-[#FAFAF9]/85 backdrop-blur-xl">
+            <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-xl">
                 <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 h-16">
                     <Link href="/" className="flex items-center gap-2.5 group">
-                        <div className="flex size-7 items-center justify-center rounded-lg bg-[#1C1917] text-white font-serif font-bold text-sm shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-transform group-hover:scale-105">
+                        <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground font-serif font-bold text-sm shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-transform group-hover:scale-105">
                             O
                         </div>
                         <div className="flex flex-col">
-                            <span className="font-serif text-base font-bold tracking-tight text-[#1C1917]">
+                            <span className="font-serif text-base font-bold tracking-tight text-foreground">
                                 OpenSinop
                             </span>
                         </div>
                     </Link>
 
-                    <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-stone-600">
+                    <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-muted-foreground">
                         <a
                             href="#product"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             What it does
                         </a>
                         <a
                             href="#how"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             How it works
                         </a>
                         <a
                             href="#rules"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Your rules
                         </a>
                         <a
                             href="#receipts"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Receipts
                         </a>
                         <a
                             href="#pricing"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Pricing
                         </a>
                         <Link
                             href="/skills/design"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Skills Studio
                         </Link>
@@ -306,7 +306,7 @@ export default function Welcome({
                             <Link href={dashboard()}>
                                 <Button
                                     size="sm"
-                                    className="rounded-full text-xs font-semibold px-4 h-8.5 bg-[#1C1917] text-white hover:bg-stone-800 shadow-xs"
+                                    className="rounded-full text-xs font-semibold px-4 h-8.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
                                 >
                                     Dashboard
                                     <ArrowRight className="size-3.5 ml-1" />
@@ -317,7 +317,7 @@ export default function Welcome({
                                 <Link href="/institutions/register">
                                     <Button
                                         size="sm"
-                                        className="rounded-full text-xs font-semibold px-4 h-8.5 bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] shadow-xs"
+                                        className="rounded-full text-xs font-semibold px-4 h-8.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
                                     >
                                         Setup School
                                     </Button>
@@ -325,7 +325,8 @@ export default function Welcome({
                                 <a href="/console">
                                     <Button
                                         size="sm"
-                                        className="rounded-full text-xs font-semibold px-4 h-8.5 bg-[#1C1917] text-white hover:bg-stone-800 shadow-xs"
+                                        variant="outline"
+                                        className="rounded-full text-xs font-semibold px-4 h-8.5 shadow-xs"
                                     >
                                         Open Console
                                     </Button>
@@ -337,7 +338,7 @@ export default function Welcome({
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="rounded-full text-xs font-medium h-8.5 px-3 text-stone-700 hover:text-stone-950 hover:bg-stone-200/50"
+                                        className="rounded-full text-xs font-medium h-8.5 px-3"
                                     >
                                         Sign in
                                     </Button>
@@ -346,7 +347,7 @@ export default function Welcome({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="rounded-full text-xs font-medium h-8.5 px-3 border-stone-300 bg-white text-stone-700 hover:bg-stone-100 hover:text-stone-900"
+                                        className="rounded-full text-xs font-medium h-8.5 px-3"
                                     >
                                         Add School
                                     </Button>
@@ -354,7 +355,7 @@ export default function Welcome({
                                 <a href="/console">
                                     <Button
                                         size="sm"
-                                        className="rounded-full text-xs font-semibold px-4 h-8.5 bg-[#1C1917] text-white hover:bg-stone-800 shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
+                                        className="rounded-full text-xs font-semibold px-4 h-8.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
                                     >
                                         Open Console
                                     </Button>
@@ -378,7 +379,7 @@ export default function Welcome({
                             </span>
                         </div>
                     ) : (
-                        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-stone-200/80 bg-white px-3.5 py-1 text-xs font-mono text-stone-600 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+                        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1 text-xs font-mono text-muted-foreground shadow-xs">
                             <span className="relative flex size-2">
                                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                                 <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
@@ -395,18 +396,18 @@ export default function Welcome({
 
                     <h1
                         style={{ textWrap: 'balance' }}
-                        className="font-serif text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-[#1C1917] leading-[1.08]"
+                        className="font-serif text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-foreground leading-[1.08]"
                     >
                         Your school fees are arriving.
                         <br />
-                        <span className="italic font-normal text-stone-600">
+                        <span className="italic font-normal text-muted-foreground">
                             Your bills shouldn't guess.
                         </span>
                     </h1>
 
                     <p
                         style={{ textWrap: 'pretty' }}
-                        className="mt-6 max-w-2xl text-base sm:text-lg text-stone-600 leading-relaxed font-sans"
+                        className="mt-6 max-w-2xl text-base sm:text-lg text-muted-foreground leading-relaxed font-sans"
                     >
                         OpenSinop reconciles tuition where families pay, locks
                         your emergency reserve first, and proposes small,
@@ -420,7 +421,7 @@ export default function Welcome({
                                 <Link href="/institutions/register">
                                     <Button
                                         size="lg"
-                                        className="rounded-full px-7 py-3 text-sm font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.12)] bg-[#1C1917] text-white hover:bg-stone-800 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                                        className="rounded-full px-7 py-3 text-sm font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.12)] bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:-translate-y-0.5 flex items-center gap-2"
                                     >
                                         Register Your Institution
                                         <ArrowRight className="size-4" />
@@ -430,7 +431,7 @@ export default function Welcome({
                                     <Button
                                         variant="outline"
                                         size="lg"
-                                        className="rounded-full px-6 py-3 text-sm font-semibold border-stone-300 bg-white text-stone-800 hover:bg-stone-50 shadow-xs"
+                                        className="rounded-full px-6 py-3 text-sm font-semibold shadow-xs"
                                     >
                                         Open Console
                                     </Button>
@@ -441,7 +442,7 @@ export default function Welcome({
                                 <a href="/console">
                                     <Button
                                         size="lg"
-                                        className="rounded-full px-7 py-3 text-sm font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.12)] bg-[#1C1917] text-white hover:bg-stone-800 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                                        className="rounded-full px-7 py-3 text-sm font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.12)] bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:-translate-y-0.5 flex items-center gap-2"
                                     >
                                         Open Finance Console
                                         <ArrowRight className="size-4" />
@@ -451,9 +452,9 @@ export default function Welcome({
                                     <Button
                                         variant="outline"
                                         size="lg"
-                                        className="rounded-full px-6 py-3 text-sm font-semibold border-stone-300 bg-white text-stone-800 hover:bg-stone-50 shadow-xs flex items-center gap-1.5"
+                                        className="rounded-full px-6 py-3 text-sm font-semibold shadow-xs flex items-center gap-1.5"
                                     >
-                                        <GraduationCap className="size-4 text-stone-600" />
+                                        <GraduationCap className="size-4 text-muted-foreground" />
                                         Student Portal
                                     </Button>
                                 </Link>
@@ -461,7 +462,7 @@ export default function Welcome({
                                     <Button
                                         variant="ghost"
                                         size="lg"
-                                        className="rounded-full px-5 py-3 text-sm font-medium text-stone-600 hover:text-stone-900"
+                                        className="rounded-full px-5 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
                                     >
                                         + Register Another School
                                     </Button>
@@ -471,25 +472,25 @@ export default function Welcome({
                     </div>
 
                     {/* FANCY COCKPIT TERMINAL SIMULATOR */}
-                    <div className="mt-14 w-full text-left rounded-2xl border border-stone-200/90 bg-white p-5 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.05)] ring-1 ring-stone-900/[0.03]">
+                    <div className="mt-14 w-full text-left rounded-2xl border border-border bg-card p-5 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.05)] ring-1 ring-border/40">
                         {/* Browser Window Bar */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-stone-200/80 gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-border gap-3">
                             <div className="flex items-center gap-2">
                                 <span className="size-2.5 rounded-full bg-[#FF5F56] border border-black/10" />
                                 <span className="size-2.5 rounded-full bg-[#FFBD2E] border border-black/10" />
                                 <span className="size-2.5 rounded-full bg-[#27C93F] border border-black/10" />
-                                <div className="ml-3 rounded-full border border-stone-200 bg-stone-50 px-3 py-0.5 font-mono text-[11px] text-stone-600 flex items-center gap-1.5">
+                                <div className="ml-3 rounded-full border border-border bg-muted px-3 py-0.5 font-mono text-[11px] text-muted-foreground flex items-center gap-1.5">
                                     <span className="size-1.5 rounded-full bg-emerald-500" />
                                     <span>westview.edu/treasury</span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 font-mono text-[11px] text-stone-500">
+                            <div className="flex items-center gap-3 font-mono text-[11px] text-muted-foreground">
                                 <span>3 intake records in batch</span>
-                                <span className="text-stone-300">|</span>
-                                <span className="font-semibold text-stone-800">
+                                <span className="text-muted-foreground/40">|</span>
+                                <span className="font-semibold text-foreground">
                                     $50,000.00 verified
                                 </span>
-                                <span className="text-stone-300">|</span>
+                                <span className="text-muted-foreground/40">|</span>
                                 <span className="inline-flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/70">
                                     <span className="size-1.5 rounded-full bg-amber-500" />
                                     1 approval waiting
@@ -501,7 +502,7 @@ export default function Welcome({
                         <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                             {/* Left: Students intake list */}
                             <div className="lg:col-span-7 flex flex-col gap-2.5">
-                                <div className="flex items-center justify-between px-1 text-xs font-mono text-stone-500 uppercase tracking-wider">
+                                <div className="flex items-center justify-between px-1 text-xs font-mono text-muted-foreground uppercase tracking-wider">
                                     <span>Verified Fee Intake</span>
                                     <span>Match Quality</span>
                                 </div>
@@ -530,37 +531,37 @@ export default function Welcome({
                                             }}
                                             className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                                                 active
-                                                    ? 'border-stone-900 bg-stone-50/80 shadow-[0_2px_12px_rgba(0,0,0,0.04)] ring-1 ring-stone-900/10'
-                                                    : 'border-stone-200/70 bg-white hover:border-stone-400/80 hover:bg-stone-50/40'
+                                                    ? 'border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20'
+                                                    : 'border-border bg-card hover:border-primary/50 hover:bg-muted/40'
                                             }`}
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div
                                                     className={`flex size-8 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold transition-colors ${
                                                         active
-                                                            ? 'bg-stone-900 text-white'
-                                                            : 'bg-stone-100 text-stone-700 border border-stone-200'
+                                                            ? 'bg-primary text-primary-foreground'
+                                                            : 'bg-muted text-muted-foreground border border-border'
                                                     }`}
                                                 >
                                                     {item.student[0]}
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-semibold text-sm text-stone-900">
+                                                        <span className="font-semibold text-sm text-foreground">
                                                             {item.student}
                                                         </span>
-                                                        <span className="text-xs text-stone-500">
+                                                        <span className="text-xs text-muted-foreground">
                                                             {item.grade}
                                                         </span>
                                                     </div>
-                                                    <p className="text-xs text-stone-600 line-clamp-1 mt-0.5">
+                                                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                                                         "{item.note}"
                                                     </p>
                                                 </div>
                                             </div>
 
                                             <div className="text-right shrink-0">
-                                                <span className="font-mono text-xs font-bold text-stone-900 block">
+                                                <span className="font-mono text-xs font-bold text-foreground block">
                                                     {item.amount}
                                                 </span>
                                                 <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-semibold">
@@ -575,52 +576,52 @@ export default function Welcome({
 
                             {/* Right: GrowTendril style approval card with light elevation */}
                             <div className="lg:col-span-5 flex flex-col gap-3">
-                                <div className="px-1 text-xs font-mono text-stone-500 uppercase tracking-wider">
+                                <div className="px-1 text-xs font-mono text-muted-foreground uppercase tracking-wider">
                                     Decision Engine · Needs Your Yes
                                 </div>
 
-                                <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-5 flex flex-col justify-between shadow-2xs">
+                                <div className="rounded-xl border border-border bg-muted/40 p-5 flex flex-col justify-between shadow-2xs">
                                     <div>
-                                        <div className="flex items-center justify-between pb-3 border-b border-stone-200 text-xs font-mono text-stone-500">
-                                            <span className="font-semibold text-stone-700">
+                                        <div className="flex items-center justify-between pb-3 border-b border-border text-xs font-mono text-muted-foreground">
+                                            <span className="font-semibold text-foreground">
                                                 PROPOSED EXPENSE
                                             </span>
                                             <Badge
                                                 variant="outline"
-                                                className="font-mono text-[10px] bg-white border-stone-300 text-stone-700"
+                                                className="font-mono text-[10px] bg-card border-border text-foreground"
                                             >
                                                 POLICY V3
                                             </Badge>
                                         </div>
 
-                                        <h3 className="mt-3 font-serif text-base font-bold text-stone-900">
+                                        <h3 className="mt-3 font-serif text-base font-bold text-foreground">
                                             Pay Metro Fiber Networks $30.00 for
                                             campus internet?
                                         </h3>
 
-                                        <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                             Verified recurring utility. Complies
                                             with your fifty dollar auto limit
                                             and preserves your five thousand
                                             dollar reserve buffer.
                                         </p>
 
-                                        <div className="mt-4 flex flex-col gap-1.5 font-mono text-[11px] text-stone-600 bg-white p-3 rounded-lg border border-stone-200/80">
+                                        <div className="mt-4 flex flex-col gap-1.5 font-mono text-[11px] text-muted-foreground bg-card p-3 rounded-lg border border-border">
                                             <div className="flex justify-between">
                                                 <span>Recipients:</span>
-                                                <span className="text-stone-900 font-semibold">
+                                                <span className="text-foreground font-semibold">
                                                     Metro Fiber verified
                                                 </span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span>Safety buffer:</span>
-                                                <span className="text-stone-900 font-semibold">
+                                                <span className="text-foreground font-semibold">
                                                     $5,000.00 intact
                                                 </span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span>Settlement rail:</span>
-                                                <span className="text-stone-900 font-semibold">
+                                                <span className="text-foreground font-semibold">
                                                     One second confirmation
                                                 </span>
                                             </div>
@@ -628,7 +629,7 @@ export default function Welcome({
                                     </div>
 
                                     {/* Action button states */}
-                                    <div className="mt-5 pt-3 border-t border-stone-200 flex items-center gap-2">
+                                    <div className="mt-5 pt-3 border-t border-border flex items-center gap-2">
                                         {pendingApproval === 'pending' ? (
                                             <>
                                                 <Button
@@ -638,7 +639,7 @@ export default function Welcome({
                                                             'approved',
                                                         )
                                                     }
-                                                    className="flex-1 rounded-md text-xs font-semibold h-9 bg-stone-900 text-white hover:bg-stone-800 shadow-xs"
+                                                    className="flex-1 rounded-md text-xs font-semibold h-9 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
                                                 >
                                                     Approve Payment
                                                 </Button>
@@ -650,7 +651,7 @@ export default function Welcome({
                                                             'rejected',
                                                         )
                                                     }
-                                                    className="rounded-md text-xs font-semibold h-9 border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                                                    className="rounded-md text-xs font-semibold h-9 border-border bg-card text-foreground hover:bg-muted"
                                                 >
                                                     Not now
                                                 </Button>
@@ -663,7 +664,7 @@ export default function Welcome({
                                                 </span>
                                             </div>
                                         ) : (
-                                            <div className="w-full flex items-center justify-center gap-2 py-2 text-xs font-mono text-stone-600 rounded-md border border-stone-300 bg-white">
+                                            <div className="w-full flex items-center justify-center gap-2 py-2 text-xs font-mono text-muted-foreground rounded-md border border-border bg-card">
                                                 <span>
                                                     Disbursement postponed.
                                                 </span>
@@ -674,7 +675,7 @@ export default function Welcome({
                                                             'pending',
                                                         )
                                                     }
-                                                    className="underline text-stone-900 font-semibold ml-1"
+                                                    className="underline text-foreground font-semibold ml-1"
                                                 >
                                                     Reset
                                                 </button>
@@ -692,11 +693,11 @@ export default function Welcome({
                     id="product"
                     className="mx-auto max-w-4xl px-4 sm:px-6"
                 >
-                    <span className="text-xs font-mono uppercase tracking-widest text-stone-500 block mb-3 font-semibold">
+                    <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground block mb-3 font-semibold">
                         INTRODUCING OPENSINOP
                     </span>
 
-                    <p className="text-xl sm:text-2xl font-serif text-stone-900 leading-relaxed font-bold">
+                    <p className="text-xl sm:text-2xl font-serif text-foreground leading-relaxed font-bold">
                         Somewhere right now, a campus internet bill is due.
                         Someone in the science faculty is ordering chemistry
                         supplies with a paper form. A facilities repair is about
@@ -705,7 +706,7 @@ export default function Welcome({
                         paperwork, and term moves too fast.
                     </p>
 
-                    <p className="mt-6 text-sm sm:text-base text-stone-600 leading-relaxed">
+                    <p className="mt-6 text-sm sm:text-base text-muted-foreground leading-relaxed">
                         OpenSinop reconciles the money for you. It tracks
                         tuition intake across cashier counters and bank wires,
                         guards your emergency buffer so savings remain
@@ -718,12 +719,12 @@ export default function Welcome({
                 {/* 3. THE BORING WORK (FANCY LIGHT PILL CLOUD) */}
                 <section className="mx-auto max-w-5xl px-4 sm:px-6">
                     <div className="mb-10 text-center sm:text-left">
-                        <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                             THE BORING WORK
                         </span>
                         <h2
                             style={{ textWrap: 'balance' }}
-                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                         >
                             All the finance chores,
                             <br />
@@ -736,14 +737,14 @@ export default function Welcome({
                         {BORING_CHORES.map((chore, idx) => (
                             <span
                                 key={chore + idx}
-                                className="inline-flex items-center rounded-lg border border-stone-200/90 bg-white px-3.5 py-2 text-xs font-medium text-stone-700 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:border-stone-400 hover:text-stone-950 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-200"
+                                className="inline-flex items-center rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-medium text-foreground shadow-xs hover:border-primary/50 hover:bg-muted hover:-translate-y-0.5 transition-all duration-200"
                             >
                                 {chore}
                             </span>
                         ))}
                     </div>
 
-                    <p className="mt-8 font-mono text-xs text-stone-500">
+                    <p className="mt-8 font-mono text-xs text-muted-foreground">
                         None of it is clever. All of it is repeated. That is
                         exactly the work worth handing to an operator.
                     </p>
@@ -752,16 +753,16 @@ export default function Welcome({
                 {/* 4. HOW A CYCLE WORKS: 3 STAGES WITH CRISP LIGHT CARDS */}
                 <section
                     id="how"
-                    className="border-y border-stone-200/80 bg-stone-100/50 py-20"
+                    className="border-y border-border bg-muted/30 py-20"
                 >
                     <div className="mx-auto max-w-6xl px-4 sm:px-6">
                         <div className="mb-12">
-                            <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                            <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                                 HOW A CYCLE WORKS
                             </span>
                             <h2
                                 style={{ textWrap: 'balance' }}
-                                className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                                className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                             >
                                 Records it. Checks it.
                                 <br />
@@ -771,35 +772,35 @@ export default function Welcome({
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {/* Card 1: Records intake */}
-                            <div className="rounded-xl border border-stone-200 bg-white p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-stone-300 transition-colors">
+                            <div className="rounded-xl border border-border bg-card p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-primary/50 transition-colors">
                                 <div>
-                                    <span className="font-mono text-xs text-stone-500 block mb-3 font-semibold">
+                                    <span className="font-mono text-xs text-muted-foreground block mb-3 font-semibold">
                                         STAGE 01 · VERIFICATION
                                     </span>
-                                    <div className="space-y-1.5 font-mono text-xs border border-stone-200 bg-stone-50 p-3 rounded-lg mb-4 text-stone-600">
+                                    <div className="space-y-1.5 font-mono text-xs border border-border bg-muted/50 p-3 rounded-lg mb-4 text-muted-foreground">
                                         <div className="flex justify-between">
                                             <span>read cashier ledger</span>
-                                            <span className="text-stone-900 font-semibold">
+                                            <span className="text-foreground font-semibold">
                                                 done
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span>reconcile bank wires</span>
-                                            <span className="text-stone-900 font-semibold">
+                                            <span className="text-foreground font-semibold">
                                                 done
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span>lock emergency floor</span>
-                                            <span className="font-bold text-stone-900">
+                                            <span className="font-bold text-foreground">
                                                 $5k held
                                             </span>
                                         </div>
                                     </div>
-                                    <h3 className="font-serif text-lg font-bold text-stone-900">
+                                    <h3 className="font-serif text-lg font-bold text-foreground">
                                         Records the intake.
                                     </h3>
-                                    <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                         Reads the cashier entries and bank
                                         settlements. It keeps only verified
                                         receipts and links each dollar directly
@@ -809,27 +810,27 @@ export default function Welcome({
                             </div>
 
                             {/* Card 2: Checks the evidence */}
-                            <div className="rounded-xl border border-stone-200 bg-white p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-stone-300 transition-colors">
+                            <div className="rounded-xl border border-border bg-card p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-primary/50 transition-colors">
                                 <div>
-                                    <span className="font-mono text-xs text-stone-500 block mb-3 font-semibold">
+                                    <span className="font-mono text-xs text-muted-foreground block mb-3 font-semibold">
                                         STAGE 02 · INTEGRITY CHECK
                                     </span>
-                                    <div className="space-y-1.5 font-mono text-xs border border-stone-200 bg-stone-50 p-3 rounded-lg mb-4">
-                                        <div className="flex justify-between items-center text-stone-900 font-semibold">
+                                    <div className="space-y-1.5 font-mono text-xs border border-border bg-muted/50 p-3 rounded-lg mb-4">
+                                        <div className="flex justify-between items-center text-foreground font-semibold">
                                             <span>Maya K. wire match</span>
                                             <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 text-[11px]">
                                                 99 fit ✓
                                             </span>
                                         </div>
-                                        <div className="text-[11px] text-stone-500">
+                                        <div className="text-[11px] text-muted-foreground">
                                             bank stamp verified · dual logged
                                             today
                                         </div>
                                     </div>
-                                    <h3 className="font-serif text-lg font-bold text-stone-900">
+                                    <h3 className="font-serif text-lg font-bold text-foreground">
                                         Checks the evidence.
                                     </h3>
-                                    <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                         Collections and suppliers are verified
                                         on confirmed bank records, not verbal
                                         claims. Open the source statement behind
@@ -839,35 +840,35 @@ export default function Welcome({
                             </div>
 
                             {/* Card 3: Asks before it spends */}
-                            <div className="rounded-xl border border-stone-200 bg-white p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-stone-300 transition-colors">
+                            <div className="rounded-xl border border-border bg-card p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-primary/50 transition-colors">
                                 <div>
-                                    <span className="font-mono text-xs text-stone-500 block mb-3 font-semibold">
+                                    <span className="font-mono text-xs text-muted-foreground block mb-3 font-semibold">
                                         STAGE 03 · POLICY BOUNDS
                                     </span>
-                                    <div className="space-y-1.5 font-mono text-xs border border-stone-200 bg-stone-50 p-3 rounded-lg mb-4">
-                                        <div className="flex justify-between text-stone-600">
+                                    <div className="space-y-1.5 font-mono text-xs border border-border bg-muted/50 p-3 rounded-lg mb-4">
+                                        <div className="flex justify-between text-muted-foreground">
                                             <span>routine $30 bill:</span>
-                                            <span className="text-stone-900 font-semibold">
+                                            <span className="text-foreground font-semibold">
                                                 complies
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-stone-600">
+                                        <div className="flex justify-between text-muted-foreground">
                                             <span>lab $90 bill:</span>
-                                            <span className="text-stone-900 font-semibold">
+                                            <span className="text-foreground font-semibold">
                                                 ask you first
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-stone-600">
+                                        <div className="flex justify-between text-muted-foreground">
                                             <span>vent repair $200:</span>
                                             <span className="text-rose-700 font-semibold">
                                                 halted by rule
                                             </span>
                                         </div>
                                     </div>
-                                    <h3 className="font-serif text-lg font-bold text-stone-900">
+                                    <h3 className="font-serif text-lg font-bold text-foreground">
                                         Asks before it spends.
                                     </h3>
-                                    <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                         Your limits are enforced in mathematical
                                         code. Anything breaching your reserve
                                         buffer is blocked. Routine bills
@@ -883,55 +884,55 @@ export default function Welcome({
                 {/* 5. YOUR RULES: YOUR LIMITS AREN'T SUGGESTIONS. THEY'RE CODE. */}
                 <section id="rules" className="mx-auto max-w-5xl px-4 sm:px-6">
                     <div className="mb-10">
-                        <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                             YOUR RULES
                         </span>
                         <h2
                             style={{ textWrap: 'balance' }}
-                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                         >
                             Your limits aren't suggestions.
                             <br />
                             They're code.
                         </h2>
-                        <p className="mt-3 max-w-xl text-sm text-stone-600">
+                        <p className="mt-3 max-w-xl text-sm text-muted-foreground">
                             The disbursement policy is evaluated by a
                             deterministic rules engine on every payment, not by
                             an artificial intelligence prompt.
                         </p>
                     </div>
 
-                    <div className="rounded-xl border border-stone-200 bg-white p-6 sm:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)]">
-                        <div className="flex items-center justify-between pb-3 border-b border-stone-200 font-mono text-xs text-stone-500">
+                    <div className="rounded-xl border border-border bg-card p-6 sm:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)]">
+                        <div className="flex items-center justify-between pb-3 border-b border-border font-mono text-xs text-muted-foreground">
                             <span>TREASURY POLICY · WESTVIEW COLLEGE</span>
                             <Badge
                                 variant="outline"
-                                className="font-mono text-[10px] bg-stone-50 border-stone-300"
+                                className="font-mono text-[10px] bg-muted/50 border-border text-foreground"
                             >
                                 POLICY V3
                             </Badge>
                         </div>
 
-                        <div className="mt-4 divide-y divide-stone-100 font-mono text-xs">
+                        <div className="mt-4 divide-y divide-border font-mono text-xs">
                             {RULES_ENGINE.map((r) => (
                                 <div
                                     key={r.num}
                                     className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <span className="text-stone-400 w-4 font-bold">
+                                        <span className="text-muted-foreground/60 w-4 font-bold">
                                             {r.num}
                                         </span>
-                                        <span className="font-bold text-stone-900 uppercase">
+                                        <span className="font-bold text-foreground uppercase">
                                             {r.name}
                                         </span>
-                                        <span className="text-stone-600">
+                                        <span className="text-muted-foreground">
                                             {r.rule}
                                         </span>
                                     </div>
                                     <Badge
                                         variant="outline"
-                                        className="w-fit text-[10px] font-mono uppercase bg-stone-50 border-stone-200 text-stone-700"
+                                        className="w-fit text-[10px] font-mono uppercase bg-muted/50 border-border text-foreground"
                                     >
                                         {r.badge}
                                     </Badge>
@@ -939,21 +940,21 @@ export default function Welcome({
                             ))}
                         </div>
 
-                        <div className="mt-6 pt-5 border-t border-stone-200 grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs font-mono text-stone-600 bg-stone-50/60 p-4 rounded-lg">
+                        <div className="mt-6 pt-5 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs font-mono text-muted-foreground bg-muted/40 p-4 rounded-lg">
                             <div>
-                                <span className="text-3xl font-bold text-stone-900 block font-serif">
+                                <span className="text-3xl font-bold text-foreground block font-serif">
                                     0
                                 </span>
-                                <span className="font-semibold text-stone-700">
+                                <span className="font-semibold text-foreground">
                                     payments allowed above the fifty dollar auto
                                     cap
                                 </span>
                             </div>
                             <div>
-                                <span className="font-bold text-stone-900 block mb-1">
+                                <span className="font-bold text-foreground block mb-1">
                                     Nothing is guessed at
                                 </span>
-                                <p className="text-[11px] leading-relaxed text-stone-600">
+                                <p className="text-[11px] leading-relaxed text-muted-foreground">
                                     If the operator cannot confirm the vendor
                                     address against your school registry, it
                                     halts and asks instead of paying the wrong
@@ -967,18 +968,18 @@ export default function Welcome({
                 {/* 6. VENDORS / PAYABLES DIRECTORY */}
                 <section className="mx-auto max-w-5xl px-4 sm:px-6">
                     <div className="mb-10">
-                        <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                             PAYABLES DIRECTORY
                         </span>
                         <h2
                             style={{ textWrap: 'balance' }}
-                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                         >
                             It knows who your school owes,
                             <br />
                             and when each bill is due.
                         </h2>
-                        <p className="mt-3 max-w-xl text-sm text-stone-600">
+                        <p className="mt-3 max-w-xl text-sm text-muted-foreground">
                             Not a messy folder of paper invoices, an auditable
                             directory with clear payment rules and one click
                             approvals.
@@ -986,10 +987,10 @@ export default function Welcome({
                     </div>
 
                     {/* Table card */}
-                    <div className="rounded-xl border border-stone-200 bg-white overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.03)]">
+                    <div className="rounded-xl border border-border bg-card overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.03)]">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left font-mono text-xs">
-                                <thead className="bg-stone-50 border-b border-stone-200 text-stone-600 uppercase text-[11px]">
+                                <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase text-[11px]">
                                     <tr>
                                         <th className="py-3 px-5">Supplier</th>
                                         <th className="py-3 px-5">Category</th>
@@ -1002,16 +1003,16 @@ export default function Welcome({
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-stone-100">
+                                <tbody className="divide-y divide-border">
                                     {VENDOR_SHORTLIST.map((row) => (
                                         <tr
                                             key={row.vendor}
-                                            className="hover:bg-stone-50/70 transition-colors"
+                                            className="hover:bg-muted/50 transition-colors"
                                         >
-                                            <td className="py-4 px-5 font-semibold text-stone-900">
+                                            <td className="py-4 px-5 font-semibold text-foreground">
                                                 {row.vendor}
                                             </td>
-                                            <td className="py-4 px-5 text-stone-600">
+                                            <td className="py-4 px-5 text-muted-foreground">
                                                 {row.category}
                                             </td>
                                             <td className="py-4 px-5">
@@ -1020,10 +1021,10 @@ export default function Welcome({
                                                     {row.score}
                                                 </span>
                                             </td>
-                                            <td className="py-4 px-5 font-bold text-stone-900">
+                                            <td className="py-4 px-5 font-bold text-foreground">
                                                 {row.amount}
                                             </td>
-                                            <td className="py-4 px-5 text-right text-stone-600">
+                                            <td className="py-4 px-5 text-right text-muted-foreground">
                                                 {row.schedule}
                                             </td>
                                         </tr>
@@ -1037,20 +1038,20 @@ export default function Welcome({
                 {/* 7. RECEIPTS: EVERY DOLLAR LEAVES A RECEIPT (ELEVATED CARD LOOK) */}
                 <section
                     id="receipts"
-                    className="border-y border-stone-200/80 bg-stone-100/50 py-20"
+                    className="border-y border-border bg-muted/30 py-20"
                 >
                     <div className="mx-auto max-w-5xl px-4 sm:px-6">
                         <div className="mb-10">
-                            <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                            <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                                 AUDIT PROOF
                             </span>
                             <h2
                                 style={{ textWrap: 'balance' }}
-                                className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                                className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                             >
                                 Every dollar leaves a receipt.
                             </h2>
-                            <p className="mt-2 max-w-xl text-sm text-stone-600">
+                            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
                                 Who was paid, how much, why, who approved it,
                                 and what transaction hash settled it, kept
                                 permanently with the expense.
@@ -1060,14 +1061,14 @@ export default function Welcome({
                         {/* Payment receipt card with fancy certificates feel */}
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
                             <div className="md:col-span-7">
-                                <div className="rounded-xl border border-stone-300 bg-white p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] font-mono text-xs relative overflow-hidden">
-                                    <div className="flex items-center justify-between pb-3 border-b border-stone-200">
-                                        <span className="text-stone-600 font-semibold">
+                                <div className="rounded-xl border border-border bg-card p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] font-mono text-xs relative overflow-hidden">
+                                    <div className="flex items-center justify-between pb-3 border-b border-border">
+                                        <span className="text-muted-foreground font-semibold">
                                             EDUFLOW · PAYMENT RECEIPT
                                         </span>
                                         <Badge
                                             variant="outline"
-                                            className="text-[10px] bg-stone-50 border-stone-300 text-stone-700"
+                                            className="text-[10px] bg-muted/50 border-border text-foreground"
                                         >
                                             VERIFIED PROOF
                                         </Badge>
@@ -1075,56 +1076,56 @@ export default function Welcome({
 
                                     <div className="mt-4 space-y-2.5">
                                         <div className="flex justify-between">
-                                            <span className="text-stone-500">
+                                            <span className="text-muted-foreground">
                                                 For:
                                             </span>
-                                            <span className="font-semibold text-stone-900">
+                                            <span className="font-semibold text-foreground">
                                                 Monthly campus fiber internet
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-stone-500">
+                                            <span className="text-muted-foreground">
                                                 Paid to:
                                             </span>
-                                            <span className="font-semibold text-stone-900">
+                                            <span className="font-semibold text-foreground">
                                                 Metro Fiber Networks
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-stone-500">
+                                            <span className="text-muted-foreground">
                                                 Amount:
                                             </span>
-                                            <span className="font-bold text-stone-900 text-sm">
+                                            <span className="font-bold text-foreground text-sm">
                                                 $30.00
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-stone-500">
+                                            <span className="text-muted-foreground">
                                                 Approved by:
                                             </span>
-                                            <span className="font-semibold text-stone-900">
+                                            <span className="font-semibold text-foreground">
                                                 Finance bursar · 09:14
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-stone-500">
+                                            <span className="text-muted-foreground">
                                                 Policy:
                                             </span>
-                                            <span className="font-semibold text-stone-900">
+                                            <span className="font-semibold text-foreground">
                                                 v3 · within budget ceiling
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-stone-500">
+                                            <span className="text-muted-foreground">
                                                 Rail confirmation:
                                             </span>
-                                            <span className="font-semibold text-stone-900">
+                                            <span className="font-semibold text-foreground">
                                                 Single block settled
                                             </span>
                                         </div>
                                     </div>
 
-                                    <div className="mt-5 pt-3 border-t border-stone-200 flex items-center justify-between text-[11px] text-stone-500">
+                                    <div className="mt-5 pt-3 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
                                         <span>Receipt: 0xa8e7aeff430199bc</span>
                                         <span className="text-emerald-700 font-semibold">
                                             Zero late fees
@@ -1134,14 +1135,14 @@ export default function Welcome({
                             </div>
 
                             <div className="md:col-span-5 flex flex-col gap-4">
-                                <div className="p-6 rounded-xl border border-stone-200 bg-white text-xs shadow-xs">
-                                    <span className="font-mono text-stone-500 block mb-1 uppercase text-[10px] font-semibold">
+                                <div className="p-6 rounded-xl border border-border bg-card text-xs shadow-xs">
+                                    <span className="font-mono text-muted-foreground block mb-1 uppercase text-[10px] font-semibold">
                                         MEASURED OUTCOME
                                     </span>
-                                    <span className="font-serif text-xl font-bold text-stone-900 block">
+                                    <span className="font-serif text-xl font-bold text-foreground block">
                                         100 percent on time disbursement
                                     </span>
-                                    <p className="mt-2 text-stone-600 leading-relaxed font-sans text-xs">
+                                    <p className="mt-2 text-muted-foreground leading-relaxed font-sans text-xs">
                                         Campus internet never interrupted. Zero
                                         vendor collection calls. Ledger balanced
                                         instantly without month end scramble.
@@ -1158,18 +1159,18 @@ export default function Welcome({
                     className="mx-auto max-w-5xl px-4 sm:px-6"
                 >
                     <div className="mb-10">
-                        <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                             OPEN SOURCE ECONOMICS
                         </span>
                         <h2
                             style={{ textWrap: 'balance' }}
-                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                         >
                             Open source software.
                             <br />
                             Zero subscription fees.
                         </h2>
-                        <p className="mt-3 max-w-xl text-sm text-stone-600">
+                        <p className="mt-3 max-w-xl text-sm text-muted-foreground">
                             No per seat charges and no vendor lock in. Run
                             OpenSinop on your own school servers with complete
                             data sovereignty.
@@ -1177,71 +1178,71 @@ export default function Welcome({
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="rounded-xl border border-stone-200 bg-white p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+                        <div className="rounded-xl border border-border bg-card p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
                             <div>
-                                <span className="font-mono text-xs text-stone-500 block mb-2 uppercase font-semibold">
+                                <span className="font-mono text-xs text-muted-foreground block mb-2 uppercase font-semibold">
                                     SINGLE CAMPUS
                                 </span>
-                                <div className="font-serif text-3xl font-bold text-stone-900">
+                                <div className="font-serif text-3xl font-bold text-foreground">
                                     $0
                                 </div>
-                                <span className="font-mono text-xs text-stone-500 block mt-1">
+                                <span className="font-mono text-xs text-muted-foreground block mt-1">
                                     Free under MIT license
                                 </span>
-                                <p className="mt-4 text-xs text-stone-600 leading-relaxed">
+                                <p className="mt-4 text-xs text-muted-foreground leading-relaxed">
                                     Complete institutional treasury engine, fee
                                     intake verification, and policy guardrails.
                                 </p>
                             </div>
-                            <div className="mt-6 pt-4 border-t border-stone-200 font-mono text-xs text-stone-500">
+                            <div className="mt-6 pt-4 border-t border-border font-mono text-xs text-muted-foreground">
                                 Self hosted deployment
                             </div>
                         </div>
 
-                        <div className="rounded-xl border-2 border-stone-900 bg-white p-6 flex flex-col justify-between shadow-[0_10px_30px_rgba(0,0,0,0.06)] relative">
+                        <div className="rounded-xl border-2 border-primary bg-card p-6 flex flex-col justify-between shadow-[0_10px_30px_rgba(0,0,0,0.06)] relative">
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="font-mono text-xs text-stone-900 font-bold uppercase">
+                                    <span className="font-mono text-xs text-foreground font-bold uppercase">
                                         COMMUNITY EDITION
                                     </span>
-                                    <Badge className="font-mono text-[10px] bg-stone-900 text-white">
+                                    <Badge className="font-mono text-[10px] bg-primary text-primary-foreground">
                                         RECOMMENDED
                                     </Badge>
                                 </div>
-                                <div className="font-serif text-3xl font-bold text-stone-900">
+                                <div className="font-serif text-3xl font-bold text-foreground">
                                     $0
                                 </div>
-                                <span className="font-mono text-xs text-stone-500 block mt-1">
+                                <span className="font-mono text-xs text-muted-foreground block mt-1">
                                     Full source access
                                 </span>
-                                <p className="mt-4 text-xs text-stone-600 leading-relaxed">
+                                <p className="mt-4 text-xs text-muted-foreground leading-relaxed">
                                     Multi user staff roles, two lane approval
                                     execution, audit exports, and Arc rails
                                     connectivity.
                                 </p>
                             </div>
-                            <div className="mt-6 pt-4 border-t border-stone-200 font-mono text-xs font-bold text-stone-900">
+                            <div className="mt-6 pt-4 border-t border-border font-mono text-xs font-bold text-foreground">
                                 Unlimited users and records
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-stone-200 bg-white p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+                        <div className="rounded-xl border border-border bg-card p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
                             <div>
-                                <span className="font-mono text-xs text-stone-500 block mb-2 uppercase font-semibold">
+                                <span className="font-mono text-xs text-muted-foreground block mb-2 uppercase font-semibold">
                                     DATA SOVEREIGNTY
                                 </span>
-                                <div className="font-serif text-3xl font-bold text-stone-900">
+                                <div className="font-serif text-3xl font-bold text-foreground">
                                     100%
                                 </div>
-                                <span className="font-mono text-xs text-stone-500 block mt-1">
+                                <span className="font-mono text-xs text-muted-foreground block mt-1">
                                     Your institutional database
                                 </span>
-                                <p className="mt-4 text-xs text-stone-600 leading-relaxed">
+                                <p className="mt-4 text-xs text-muted-foreground leading-relaxed">
                                     All accounting records, student rosters, and
                                     bank wires live strictly on your servers.
                                 </p>
                             </div>
-                            <div className="mt-6 pt-4 border-t border-stone-200 font-mono text-xs text-stone-500">
+                            <div className="mt-6 pt-4 border-t border-border font-mono text-xs text-muted-foreground">
                                 Zero third party tracking
                             </div>
                         </div>
@@ -1251,68 +1252,68 @@ export default function Welcome({
                 {/* 9. ON YOUR TERMS: 4 SECURITY PILLARS */}
                 <section className="mx-auto max-w-5xl px-4 sm:px-6">
                     <div className="mb-10">
-                        <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                             ON YOUR TERMS
                         </span>
                         <h2
                             style={{ textWrap: 'balance' }}
-                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                         >
                             You stay in charge.
                         </h2>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="p-5 rounded-xl border border-stone-200 bg-white shadow-2xs">
-                            <span className="font-mono text-[11px] text-stone-500 block mb-2 uppercase font-semibold">
+                        <div className="p-5 rounded-xl border border-border bg-card shadow-2xs">
+                            <span className="font-mono text-[11px] text-muted-foreground block mb-2 uppercase font-semibold">
                                 APPROVAL REQUIRED
                             </span>
-                            <h3 className="font-serif text-base font-bold text-stone-900">
+                            <h3 className="font-serif text-base font-bold text-foreground">
                                 Asks first
                             </h3>
-                            <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                 Every major invoice asks by default. Routine
                                 utilities under fifty dollars auto pay only when
                                 pre approved.
                             </p>
                         </div>
 
-                        <div className="p-5 rounded-xl border border-stone-200 bg-white shadow-2xs">
-                            <span className="font-mono text-[11px] text-stone-500 block mb-2 uppercase font-semibold">
+                        <div className="p-5 rounded-xl border border-border bg-card shadow-2xs">
+                            <span className="font-mono text-[11px] text-muted-foreground block mb-2 uppercase font-semibold">
                                 PENNY PERFECT
                             </span>
-                            <h3 className="font-serif text-base font-bold text-stone-900">
+                            <h3 className="font-serif text-base font-bold text-foreground">
                                 Exact base units
                             </h3>
-                            <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                 All math runs in strict integer units. Zero
                                 floating point rounding drift across academic
                                 terms.
                             </p>
                         </div>
 
-                        <div className="p-5 rounded-xl border border-stone-200 bg-white shadow-2xs">
-                            <span className="font-mono text-[11px] text-stone-500 block mb-2 uppercase font-semibold">
+                        <div className="p-5 rounded-xl border border-border bg-card shadow-2xs">
+                            <span className="font-mono text-[11px] text-muted-foreground block mb-2 uppercase font-semibold">
                                 INSTANT SAFETY
                             </span>
-                            <h3 className="font-serif text-base font-bold text-stone-900">
+                            <h3 className="font-serif text-base font-bold text-foreground">
                                 Freeze any time
                             </h3>
-                            <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                 One physical switch freezes disbursements. Scans
                                 and reconciliations continue while money stays
                                 locked.
                             </p>
                         </div>
 
-                        <div className="p-5 rounded-xl border border-stone-200 bg-white shadow-2xs">
-                            <span className="font-mono text-[11px] text-stone-500 block mb-2 uppercase font-semibold">
+                        <div className="p-5 rounded-xl border border-border bg-card shadow-2xs">
+                            <span className="font-mono text-[11px] text-muted-foreground block mb-2 uppercase font-semibold">
                                 PERMANENT OWNERSHIP
                             </span>
-                            <h3 className="font-serif text-base font-bold text-stone-900">
+                            <h3 className="font-serif text-base font-bold text-foreground">
                                 No subscription
                             </h3>
-                            <p className="mt-2 text-xs text-stone-600 leading-relaxed">
+                            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                                 No monthly bills, no license expirations, and no
                                 vendor lock in. You control your software
                                 permanently.
@@ -1324,18 +1325,18 @@ export default function Welcome({
                 {/* 10. HONEST QUESTIONS & ANSWERS (ACCORDION) */}
                 <section className="mx-auto max-w-5xl px-4 sm:px-6">
                     <div className="mb-10">
-                        <span className="text-xs font-mono uppercase tracking-widest text-stone-500 font-semibold">
+                        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">
                             HONEST ANSWERS
                         </span>
                         <h2
                             style={{ textWrap: 'balance' }}
-                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-stone-900 font-serif"
+                            className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-foreground font-serif"
                         >
                             Things people ask first.
                         </h2>
                     </div>
 
-                    <div className="divide-y divide-stone-200 border-y border-stone-200">
+                    <div className="divide-y divide-border border-y border-border">
                         {FAQS.map((faq, index) => {
                             const isOpen = openFaq === index;
                             return (
@@ -1345,17 +1346,17 @@ export default function Welcome({
                                         onClick={() =>
                                             setOpenFaq(isOpen ? null : index)
                                         }
-                                        className="w-full flex items-center justify-between text-left font-serif text-base font-bold text-stone-900 py-1 hover:text-stone-700 transition-colors"
+                                        className="w-full flex items-center justify-between text-left font-serif text-base font-bold text-foreground py-1 hover:text-muted-foreground transition-colors"
                                     >
                                         <span>{faq.q}</span>
                                         <ChevronDown
-                                            className={`size-4 text-stone-500 transition-transform duration-200 ${
+                                            className={`size-4 text-muted-foreground transition-transform duration-200 ${
                                                 isOpen ? 'rotate-180' : ''
                                             }`}
                                         />
                                     </button>
                                     {isOpen && (
-                                        <p className="mt-3 text-xs sm:text-sm text-stone-600 leading-relaxed pr-8">
+                                        <p className="mt-3 text-xs sm:text-sm text-muted-foreground leading-relaxed pr-8">
                                             {faq.a}
                                         </p>
                                     )}
@@ -1367,19 +1368,19 @@ export default function Welcome({
 
                 {/* 11. FINAL CONVERSION ANCHOR (FANCY LIGHT CARD) */}
                 <section className="mx-auto max-w-5xl w-full px-4 sm:px-6">
-                    <div className="rounded-2xl border border-stone-300/80 bg-gradient-to-b from-white via-white to-stone-50/70 p-8 sm:p-14 text-center shadow-[0_20px_60px_rgba(0,0,0,0.05)]">
-                        <span className="text-xs font-mono uppercase tracking-widest text-stone-500 block mb-2 font-semibold">
+                    <div className="rounded-2xl border border-border bg-gradient-to-b from-card via-card to-muted/50 p-8 sm:p-14 text-center shadow-[0_20px_60px_rgba(0,0,0,0.05)]">
+                        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground block mb-2 font-semibold">
                             FOR YOUR SCHOOL
                         </span>
                         <h2
                             style={{ textWrap: 'balance' }}
-                            className="text-3xl sm:text-5xl font-bold tracking-tight text-stone-900 font-serif"
+                            className="text-3xl sm:text-5xl font-bold tracking-tight text-foreground font-serif"
                         >
                             Ready to run your school treasury?
                         </h2>
                         <p
                             style={{ textWrap: 'pretty' }}
-                            className="mt-3 max-w-xl mx-auto text-sm text-stone-600 leading-relaxed font-sans"
+                            className="mt-3 max-w-xl mx-auto text-sm text-muted-foreground leading-relaxed font-sans"
                         >
                             Enter your institution domain. OpenSinop organizes
                             your tuition intake, guards your emergency buffer,
@@ -1388,7 +1389,7 @@ export default function Welcome({
 
                         {/* Interactive domain launch form */}
                         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-2.5 max-w-md mx-auto">
-                            <div className="w-full rounded-full border border-stone-300 bg-white px-4 py-2 text-xs font-mono text-stone-900 text-left shadow-2xs focus-within:border-stone-500 transition-colors">
+                            <div className="w-full rounded-full border border-border bg-card px-4 py-2 text-xs font-mono text-foreground text-left shadow-2xs focus-within:border-primary transition-colors">
                                 <input
                                     type="text"
                                     value={domainInput}
@@ -1396,7 +1397,7 @@ export default function Welcome({
                                         setDomainInput(e.target.value)
                                     }
                                     placeholder="yourschool.edu"
-                                    className="w-full bg-transparent outline-none font-mono text-xs text-stone-900"
+                                    className="w-full bg-transparent outline-none font-mono text-xs text-foreground placeholder:text-muted-foreground"
                                 />
                             </div>
                             <a
@@ -1405,14 +1406,14 @@ export default function Welcome({
                             >
                                 <Button
                                     size="lg"
-                                    className="w-full sm:w-auto rounded-full px-7 py-2 text-xs font-semibold h-10 bg-stone-900 text-white hover:bg-stone-800 shadow-[0_2px_12px_rgba(0,0,0,0.12)]"
+                                    className="w-full sm:w-auto rounded-full px-7 py-2 text-xs font-semibold h-10 bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_2px_12px_rgba(0,0,0,0.12)]"
                                 >
                                     Open console
                                 </Button>
                             </a>
                         </div>
 
-                        <div className="mt-6 font-mono text-[11px] text-stone-500">
+                        <div className="mt-6 font-mono text-[11px] text-muted-foreground">
                             Free and open source. Zero subscription fees. Full
                             data sovereignty.
                         </div>
@@ -1421,10 +1422,10 @@ export default function Welcome({
             </main>
 
             {/* Clean Light Footer */}
-            <footer className="border-t border-stone-200/80 bg-white py-12 text-xs text-stone-500 font-mono">
+            <footer className="border-t border-border bg-card/60 py-12 text-xs text-muted-foreground font-mono">
                 <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
                     <div className="flex flex-col gap-1 text-center sm:text-left">
-                        <span className="font-serif text-sm font-bold text-stone-900">
+                        <span className="font-serif text-sm font-bold text-foreground">
                             OpenSinop
                         </span>
                         <span className="font-sans text-xs">
@@ -1438,26 +1439,26 @@ export default function Welcome({
                             href="https://github.com/koamishin/OpenSinop"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-stone-900 transition-colors inline-flex items-center gap-1"
+                            className="hover:text-foreground transition-colors inline-flex items-center gap-1"
                         >
                             <span>Source Repository</span>
                             <ExternalLink className="size-3" />
                         </a>
                         <Link
                             href="/skills/design"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Skills Studio
                         </Link>
                         <Link
                             href="/institutions/register"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Register School
                         </Link>
                         <a
                             href="/console"
-                            className="hover:text-stone-900 transition-colors"
+                            className="hover:text-foreground transition-colors"
                         >
                             Finance Console
                         </a>

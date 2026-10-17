@@ -101,6 +101,11 @@ class EducationDemoSeeder extends Seeder
             User::query()->where('email', 'admin@admin.com')->whereNull('organization_id')->update(['organization_id' => $org->id]);
 
             // 2. Academic Term
+            $legacyDemoTerm = AcademicTerm::where('name', 'Demo Academic Term '.today()->year)->first();
+            if ($legacyDemoTerm && $legacyDemoTerm->ends_on >= today()) {
+                $legacyDemoTerm->update(['ends_on' => today()->subDay()]);
+            }
+
             $term = AcademicTerm::firstOrCreate(['name' => 'Academic Term '.today()->year], [
                 'starts_on' => today()->startOfYear(),
                 'ends_on' => today()->endOfYear(),

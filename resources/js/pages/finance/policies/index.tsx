@@ -1385,7 +1385,7 @@ export default function InstitutionPolicies({
     return (
         <>
             <Head title="Institution policies" />
-            <div className="min-h-screen overflow-x-hidden bg-[#FAF7F2] text-stone-900 dark:bg-[#11100E] dark:text-stone-100">
+            <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
                 <a
                     href="#policy-workspace"
                     className="sr-only focus:not-sr-only"
@@ -1394,7 +1394,7 @@ export default function InstitutionPolicies({
                 </a>
 
                 {/* Warm Editorial Top Bar */}
-                <header className="sticky top-0 z-30 border-b border-[#E6DFD3] bg-[#FAF7F2]/90 backdrop-blur-md dark:border-[#28231D] dark:bg-[#11100E]/90">
+                <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-md">
                     <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
                         <div className="flex flex-wrap items-center gap-2.5">
                             <Button

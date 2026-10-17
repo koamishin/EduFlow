@@ -100,6 +100,7 @@ function formatBalance(balance: string): string {
 export default function StudentDashboard({
     student,
     tuitionAccount,
+    tuitionAccounts = [],
     wallet,
     totals,
     recentTransactions,
@@ -686,14 +687,35 @@ export default function StudentDashboard({
 
                             {/* -- Tuition balance, now the supporting card -- */}
                             <div className="clay-card p-5 sm:p-6">
-                                <p className="bulletin-eyebrow">
-                                    Outstanding tuition
-                                </p>
-                                {tuitionAccount?.term && (
-                                    <p className="clay-meta mt-1">
-                                        {tuitionAccount.term}
-                                    </p>
-                                )}
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="bulletin-eyebrow">
+                                            Outstanding tuition
+                                        </p>
+                                        {tuitionAccount?.term && (
+                                            <p className="clay-meta mt-1">
+                                                {tuitionAccount.term}
+                                            </p>
+                                        )}
+                                    </div>
+                                    {tuitionAccounts.length > 1 && (
+                                        <div className="flex flex-wrap items-center gap-1.5 pt-1 sm:pt-0">
+                                            {tuitionAccounts.map((acc) => (
+                                                <Link
+                                                    key={acc.id}
+                                                    href={dashboard.url({ query: { account: acc.id } })}
+                                                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                                        tuitionAccount?.id === acc.id
+                                                            ? 'bg-[var(--clay-primary)] text-[var(--clay-primary-foreground)]'
+                                                            : 'border border-[var(--clay-border)] bg-[var(--clay-surface-soft)] text-[var(--clay-text-muted)] hover:text-[var(--clay-text)]'
+                                                    }`}
+                                                >
+                                                    {acc.term}
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {tuitionAccount ? (
                                     <>
@@ -822,6 +844,43 @@ export default function StudentDashboard({
                                             </div>
                                         </dl>
                                     </>
+                                ) : tuitionAccounts.length > 0 ? (
+                                    <div className="mt-4 space-y-3">
+                                        <div className="space-y-1">
+                                            <p className="clay-h2">
+                                                Select a tuition account
+                                            </p>
+                                            <p className="clay-body text-sm">
+                                                You have {tuitionAccounts.length} tuition {tuitionAccounts.length === 1 ? 'account' : 'accounts'} on record. Choose an account below to view details and balance:
+                                            </p>
+                                        </div>
+                                        <div className="grid gap-2 sm:grid-cols-2">
+                                            {tuitionAccounts.map((acc) => (
+                                                <Link
+                                                    key={acc.id}
+                                                    href={dashboard.url({ query: { account: acc.id } })}
+                                                    className="flex flex-col justify-between rounded-lg border border-[var(--clay-border)] bg-[var(--clay-surface-soft)] p-3.5 text-left transition hover:border-[var(--clay-primary)] hover:bg-[var(--clay-surface)]"
+                                                >
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-sm font-medium text-[var(--clay-text)]">
+                                                            {acc.term}
+                                                        </span>
+                                                        {acc.is_active && (
+                                                            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                                                Current
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="mt-2.5 flex items-baseline justify-between text-xs text-[var(--clay-text-muted)]">
+                                                        <span>Balance due:</span>
+                                                        <span className="text-sm font-semibold text-[var(--clay-text)]">
+                                                            {formatUsdc(acc.remaining_amount)}
+                                                        </span>
+                                                    </div>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="mt-4 space-y-1.5">
                                         <p className="clay-h2">

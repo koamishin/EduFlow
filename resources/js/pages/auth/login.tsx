@@ -57,7 +57,7 @@ export default function Login({
                         <Link href="/institutions/register">
                             <Button
                                 size="sm"
-                                className="w-full bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] font-semibold text-xs h-8"
+                                className="w-full font-semibold text-xs h-8"
                             >
                                 Register Educational Institution
                             </Button>

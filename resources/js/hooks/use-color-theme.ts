@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { themes, type ColorTheme } from '@/conf/themes';
 
 const themeClassPrefix = 'theme-';
 const storageKey = 'color-theme';
+
+const listeners = new Set<() => void>();
 
 function isValidTheme(theme: string | null): theme is ColorTheme {
     if (!theme) {
@@ -35,6 +37,8 @@ function getStoredTheme(): ColorTheme {
     return 'default';
 }
 
+let currentColorTheme: ColorTheme = getStoredTheme();
+
 function applyTheme(theme: ColorTheme): void {
     if (typeof document === 'undefined') {
         return;
@@ -52,6 +56,14 @@ function applyTheme(theme: ColorTheme): void {
     }
 }
 
+const subscribe = (callback: () => void) => {
+    listeners.add(callback);
+
+    return () => listeners.delete(callback);
+};
+
+const notify = (): void => listeners.forEach((listener) => listener());
+
 export function initializeColorTheme(): void {
     if (typeof window === 'undefined') {
         return;
@@ -62,23 +74,31 @@ export function initializeColorTheme(): void {
         setCookie(storageKey, 'default');
     }
 
-    applyTheme(getStoredTheme());
+    currentColorTheme = getStoredTheme();
+    applyTheme(currentColorTheme);
+
+    window.addEventListener('storage', (event) => {
+        if (event.key === storageKey) {
+            currentColorTheme = getStoredTheme();
+            applyTheme(currentColorTheme);
+            notify();
+        }
+    });
 }
 
 export function useColorTheme() {
-    const [colorTheme, setColorTheme] = useState<ColorTheme>(() =>
-        getStoredTheme(),
+    const colorTheme: ColorTheme = useSyncExternalStore(
+        subscribe,
+        () => currentColorTheme,
+        () => 'default',
     );
 
-    useEffect(() => {
-        applyTheme(colorTheme);
-    }, [colorTheme]);
-
     const updateColorTheme = useCallback((theme: ColorTheme): void => {
-        setColorTheme(theme);
+        currentColorTheme = theme;
         localStorage.setItem(storageKey, theme);
         setCookie(storageKey, theme);
         applyTheme(theme);
+        notify();
     }, []);
 
     return {
@@ -86,3 +106,4 @@ export function useColorTheme() {
         updateColorTheme,
     };
 }
+
