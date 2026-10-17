@@ -141,7 +141,7 @@ export default function Register({
                             href="/institutions/register"
                             className="w-full sm:w-auto"
                         >
-                            <Button className="w-full sm:w-auto bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] font-semibold text-xs px-6 py-2.5">
+                            <Button className="w-full sm:w-auto font-semibold text-xs px-6 py-2.5">
                                 Register Educational Institution
                             </Button>
                         </Link>
@@ -175,20 +175,20 @@ export default function Register({
                         <div className="grid gap-6">
                             {/* Institution Scoping Section */}
                             {currentInstitution ? (
-                                <div className="rounded-xl border border-[#c4a46c]/40 bg-[#1c1915]/60 p-3.5 space-y-1.5">
+                                <div className="rounded-xl border border-primary/40 bg-card p-3.5 space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-[#c4a46c] flex items-center gap-1.5 uppercase tracking-wider">
+                                        <span className="text-xs font-semibold text-primary flex items-center gap-1.5 uppercase tracking-wider">
                                             <Building2 className="size-3.5" />
                                             Enrolling School
                                         </span>
                                         <Badge
                                             variant="outline"
-                                            className="text-[10px] border-[#c4a46c]/40 text-[#c4a46c]"
+                                            className="text-[10px] border-primary/40 text-primary"
                                         >
                                             Locked
                                         </Badge>
                                     </div>
-                                    <p className="text-sm font-medium text-white">
+                                    <p className="text-sm font-medium text-foreground">
                                         {currentInstitution.name}
                                     </p>
                                     <input
@@ -305,7 +305,7 @@ export default function Register({
                             <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <Label className="text-xs font-semibold flex items-center gap-1.5 uppercase tracking-wider text-foreground">
-                                        <WalletIcon className="size-3.5 text-[#c4a46c]" />
+                                        <WalletIcon className="size-3.5 text-primary" />
                                         Arc Web3 Payout Wallet
                                     </Label>
                                     {isWalletVerified ? (
@@ -334,7 +334,7 @@ export default function Register({
                                     variant="outline"
                                     onClick={handleConnectWallet}
                                     disabled={connectingWallet}
-                                    className="w-full flex items-center justify-center gap-2 border-[#c4a46c]/40 hover:bg-[#c4a46c]/10 text-xs font-medium"
+                                    className="w-full flex items-center justify-center gap-2 border-primary/40 hover:bg-primary/10 text-xs font-medium"
                                 >
                                     {connectingWallet ? (
                                         <>
@@ -343,7 +343,7 @@ export default function Register({
                                         </>
                                     ) : (
                                         <>
-                                            <ShieldCheck className="size-4 text-[#c4a46c]" />
+                                            <ShieldCheck className="size-4 text-primary" />
                                             1-Click Connect Browser Wallet
                                             (MetaMask / Rainbow)
                                         </>

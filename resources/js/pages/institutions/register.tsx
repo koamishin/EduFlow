@@ -125,29 +125,29 @@ export default function InstitutionRegister({
     };
 
     return (
-        <div className="bulletin clay-ambient min-h-screen w-full bg-[#0d0c0a] text-[#f5f1e8] py-10 px-4 sm:px-6 lg:px-8">
+        <div className="bulletin clay-ambient min-h-screen w-full bg-[var(--clay-bg,var(--background))] text-[var(--clay-text,var(--foreground))] py-10 px-4 sm:px-6 lg:px-8">
             <Head title="Register Institution" />
 
             <div className="mx-auto max-w-4xl space-y-8">
                 {/* Header Header Banner */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--clay-border,#2e2924)] pb-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--clay-border,var(--border))] pb-6">
                     <div>
                         <div className="flex items-center gap-2">
-                            <span className="bulletin-eyebrow flex items-center gap-1.5 text-xs text-[#c4a46c] uppercase tracking-wider font-semibold">
+                            <span className="bulletin-eyebrow flex items-center gap-1.5 text-xs text-primary uppercase tracking-wider font-semibold">
                                 <Building2 className="size-3.5" />
                                 Multi-School Tenancy & Treasury
                             </span>
                             <Badge
                                 variant="outline"
-                                className="text-xs border-[#c4a46c]/40 text-[#c4a46c]"
+                                className="text-xs border-primary/40 text-primary"
                             >
                                 Arc Powered
                             </Badge>
                         </div>
-                        <h1 className="clay-h1 mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                        <h1 className="clay-h1 mt-2 text-3xl font-bold tracking-tight text-[var(--clay-ink,var(--foreground))] sm:text-4xl">
                             Deploy School Institution
                         </h1>
-                        <p className="clay-body mt-2 text-sm text-[#b8b0a2] max-w-2xl">
+                        <p className="clay-body mt-2 text-sm text-[var(--clay-text-muted,var(--muted-foreground))] max-w-2xl">
                             Create a dedicated institution tenancy with isolated
                             accounting, Arc settlement rails (Mainnet &
                             Testnet), and automated Circle Agent treasury
@@ -158,15 +158,15 @@ export default function InstitutionRegister({
                     <div className="flex items-center gap-3">
                         <Link
                             href="/"
-                            className="inline-flex items-center gap-1.5 text-xs text-[#b8b0a2] hover:text-[#f5f1e8] transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs text-[var(--clay-text-muted,var(--muted-foreground))] hover:text-[var(--clay-ink,var(--foreground))] transition-colors"
                         >
                             <ArrowLeft className="size-3.5" />
                             Back to Home
                         </Link>
-                        <span className="text-xs text-[#52493e]">·</span>
+                        <span className="text-xs text-[var(--clay-text-faint,var(--muted-foreground))]">·</span>
                         <Link
                             href="/finance"
-                            className="inline-flex items-center gap-1.5 text-xs text-[#b8b0a2] hover:text-[#f5f1e8] transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs text-[var(--clay-text-muted,var(--muted-foreground))] hover:text-[var(--clay-ink,var(--foreground))] transition-colors"
                         >
                             <Shield className="size-3.5" />
                             Finance Console
@@ -198,17 +198,17 @@ export default function InstitutionRegister({
                         </div>
                     )}
                     {/* Step 1: Institution Details */}
-                    <Card className="clay-card border-[var(--clay-border,#2e2924)] bg-[#141210]/95 shadow-xl">
-                        <CardHeader className="pb-4 border-b border-[var(--clay-border,#2e2924)]">
+                    <Card className="clay-card border-[var(--clay-border,var(--border))] bg-[var(--clay-surface,var(--card))] shadow-xl">
+                        <CardHeader className="pb-4 border-b border-[var(--clay-border,var(--border))]">
                             <div className="flex items-center gap-2">
-                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#c4a46c]/20 text-xs font-bold text-[#c4a46c]">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--clay-primary-soft,var(--primary)/15)] text-xs font-bold text-[var(--clay-primary,var(--primary))]">
                                     1
                                 </span>
-                                <CardTitle className="clay-title text-lg font-semibold text-white">
+                                <CardTitle className="clay-title text-lg font-semibold text-[var(--clay-ink,var(--foreground))]">
                                     Institution Identity
                                 </CardTitle>
                             </div>
-                            <CardDescription className="text-xs text-[#8f8577]">
+                            <CardDescription className="text-xs text-[var(--clay-text-muted,var(--muted-foreground))]">
                                 Basic branding, subdomain slug, and regional
                                 settings for tenancy resolution.
                             </CardDescription>
@@ -217,7 +217,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2 md:col-span-2">
                                 <Label
                                     htmlFor="name"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     School / Institution Name{' '}
                                     <span className="text-red-400">*</span>
@@ -229,7 +229,7 @@ export default function InstitutionRegister({
                                     onChange={handleNameChange}
                                     placeholder="e.g., St. Jude College of Health & Technology"
                                     required
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError message={errors.name} />
                             </div>
@@ -237,7 +237,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="slug"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Subdomain Slug{' '}
                                     <span className="text-red-400">*</span>
@@ -252,9 +252,9 @@ export default function InstitutionRegister({
                                         }
                                         placeholder="st-jude"
                                         required
-                                        className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c] rounded-r-none"
+                                        className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))] rounded-r-none"
                                     />
-                                    <span className="inline-flex items-center rounded-r-md border border-l-0 border-[var(--clay-border,#2e2924)] bg-[#24201a] px-3 text-xs text-[#8f8577]">
+                                    <span className="inline-flex items-center rounded-r-md border border-l-0 border-[var(--clay-border,var(--border))] bg-[var(--clay-surface,var(--muted))] px-3 text-xs text-[var(--clay-text-muted,var(--muted-foreground))]">
                                         .eduflow.internal
                                     </span>
                                 </div>
@@ -264,7 +264,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="domain"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Custom Domain (Optional)
                                 </Label>
@@ -276,7 +276,7 @@ export default function InstitutionRegister({
                                         setData('domain', e.target.value)
                                     }
                                     placeholder="finance.stjude.edu"
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError message={errors.domain} />
                             </div>
@@ -284,7 +284,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="country"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Country{' '}
                                     <span className="text-red-400">*</span>
@@ -298,7 +298,7 @@ export default function InstitutionRegister({
                                     }
                                     placeholder="e.g. Kenya, Philippines, United States"
                                     required
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError message={errors.country} />
                             </div>
@@ -306,7 +306,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="timezone"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Timezone{' '}
                                     <span className="text-red-400">*</span>
@@ -320,7 +320,7 @@ export default function InstitutionRegister({
                                     }
                                     placeholder="UTC, Africa/Nairobi, Asia/Manila"
                                     required
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError message={errors.timezone} />
                             </div>
@@ -328,22 +328,22 @@ export default function InstitutionRegister({
                     </Card>
 
                     {/* Step 2: Arc Treasury Rails */}
-                    <Card className="clay-card border-[var(--clay-border,#2e2924)] bg-[#141210]/95 shadow-xl">
-                        <CardHeader className="pb-4 border-b border-[var(--clay-border,#2e2924)]">
+                    <Card className="clay-card border-[var(--clay-border,var(--border))] bg-[var(--clay-surface,var(--card))] shadow-xl">
+                        <CardHeader className="pb-4 border-b border-[var(--clay-border,var(--border))]">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#c4a46c]/20 text-xs font-bold text-[#c4a46c]">
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--clay-primary-soft,var(--primary)/15)] text-xs font-bold text-[var(--clay-primary,var(--primary))]">
                                         2
                                     </span>
-                                    <CardTitle className="clay-title text-lg font-semibold text-white">
+                                    <CardTitle className="clay-title text-lg font-semibold text-[var(--clay-ink,var(--foreground))]">
                                         Arc Settlement Rails & Treasury
                                     </CardTitle>
                                 </div>
-                                <Badge className="bg-[#24201a] border border-[#c4a46c]/30 text-[#e6d8be] text-xs">
+                                <Badge className="bg-[var(--clay-surface,var(--muted))] border border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] text-xs">
                                     Accounting Currency: USDC
                                 </Badge>
                             </div>
-                            <CardDescription className="text-xs text-[#8f8577]">
+                            <CardDescription className="text-xs text-[var(--clay-text-muted,var(--muted-foreground))]">
                                 Choose autonomous Circle Agent wallet automation
                                 or specify an Arc cold/multisig treasury vault.
                             </CardDescription>
@@ -351,10 +351,10 @@ export default function InstitutionRegister({
                         <CardContent className="pt-6 space-y-6">
                             {/* Rail Specs Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="rounded-xl border border-[var(--clay-border,#2e2924)] bg-[#191612] p-3 text-xs space-y-1.5">
+                                <div className="rounded-xl border border-[var(--clay-border,var(--border))] bg-[var(--clay-surface-soft,var(--muted)/40)] p-3 text-xs space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <span className="font-semibold text-white flex items-center gap-1.5">
-                                            <Network className="size-3.5 text-[#c4a46c]" />
+                                        <span className="font-semibold text-[var(--clay-ink,var(--foreground))] flex items-center gap-1.5">
+                                            <Network className="size-3.5 text-[var(--clay-primary,var(--primary))]" />
                                             {arcNetworks.mainnet.name}
                                         </span>
                                         <Badge
@@ -365,18 +365,18 @@ export default function InstitutionRegister({
                                             {arcNetworks.mainnet.chainId}
                                         </Badge>
                                     </div>
-                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                    <p className="text-[var(--clay-text-muted,var(--muted-foreground))] text-[11px] truncate">
                                         RPC: {arcNetworks.mainnet.rpc}
                                     </p>
-                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                    <p className="text-[var(--clay-text-muted,var(--muted-foreground))] text-[11px] truncate">
                                         Explorer: {arcNetworks.mainnet.explorer}
                                     </p>
                                 </div>
 
-                                <div className="rounded-xl border border-[var(--clay-border,#2e2924)] bg-[#191612] p-3 text-xs space-y-1.5">
+                                <div className="rounded-xl border border-[var(--clay-border,var(--border))] bg-[var(--clay-surface-soft,var(--muted)/40)] p-3 text-xs space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <span className="font-semibold text-white flex items-center gap-1.5">
-                                            <Network className="size-3.5 text-[#c4a46c]" />
+                                        <span className="font-semibold text-[var(--clay-ink,var(--foreground))] flex items-center gap-1.5">
+                                            <Network className="size-3.5 text-[var(--clay-primary,var(--primary))]" />
                                             {arcNetworks.testnet.name}
                                         </span>
                                         <Badge
@@ -387,29 +387,29 @@ export default function InstitutionRegister({
                                             {arcNetworks.testnet.chainId}
                                         </Badge>
                                     </div>
-                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                    <p className="text-[var(--clay-text-muted,var(--muted-foreground))] text-[11px] truncate">
                                         RPC: {arcNetworks.testnet.rpc}
                                     </p>
-                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                    <p className="text-[var(--clay-text-muted,var(--muted-foreground))] text-[11px] truncate">
                                         Explorer: {arcNetworks.testnet.explorer}
                                     </p>
                                 </div>
                             </div>
 
                             {/* Wallet Option Toggle */}
-                            <div className="flex items-center justify-between rounded-xl border border-[#c4a46c]/30 bg-[#1e1b16] p-4">
+                            <div className="flex items-center justify-between rounded-xl border border-[var(--clay-border,var(--border))] bg-[var(--clay-surface-hi,var(--card))] p-4">
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
-                                        <Sparkles className="size-4 text-[#c4a46c]" />
-                                        <span className="text-sm font-semibold text-white">
+                                        <Sparkles className="size-4 text-[var(--clay-primary,var(--primary))]" />
+                                        <span className="text-sm font-semibold text-[var(--clay-ink,var(--foreground))]">
                                             Autonomous Circle Agent Treasury
                                             Wallet
                                         </span>
-                                        <Badge className="bg-[#c4a46c]/20 text-[#c4a46c] text-[10px] border-none">
+                                        <Badge className="bg-[var(--clay-primary-soft,var(--primary)/15)] text-[var(--clay-primary,var(--primary))] text-[10px] border-none">
                                             Recommended
                                         </Badge>
                                     </div>
-                                    <p className="text-xs text-[#a39886]">
+                                    <p className="text-xs text-[var(--clay-text-muted,var(--muted-foreground))]">
                                         Automatically configures Circle Agent
                                         Stack smart contract wallet with gas
                                         abstraction and automated spending
@@ -428,7 +428,7 @@ export default function InstitutionRegister({
                                 <div className="space-y-2">
                                     <Label
                                         htmlFor="treasury_address"
-                                        className="text-xs font-medium text-[#d6cebf]"
+                                        className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                     >
                                         Arc Treasury Address{' '}
                                         <span className="text-red-400">*</span>
@@ -446,22 +446,22 @@ export default function InstitutionRegister({
                                             }
                                             placeholder="0x..."
                                             required={!useAgentWallet}
-                                            className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white font-mono text-xs focus:border-[#c4a46c] pl-8"
+                                            className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] font-mono text-xs focus:border-[var(--clay-accent,var(--primary))] pl-8"
                                         />
-                                        <WalletIcon className="absolute left-2.5 top-2.5 size-4 text-[#8f8577]" />
+                                        <WalletIcon className="absolute left-2.5 top-2.5 size-4 text-[var(--clay-text-muted,var(--muted-foreground))]" />
                                     </div>
                                     <InputError
                                         message={errors.treasury_address}
                                     />
                                 </div>
                             ) : (
-                                <div className="rounded-lg bg-[#181613] p-3 text-xs text-[#a39886] flex items-center justify-between border border-[var(--clay-border,#2e2924)]">
+                                <div className="rounded-lg bg-[var(--clay-surface-deep,var(--muted)/60)] p-3 text-xs text-[var(--clay-text-muted,var(--muted-foreground))] flex items-center justify-between border border-[var(--clay-border,var(--border))]">
                                     <span className="flex items-center gap-2">
                                         <CheckCircle2 className="size-4 text-emerald-400" />
                                         Circle Agent stack will bind and manage
                                         treasury disbursements autonomously.
                                     </span>
-                                    <span className="font-mono text-[11px] text-[#c4a46c] truncate max-w-[200px]">
+                                    <span className="font-mono text-[11px] text-[var(--clay-primary,var(--primary))] truncate max-w-[200px]">
                                         {defaultTreasury}
                                     </span>
                                 </div>
@@ -470,17 +470,17 @@ export default function InstitutionRegister({
                     </Card>
 
                     {/* Step 3: Administrator Account */}
-                    <Card className="clay-card border-[var(--clay-border,#2e2924)] bg-[#141210]/95 shadow-xl">
-                        <CardHeader className="pb-4 border-b border-[var(--clay-border,#2e2924)]">
+                    <Card className="clay-card border-[var(--clay-border,var(--border))] bg-[var(--clay-surface,var(--card))] shadow-xl">
+                        <CardHeader className="pb-4 border-b border-[var(--clay-border,var(--border))]">
                             <div className="flex items-center gap-2">
-                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#c4a46c]/20 text-xs font-bold text-[#c4a46c]">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--clay-primary-soft,var(--primary)/15)] text-xs font-bold text-[var(--clay-primary,var(--primary))]">
                                     3
                                 </span>
-                                <CardTitle className="clay-title text-lg font-semibold text-white">
+                                <CardTitle className="clay-title text-lg font-semibold text-[var(--clay-ink,var(--foreground))]">
                                     Super Administrator Account
                                 </CardTitle>
                             </div>
-                            <CardDescription className="text-xs text-[#8f8577]">
+                            <CardDescription className="text-xs text-[var(--clay-text-muted,var(--muted-foreground))]">
                                 Initial governance credential with immediate
                                 super_admin role and access to the Finance
                                 command hub.
@@ -490,7 +490,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="admin_name"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Administrator Name{' '}
                                     <span className="text-red-400">*</span>
@@ -504,7 +504,7 @@ export default function InstitutionRegister({
                                     }
                                     placeholder="Dean / Provost / Chief Financial Officer"
                                     required
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError message={errors.admin_name} />
                             </div>
@@ -512,7 +512,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="admin_email"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Administrator Email{' '}
                                     <span className="text-red-400">*</span>
@@ -527,7 +527,7 @@ export default function InstitutionRegister({
                                     }
                                     placeholder="cfo@institution.edu"
                                     required
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError message={errors.admin_email} />
                             </div>
@@ -535,7 +535,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="admin_password"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Password{' '}
                                     <span className="text-red-400">*</span>
@@ -552,7 +552,7 @@ export default function InstitutionRegister({
                                     }
                                     placeholder="Strong governance password"
                                     required
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError message={errors.admin_password} />
                             </div>
@@ -560,7 +560,7 @@ export default function InstitutionRegister({
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="admin_password_confirmation"
-                                    className="text-xs font-medium text-[#d6cebf]"
+                                    className="text-xs font-medium text-[var(--clay-text,var(--foreground))]"
                                 >
                                     Confirm Password{' '}
                                     <span className="text-red-400">*</span>
@@ -577,7 +577,7 @@ export default function InstitutionRegister({
                                     }
                                     placeholder="Repeat password"
                                     required
-                                    className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
+                                    className="bg-[var(--clay-surface-soft,var(--input))] border-[var(--clay-border,var(--border))] text-[var(--clay-text,var(--foreground))] focus:border-[var(--clay-accent,var(--primary))]"
                                 />
                                 <InputError
                                     message={errors.admin_password_confirmation}
@@ -587,8 +587,8 @@ export default function InstitutionRegister({
                     </Card>
 
                     {/* Submit Bar */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[var(--clay-border,#2e2924)]">
-                        <div className="text-xs text-[#8f8577]">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[var(--clay-border,var(--border))]">
+                        <div className="text-xs text-[var(--clay-text-muted,var(--muted-foreground))]">
                             Baseline budget lines (Technology, Operations,
                             Assistance, Equipment) will be initialized
                             automatically.
@@ -597,11 +597,11 @@ export default function InstitutionRegister({
                         <Button
                             type="submit"
                             disabled={processing}
-                            className="w-full sm:w-auto min-w-[240px] bg-[#c4a46c] text-[#141210] hover:bg-[#d8b982] font-semibold text-sm shadow-lg h-11"
+                            className="w-full sm:w-auto min-w-[240px] bg-[var(--clay-primary,var(--primary))] text-[var(--clay-primary-foreground,var(--primary-foreground))] hover:opacity-90 font-semibold text-sm shadow-lg h-11"
                         >
                             {processing ? (
                                 <>
-                                    <Spinner className="mr-2 size-4 text-[#141210]" />
+                                    <Spinner className="mr-2 size-4 text-inherit" />
                                     Deploying Tenancy...
                                 </>
                             ) : (

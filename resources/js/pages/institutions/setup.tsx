@@ -199,21 +199,21 @@ export default function InstitutionSetup({
     );
 
     return (
-        <div className="min-h-screen bg-[#0d0c0b] text-[#ede8e1] selection:bg-[#c4a46c]/30 selection:text-[#f3eee7] font-sans antialiased">
+        <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 selection:text-primary font-sans antialiased">
             <Head title={`Setup ${institution.name} — OpenSinop`} />
 
             {/* Top Navigation Bar */}
-            <header className="border-b border-stone-800/80 bg-[#141210]/80 backdrop-blur-md sticky top-0 z-50">
+            <header className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-50">
                 <div className="mx-auto max-w-5xl px-4 sm:px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="flex size-9 items-center justify-center rounded-xl bg-[#c4a46c] text-stone-950 font-serif font-black text-lg shadow-sm">
+                        <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-serif font-black text-lg shadow-sm">
                             S
                         </div>
                         <div>
-                            <span className="font-serif font-bold text-base tracking-tight text-white block">
+                            <span className="font-serif font-bold text-base tracking-tight text-foreground block">
                                 {institution.name}
                             </span>
-                            <span className="text-[11px] font-mono text-stone-400">
+                            <span className="text-[11px] font-mono text-muted-foreground">
                                 OpenSinop First Application Setup
                             </span>
                         </div>
@@ -237,10 +237,10 @@ export default function InstitutionSetup({
                         <Sparkles className="size-3.5" />
                         <span>INSTITUTION INITIALIZATION COMPLETE</span>
                     </div>
-                    <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-white">
+                    <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
                         Welcome to OpenSinop, {institution.name}.
                     </h1>
-                    <p className="text-sm sm:text-base text-stone-400 max-w-2xl leading-relaxed">
+                    <p className="text-sm sm:text-base text-muted-foreground max-w-2xl leading-relaxed">
                         Your sovereign school treasury, autonomous JEV finance
                         agent, and multi-school tenancy are provisioned. Review
                         and confirm your first-time application configuration
@@ -252,7 +252,7 @@ export default function InstitutionSetup({
                     <div className="mb-8 flex items-start gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-emerald-200 shadow-xl backdrop-blur-sm animate-in fade-in duration-300">
                         <CheckCircle2 className="size-5 shrink-0 text-emerald-400 mt-0.5" />
                         <div>
-                            <p className="font-semibold text-white">
+                            <p className="font-semibold text-foreground">
                                 Tenancy Deployed Successfully
                             </p>
                             <p className="text-xs text-emerald-300/90 mt-0.5">
@@ -264,15 +264,15 @@ export default function InstitutionSetup({
 
                 <form onSubmit={handleComplete} className="space-y-8">
                     {/* Section 1: Institution Profile & Identity */}
-                    <Card className="border-stone-800/80 bg-[#151311]/90 shadow-sm">
-                        <CardHeader className="pb-4 border-b border-stone-800/60">
+                    <Card className="border-border bg-card shadow-sm">
+                        <CardHeader className="pb-4 border-b border-border">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
-                                        <Building2 className="size-4.5 text-[#c4a46c]" />
+                                    <CardTitle className="text-base font-serif font-bold text-foreground flex items-center gap-2">
+                                        <Building2 className="size-4.5 text-primary" />
                                         1. Institution Profile & Identity
                                     </CardTitle>
-                                    <CardDescription className="text-xs text-stone-400">
+                                    <CardDescription className="text-xs text-muted-foreground">
                                         Academic domain, sovereign tenancy
                                         context, and accounting currency.
                                     </CardDescription>
@@ -283,36 +283,36 @@ export default function InstitutionSetup({
                             </div>
                         </CardHeader>
                         <CardContent className="pt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                            <div className="rounded-xl border border-border bg-muted/40 p-3.5 space-y-1">
+                                <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider block">
                                     School Slug
                                 </span>
-                                <span className="font-mono font-semibold text-white text-sm">
+                                <span className="font-mono font-semibold text-foreground text-sm">
                                     {institution.slug}
                                 </span>
                             </div>
-                            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                            <div className="rounded-xl border border-border bg-muted/40 p-3.5 space-y-1">
+                                <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider block">
                                     Country / Timezone
                                 </span>
-                                <span className="font-medium text-white text-sm">
+                                <span className="font-medium text-foreground text-sm">
                                     {institution.country} ·{' '}
                                     {institution.timezone}
                                 </span>
                             </div>
-                            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                            <div className="rounded-xl border border-border bg-muted/40 p-3.5 space-y-1">
+                                <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider block">
                                     Accounting Currency
                                 </span>
-                                <span className="font-mono font-bold text-emerald-400 text-sm">
+                                <span className="font-mono font-bold text-emerald-500 text-sm">
                                     {institution.currency}
                                 </span>
                             </div>
-                            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                            <div className="rounded-xl border border-border bg-muted/40 p-3.5 space-y-1">
+                                <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider block">
                                     Campus Domain
                                 </span>
-                                <span className="font-mono text-stone-300 text-sm truncate block">
+                                <span className="font-mono text-foreground text-sm truncate block">
                                     {institution.domain}
                                 </span>
                             </div>
@@ -320,25 +320,25 @@ export default function InstitutionSetup({
                     </Card>
 
                     {/* Section 2: Department Budgets */}
-                    <Card className="border-stone-800/80 bg-[#151311]/90 shadow-sm">
-                        <CardHeader className="pb-4 border-b border-stone-800/60">
+                    <Card className="border-border bg-card shadow-sm">
+                        <CardHeader className="pb-4 border-b border-border">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
-                                        <Layers className="size-4.5 text-[#c4a46c]" />
+                                    <CardTitle className="text-base font-serif font-bold text-foreground flex items-center gap-2">
+                                        <Layers className="size-4.5 text-primary" />
                                         2. Baseline Department Budgets
                                     </CardTitle>
-                                    <CardDescription className="text-xs text-stone-400">
+                                    <CardDescription className="text-xs text-muted-foreground">
                                         Allocated operational categories. JEV
                                         uses these to automatically review bills
                                         and authorize payment proposals.
                                     </CardDescription>
                                 </div>
                                 <div className="text-right">
-                                    <span className="text-[10px] font-mono text-stone-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block">
                                         Total Allocated
                                     </span>
-                                    <span className="text-sm font-mono font-bold text-white">
+                                    <span className="text-sm font-mono font-bold text-foreground">
                                         {totalAllocated.toFixed(2)}{' '}
                                         {institution.currency}
                                     </span>
@@ -350,15 +350,15 @@ export default function InstitutionSetup({
                                 {budgets.map((budget) => (
                                     <div
                                         key={budget.id}
-                                        className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 space-y-2"
+                                        className="rounded-xl border border-border bg-muted/40 p-4 space-y-2"
                                     >
                                         <div className="flex items-center justify-between">
-                                            <span className="font-medium text-xs text-white">
+                                            <span className="font-medium text-xs text-foreground">
                                                 {budget.name}
                                             </span>
                                             <Badge
                                                 variant="outline"
-                                                className="text-[10px] font-mono border-stone-700 text-stone-400"
+                                                className="text-[10px] font-mono border-border text-muted-foreground"
                                             >
                                                 {budget.category}
                                             </Badge>
@@ -366,7 +366,7 @@ export default function InstitutionSetup({
                                         <div className="flex items-center gap-2 pt-1">
                                             <Label
                                                 htmlFor={`budget-${budget.id}`}
-                                                className="text-xs text-stone-400 shrink-0 font-mono"
+                                                className="text-xs text-muted-foreground shrink-0 font-mono"
                                             >
                                                 Allocation (
                                                 {institution.currency}):
@@ -383,7 +383,7 @@ export default function InstitutionSetup({
                                                         e.target.value,
                                                     )
                                                 }
-                                                className="h-8 font-mono text-xs bg-stone-950 border-stone-700 text-white"
+                                                className="h-8 font-mono text-xs bg-background border-input text-foreground"
                                             />
                                         </div>
                                     </div>
@@ -393,16 +393,16 @@ export default function InstitutionSetup({
                     </Card>
 
                     {/* Section 3: Treasury Rails & Autonomous Policy Safeguards */}
-                    <Card className="border-stone-800/80 bg-[#151311]/90 shadow-sm">
-                        <CardHeader className="pb-4 border-b border-stone-800/60">
+                    <Card className="border-border bg-card shadow-sm">
+                        <CardHeader className="pb-4 border-b border-border">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
-                                        <Shield className="size-4.5 text-[#c4a46c]" />
+                                    <CardTitle className="text-base font-serif font-bold text-foreground flex items-center gap-2">
+                                        <Shield className="size-4.5 text-primary" />
                                         3. Autonomous Arc Treasury & Safety
                                         Guardrails
                                     </CardTitle>
-                                    <CardDescription className="text-xs text-stone-400">
+                                    <CardDescription className="text-xs text-muted-foreground">
                                         Arc blockchain settlement rails and JEV
                                         safety buffer settings.
                                     </CardDescription>
@@ -414,17 +414,17 @@ export default function InstitutionSetup({
                         </CardHeader>
                         <CardContent className="pt-5 space-y-5">
                             {/* Treasury Address Display */}
-                            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="rounded-xl border border-border bg-muted/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div className="space-y-1">
-                                    <span className="text-[11px] font-mono text-stone-400 uppercase tracking-wider flex items-center gap-1.5">
-                                        <WalletIcon className="size-3.5 text-[#c4a46c]" />
+                                    <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                        <WalletIcon className="size-3.5 text-primary" />
                                         School Treasury Address (
                                         {treasury.provider === 'circle'
                                             ? 'Autonomous Circle Agent Wallet'
                                             : 'Manual EVM Multisig'}
                                         )
                                     </span>
-                                    <span className="font-mono text-xs text-white break-all">
+                                    <span className="font-mono text-xs text-foreground break-all">
                                         {treasury.address}
                                     </span>
                                 </div>
@@ -438,7 +438,7 @@ export default function InstitutionSetup({
                                             'address',
                                         )
                                     }
-                                    className="shrink-0 h-8 text-xs border-stone-700 hover:bg-stone-800 flex items-center gap-1.5 text-stone-300"
+                                    className="shrink-0 h-8 text-xs border-border hover:bg-muted flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
                                 >
                                     {copiedAddress ? (
                                         <Check className="size-3.5 text-emerald-400" />
@@ -451,15 +451,15 @@ export default function InstitutionSetup({
 
                             {/* Safety Threshold Inputs */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 space-y-2">
+                                <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2">
                                     <Label
                                         htmlFor="min-reserve"
-                                        className="text-xs font-medium text-white flex items-center gap-1.5"
+                                        className="text-xs font-medium text-foreground flex items-center gap-1.5"
                                     >
                                         Minimum Emergency Reserve (
                                         {institution.currency})
                                     </Label>
-                                    <p className="text-[11px] text-stone-400">
+                                    <p className="text-[11px] text-muted-foreground">
                                         Funds below this balance cannot be spent
                                         by automated payment pipelines.
                                     </p>
@@ -473,19 +473,19 @@ export default function InstitutionSetup({
                                                 parseFloat(e.target.value) || 0,
                                             )
                                         }
-                                        className="h-8 font-mono text-xs bg-stone-950 border-stone-700 text-white"
+                                        className="h-8 font-mono text-xs bg-background border-input text-foreground"
                                     />
                                 </div>
 
-                                <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 space-y-2">
+                                <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2">
                                     <Label
                                         htmlFor="max-auto-payment"
-                                        className="text-xs font-medium text-white flex items-center gap-1.5"
+                                        className="text-xs font-medium text-foreground flex items-center gap-1.5"
                                     >
                                         Max Auto-Payment Limit (
                                         {institution.currency})
                                     </Label>
-                                    <p className="text-[11px] text-stone-400">
+                                    <p className="text-[11px] text-muted-foreground">
                                         Invoices higher than this amount always
                                         require manual bursar approval.
                                     </p>
@@ -499,7 +499,7 @@ export default function InstitutionSetup({
                                                 parseFloat(e.target.value) || 0,
                                             )
                                         }
-                                        className="h-8 font-mono text-xs bg-stone-950 border-stone-700 text-white"
+                                        className="h-8 font-mono text-xs bg-background border-input text-foreground"
                                     />
                                 </div>
                             </div>
@@ -507,15 +507,15 @@ export default function InstitutionSetup({
                     </Card>
 
                     {/* Section 4: JEV AI Policy & Operational Blueprint */}
-                    <Card className="border-stone-800/80 bg-[#151311]/90 shadow-sm">
-                        <CardHeader className="pb-4 border-b border-stone-800/60">
+                    <Card className="border-border bg-card shadow-sm">
+                        <CardHeader className="pb-4 border-b border-border">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
-                                        <Bot className="size-4.5 text-[#c4a46c]" />
+                                    <CardTitle className="text-base font-serif font-bold text-foreground flex items-center gap-2">
+                                        <Bot className="size-4.5 text-primary" />
                                         4. JEV AI Policy & Operational Blueprint
                                     </CardTitle>
-                                    <CardDescription className="text-xs text-stone-400">
+                                    <CardDescription className="text-xs text-muted-foreground">
                                         Choose an out-of-the-box operational
                                         policy template. JEV AI uses this
                                         blueprint to classify invoices, match
@@ -523,7 +523,7 @@ export default function InstitutionSetup({
                                         guardrails.
                                     </CardDescription>
                                 </div>
-                                <Badge className="bg-[#c4a46c]/20 text-[#c4a46c] border border-[#c4a46c]/30 text-[10px]">
+                                <Badge className="bg-primary/10 text-primary border border-primary/20 text-[10px]">
                                     1-Click Setup
                                 </Badge>
                             </div>
@@ -543,38 +543,38 @@ export default function InstitutionSetup({
                                             }
                                             className={`relative rounded-xl border p-4 cursor-pointer transition-all flex flex-col justify-between ${
                                                 isSelected
-                                                    ? 'border-[#c4a46c] bg-[#c4a46c]/10 shadow-md ring-1 ring-[#c4a46c]/40'
-                                                    : 'border-stone-800/80 bg-stone-900/40 hover:border-stone-700 hover:bg-stone-900/70'
+                                                    ? 'border-primary bg-primary/10 shadow-md ring-1 ring-primary/40'
+                                                    : 'border-border bg-muted/30 hover:border-border/80 hover:bg-muted/60'
                                             }`}
                                         >
                                             <div className="space-y-2">
                                                 <div className="flex items-start justify-between gap-2">
-                                                    <span className="font-serif font-bold text-sm text-white flex items-center gap-1.5">
+                                                    <span className="font-serif font-bold text-sm text-foreground flex items-center gap-1.5">
                                                         {template.name}
                                                     </span>
                                                     {isSelected ? (
-                                                        <CheckCircle2 className="size-4 text-[#c4a46c] shrink-0" />
+                                                        <CheckCircle2 className="size-4 text-primary shrink-0" />
                                                     ) : (
                                                         <Badge
                                                             variant="outline"
-                                                            className="text-[9px] font-mono border-stone-700 text-stone-400"
+                                                            className="text-[9px] font-mono border-border text-muted-foreground"
                                                         >
                                                             {template.badge}
                                                         </Badge>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-stone-300 font-medium leading-snug">
+                                                <p className="text-xs text-foreground font-medium leading-snug">
                                                     {template.tagline}
                                                 </p>
-                                                <p className="text-[11px] text-stone-400 line-clamp-2">
+                                                <p className="text-[11px] text-muted-foreground line-clamp-2">
                                                     {template.description}
                                                 </p>
                                             </div>
 
-                                            <div className="pt-3 mt-3 border-t border-stone-800/80 space-y-2">
-                                                <div className="flex items-center justify-between text-[11px] font-mono text-stone-400">
+                                            <div className="pt-3 mt-3 border-t border-border space-y-2">
+                                                <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground">
                                                     <span>Reserve:</span>
-                                                    <span className="text-white font-semibold">
+                                                    <span className="text-foreground font-semibold">
                                                         {
                                                             template.controls
                                                                 .minimum_reserve
@@ -582,9 +582,9 @@ export default function InstitutionSetup({
                                                         {institution.currency}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center justify-between text-[11px] font-mono text-stone-400">
+                                                <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground">
                                                     <span>Auto-Pay Cap:</span>
-                                                    <span className="text-white font-semibold">
+                                                    <span className="text-foreground font-semibold">
                                                         {
                                                             template.controls
                                                                 .max_auto_payment
@@ -592,7 +592,7 @@ export default function InstitutionSetup({
                                                         {institution.currency}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center justify-between text-[10px] text-stone-400 pt-1">
+                                                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
                                                     <span>
                                                         {
                                                             template.categories_count
@@ -615,16 +615,16 @@ export default function InstitutionSetup({
                     </Card>
 
                     {/* Section 5: Student Enrollment Share Link */}
-                    <Card className="border-stone-800/80 bg-[#151311]/90 shadow-sm">
-                        <CardHeader className="pb-4 border-b border-stone-800/60">
+                    <Card className="border-border bg-card shadow-sm">
+                        <CardHeader className="pb-4 border-b border-border">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
-                                        <GraduationCap className="size-4.5 text-[#c4a46c]" />
+                                    <CardTitle className="text-base font-serif font-bold text-foreground flex items-center gap-2">
+                                        <GraduationCap className="size-4.5 text-primary" />
                                         5. Student Enrollment Link (Share with
                                         Students)
                                     </CardTitle>
-                                    <CardDescription className="text-xs text-stone-400">
+                                    <CardDescription className="text-xs text-muted-foreground">
                                         Provide this direct link to your
                                         students to register their academic
                                         identity and link their Web3 payout
@@ -640,8 +640,8 @@ export default function InstitutionSetup({
                             </div>
                         </CardHeader>
                         <CardContent className="pt-5 space-y-3">
-                            <div className="rounded-xl border border-stone-800 bg-stone-900/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <span className="font-mono text-xs text-[#c4a46c] break-all select-all">
+                            <div className="rounded-xl border border-border bg-muted/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <span className="font-mono text-xs text-primary break-all select-all font-medium">
                                     {studentRegistrationUrl}
                                 </span>
                                 <Button
@@ -654,7 +654,7 @@ export default function InstitutionSetup({
                                             'url',
                                         )
                                     }
-                                    className="shrink-0 h-8 text-xs border-[#c4a46c]/40 text-[#c4a46c] hover:bg-[#c4a46c]/10 flex items-center gap-1.5"
+                                    className="shrink-0 h-8 text-xs border-primary/40 text-primary hover:bg-primary/10 flex items-center gap-1.5"
                                 >
                                     {copiedUrl ? (
                                         <Check className="size-3.5 text-emerald-400" />
@@ -670,12 +670,12 @@ export default function InstitutionSetup({
                     </Card>
 
                     {/* Submission / Launch Button */}
-                    <div className="rounded-2xl border border-[#c4a46c]/30 bg-[#1c1915]/60 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="rounded-2xl border border-primary/30 bg-card p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <h3 className="font-serif font-bold text-white text-base">
+                            <h3 className="font-serif font-bold text-foreground text-base">
                                 Ready to open your Financial Operations Console?
                             </h3>
-                            <p className="text-xs text-stone-400">
+                            <p className="text-xs text-muted-foreground">
                                 Confirming will finalize your initial
                                 application setup and transition you to your
                                 live dashboard.
@@ -685,7 +685,7 @@ export default function InstitutionSetup({
                             type="submit"
                             size="lg"
                             disabled={submitting}
-                            className="bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] font-semibold text-xs px-8 h-11 shrink-0 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-xs px-8 h-11 shrink-0 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
                         >
                             {submitting ? (
                                 <>
