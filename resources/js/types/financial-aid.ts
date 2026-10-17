@@ -79,6 +79,14 @@ export type StudentDashboardProps = {
         paid_amount_fiat?: string;
         held_amount_fiat?: string;
     } | null;
+    tuitionAccounts?: Array<{
+        id: number;
+        term: string;
+        total_amount: string;
+        paid_amount: string;
+        remaining_amount: string;
+        is_active?: boolean;
+    }>;
     requests: AssistanceRequestSummary[];
     canRequest: boolean;
     currency?: {

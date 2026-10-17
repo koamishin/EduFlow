@@ -16,6 +16,7 @@ use App\Models\StudentBillPayment;
 use App\Models\StudentTuitionPayment;
 use App\Models\StudentTuitionPaymentAttempt;
 use App\Models\Transaction;
+use App\Models\TuitionAccount;
 use App\Services\CurrencyConverter;
 use App\Services\StudentWalletService;
 use Illuminate\Http\RedirectResponse;
@@ -44,9 +45,18 @@ class StudentDashboardController extends Controller
     {
         abort_unless($request->user()->hasRole('student'), 403);
         $student = $request->user()->student()->firstOrFail();
+        $requestedAccountId = $request->query('account') ?? $request->query('account_id');
+        $account = null;
+        if ($requestedAccountId !== null) {
+            $account = $student->tuitionAccounts()->with('academicTerm')->find((int) $requestedAccountId);
+        }
+
         $accounts = $student->tuitionAccounts()->with('academicTerm')
             ->whereHas('academicTerm', fn ($query) => $query->whereDate('starts_on', '<=', today())->whereDate('ends_on', '>=', today()))->get();
-        $account = $accounts->count() === 1 ? $accounts->first() : null;
+
+        if ($account === null && $accounts->count() === 1) {
+            $account = $accounts->first();
+        }
 
         $displayCurrency = CurrencyCode::tryFrom(strtoupper((string) config('eduflow.display_currency', 'PHP'))) ?? CurrencyCode::PHP;
         $quote = $converter->lockQuote($displayCurrency);
@@ -72,6 +82,16 @@ class StudentDashboardController extends Controller
                 'held_amount_fiat' => $converter->formatDual($heldBase, $displayCurrency),
             ];
         }
+
+        $allTuitionAccountsData = $student->tuitionAccounts()->with('academicTerm')->orderByDesc('id')->get()
+            ->map(fn (TuitionAccount $ta): array => [
+                'id' => $ta->id,
+                'term' => $ta->academicTerm?->name ?? 'Term #'.$ta->academic_term_id,
+                'total_amount' => (string) $ta->total_amount,
+                'paid_amount' => (string) $ta->paid_amount,
+                'remaining_amount' => (string) $ta->effectiveRemainingAmount(),
+                'is_active' => $ta->academicTerm?->isActive() ?? false,
+            ])->values()->all();
 
         $requests = $student->assistanceRequests()->with('agentDecisions')->latest('id')->get()->map(function (AssistanceRequest $assistance): array {
             $decision = $assistance->latestAgentDecision();
@@ -222,9 +242,10 @@ class StudentDashboardController extends Controller
                 'year_level' => $student->year_level,
             ],
             'tuitionAccount' => $tuitionAccountData,
+            'tuitionAccounts' => $allTuitionAccountsData,
             'tuitionAttempts' => StudentTuitionPaymentAttempt::query()->where('student_id', $student->id)->latest('id')->limit(20)->get()
                 ->map(fn (StudentTuitionPaymentAttempt $attempt): array => StudentTuitionPaymentController::statusData($attempt)),
-            'canRequest' => $account !== null,
+            'canRequest' => $account !== null && $accounts->count() === 1 && $account->id === $accounts->first()?->id,
             'requests' => $requests,
             'currency' => [
                 'display' => $displayCurrency->value,
