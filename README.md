@@ -1,5 +1,18 @@
 <div align="center">
 
+<img src="public/opensinop-logo.svg" alt="OpenSinop — clear budgets, traceable decisions" width="800" />
+
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-103e34" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/status-early_development-b7791f" alt="Status: early development" />
+  <img src="https://img.shields.io/badge/network-Arc_testnet-103e34" alt="Network: Arc testnet" />
+  <img src="https://img.shields.io/badge/payments-USDC-2775ca" alt="Payments: USDC" />
+  <img src="https://img.shields.io/badge/Laravel-13-ef4444" alt="Laravel 13" />
+  <img src="https://img.shields.io/badge/PHP-8.5-777bb4" alt="PHP 8.5" />
+</p>
+
+<p><a href="https://opensinop.koamishin.com">Institutional app</a> · <a href="#getting-started">Get started</a> · <a href="#production-readiness">Current limits</a></p>
+
 # OpenSinop
 
 **Bounded departmental finance on Circle Agent Wallets + Arc**

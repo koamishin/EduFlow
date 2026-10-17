@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-labelledby="title desc">
+  <title id="title">OpenSinop — institutional finance, in the open</title>
+  <desc id="desc">A green open-ledger emblem beside the OpenSinop wordmark on a warm ivory background.</desc>
+  <rect width="960" height="320" rx="28" fill="#f5f1e7"/>
+  <g transform="translate(56 56) scale(.8125)">
+    <rect width="256" height="256" rx="58" fill="#103e34"/>
+    <path d="M128 76C104 62 76 60 48 65v126c28-5 56-3 80 11 24-14 52-16 80-11V65c-28-5-56-3-80 11Z" fill="#f5f1e7"/>
+    <path d="M128 78v103" stroke="#103e34" stroke-width="6" stroke-linecap="round"/>
+    <g fill="none" stroke="#103e34" stroke-width="9" stroke-linecap="round">
+      <path d="M72 98h30m-30 29h30m-30 29h30M154 98h30m-30 29h30m-30 29h16"/>
+    </g>
+    <circle cx="202" cy="62" r="23" fill="#d5ed8c" stroke="#103e34" stroke-width="8"/>
+  </g>
+  <text x="306" y="111" fill="#456b60" font-family="monospace" font-size="14" letter-spacing="3">OPEN-SOURCE / INSTITUTIONAL FINANCE</text>
+  <text x="300" y="188" fill="#103e34" font-family="Georgia, 'DejaVu Serif', serif" font-size="76" letter-spacing="-3">OpenSinop</text>
+  <path d="M306 215h48" stroke="#759b46" stroke-width="4"/>
+  <text x="370" y="222" fill="#456b60" font-family="Georgia, 'DejaVu Serif', serif" font-size="23">Clear budgets. Traceable decisions.</text>
+</svg>

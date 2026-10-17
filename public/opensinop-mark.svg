@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">OpenSinop logo</title>
+  <desc id="desc">An open ivory ledger with three balanced rows inside a deep green rounded square. A lime dot marks a reviewed entry.</desc>
+  <rect width="256" height="256" rx="58" fill="#103e34"/>
+  <path d="M128 76C104 62 76 60 48 65v126c28-5 56-3 80 11 24-14 52-16 80-11V65c-28-5-56-3-80 11Z" fill="#f5f1e7"/>
+  <path d="M128 78v103" stroke="#103e34" stroke-width="6" stroke-linecap="round"/>
+  <g fill="none" stroke="#103e34" stroke-width="9" stroke-linecap="round">
+    <path d="M72 98h30m-30 29h30m-30 29h30M154 98h30m-30 29h30m-30 29h16"/>
+  </g>
+  <circle cx="202" cy="62" r="23" fill="#d5ed8c" stroke="#103e34" stroke-width="8"/>
+</svg>
