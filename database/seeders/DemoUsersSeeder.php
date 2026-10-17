@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use App\Enums\RoleEnums;
+use App\Models\AcademicTerm;
 use App\Models\Organization;
 use App\Models\Student;
+use App\Models\TuitionAccount;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -53,15 +55,35 @@ class DemoUsersSeeder extends Seeder
             $user->assignRole($studentRole);
             $user->removeRole(RoleEnums::USER->value);
 
-            Student::query()->firstOrCreate(['user_id' => $user->id], [
+            $student = Student::query()->firstOrCreate(['user_id' => $user->id], [
                 'organization_id' => $user->organization_id,
                 'student_number' => 'DEMO-STUDENT-'.$user->id,
                 'program' => 'Demo student',
                 'year_level' => 1,
                 'enrollment_status' => 'enrolled',
                 'academic_status' => 'qualified',
+                'attendance_rate' => 95,
                 'payout_address' => null,
             ]);
+
+            $term = AcademicTerm::query()->firstOrCreate(
+                ['name' => 'Academic Term '.today()->year],
+                [
+                    'starts_on' => today()->startOfYear(),
+                    'ends_on' => today()->endOfYear(),
+                ],
+            );
+
+            TuitionAccount::query()->firstOrCreate(
+                [
+                    'student_id' => $student->id,
+                    'academic_term_id' => $term->id,
+                ],
+                [
+                    'total_amount' => 200_000000,
+                    'paid_amount' => 0,
+                ],
+            );
         });
     }
 }
