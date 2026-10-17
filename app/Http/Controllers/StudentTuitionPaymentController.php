@@ -10,6 +10,7 @@ use App\Enums\CurrencyCode;
 use App\Models\Student;
 use App\Models\StudentBill;
 use App\Models\StudentBillPayment;
+use App\Models\StudentControlledPayment;
 use App\Models\StudentTuitionPayment;
 use App\Models\StudentTuitionPaymentAttempt;
 use App\Models\StudentTuitionPaymentIntent;
@@ -264,6 +265,28 @@ class StudentTuitionPaymentController extends Controller
                 ->limit(20)
                 ->get()
                 ->map(fn (StudentTuitionPaymentAttempt $attempt): array => self::statusData($attempt))
+                ->all(),
+            'controlledPayments' => StudentControlledPayment::query()
+                ->where('student_id', $student->id)
+                ->where(function ($q) use ($account): void {
+                    if ($account) {
+                        $q->where('tuition_account_id', $account->id);
+                    }
+                })
+                ->latest('id')
+                ->limit(10)
+                ->get()
+                ->map(fn (StudentControlledPayment $p): array => [
+                    'id' => $p->id,
+                    'tx_hash' => $p->tx_hash,
+                    'via_circle' => $p->circle_challenge_id !== null,
+                    'approval_started' => $p->approval_started_at !== null,
+                    'is_expired' => $p->expires_at->isPast(),
+                    'posted' => $p->posted_at !== null,
+                    'can_cancel' => $p->posted_at === null && $p->approval_started_at === null && $p->tx_hash === null && $p->circle_challenge_id === null,
+                    'amount_base_units' => (string) $p->snapshot['amount_base_units'],
+                    'applied_base_units' => (string) $p->applied_base_units,
+                ])
                 ->all(),
             'bills' => $bills,
             'billPayments' => $billPayments,

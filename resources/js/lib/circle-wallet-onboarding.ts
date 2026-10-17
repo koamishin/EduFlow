@@ -1,5 +1,35 @@
 import type { W3SSdk } from '@circle-fin/w3s-pw-web-sdk';
 
+export interface CircleSettlementStatus {
+    posted: boolean;
+    tx_hash?: string;
+    state?: string;
+}
+
+/** Observe only: never repeat authorization or broadcast while waiting. */
+export async function watchCircleSettlement(
+    read: () => Promise<CircleSettlementStatus>,
+    progress: (status: CircleSettlementStatus) => void,
+): Promise<CircleSettlementStatus> {
+    for (let attempt = 0; attempt < 12; attempt++) {
+        const status = await read();
+        if (status.posted) return status;
+        progress(status);
+        if (
+            ['FAILED', 'DENIED', 'CANCELLED', 'EXPIRED'].includes(
+                status.state ?? '',
+            )
+        ) {
+            throw new Error(
+                `Circle reports ${status.state}. No tuition credit recorded. Review this existing payment before trying again.`,
+            );
+        }
+        if (attempt < 11)
+            await new Promise((resolve) => window.setTimeout(resolve, 3000));
+    }
+    return { posted: false, state: 'PENDING' };
+}
+
 /** SDK modal close does not always invoke its callback. Never wait indefinitely. */
 export function executeCircleChallenge(
     sdk: W3SSdk,

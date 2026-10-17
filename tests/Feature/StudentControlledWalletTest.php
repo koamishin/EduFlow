@@ -7,6 +7,9 @@ use App\Models\StudentBill;
 use App\Models\StudentControlledPayment;
 use App\Models\StudentWallet;
 use App\Models\TuitionAccount;
+use App\Notifications\StudentControlledPaymentSettled;
+use App\Services\ArcSettlementVerifier;
+use App\Services\CircleStudentWallets;
 use App\Services\StudentControlledCheckout;
 use App\Services\StudentControlledWallets;
 use Elliptic\EC;
@@ -37,6 +40,10 @@ beforeEach(function (): void {
         'eth_getBlockByNumber' => ['hash' => '0x'.str_repeat('d', 64), 'timestamp' => '0x1'],
         default => null,
     });
+    mockExpectation($arc, 'chainCode')->andReturn('ARC-TESTNET');
+    mockExpectation($arc, 'chainId')->andReturn(5042002);
+    mockExpectation($arc, 'rpcUrl')->andReturn('https://rpc.testnet.arc.io');
+    mockExpectation($arc, 'addressExplorerUrl')->andReturn('https://testnet.arcscan.app/address/example');
     mockExpectation($arc, 'explorerUrl')->andReturn('https://testnet.arcscan.app/tx/example');
     $this->app->instance(ArcNetworkGateway::class, $arc);
 });
@@ -145,6 +152,7 @@ test('Circle sessions create only user-controlled Arc testnet wallets without ex
         expect($headers['Authorization'])->toBe('Bearer TEST_API_KEY:test:secret');
         $data = match (true) {
             str_ends_with($url, '/users') => ['id' => $body['userId']],
+            str_contains($url, '/users/') && ! str_ends_with($url, '/users/token') => ['user' => ['id' => '22222222-2222-4222-8222-222222222222']],
             str_ends_with($url, '/users/token') => ['userToken' => 'short-lived-user-token', 'encryptionKey' => 'short-lived-key'],
             str_contains($url, '/wallets?') => ['wallets' => []],
             str_ends_with($url, '/user/initialize') => ['challengeId' => '11111111-1111-4111-8111-111111111111'],
@@ -205,6 +213,7 @@ test('Circle challenge is tied to one user wallet and recovered idempotently', f
         expect($url)->toBe('https://api.circle.com/v1/w3s/user/transactions/contractExecution')
             ->and($body['idempotencyKey'])->toBe($payment->id)
             ->and($body['walletId'])->toBe($walletId)
+            ->and($body)->not->toHaveKey('blockchain')
             ->and($body['callData'])->toBe($payment->snapshot['data']);
 
         return new HttpResponse(201, ['data' => ['challengeId' => '33333333-3333-4333-8333-333333333333']]);
@@ -438,4 +447,176 @@ test('allow multiple wallets migration rollback cleans up historical rows and re
 
     // Re-running up succeeds as well
     $migration->up();
+});
+
+test('unused quotes can be cleared but started approvals stay fenced after expiry', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $checkout = app(StudentControlledCheckout::class);
+    $unused = $checkout->create($this->student, 'tuition', $account->id, 1000000);
+    $this->postJson(route('student.controlled-wallet.cancel', $unused->id))->assertSuccessful();
+    expect(StudentControlledPayment::query()->find($unused->id))->toBeNull();
+    $started = $checkout->create($this->student, 'tuition', $account->id, 2000000);
+    $started->forceFill(['approval_started_at' => now()])->save();
+    $this->travel(11)->minutes();
+    $this->postJson(route('student.controlled-wallet.cancel', $started->id))->assertUnprocessable();
+    expect(fn () => $checkout->create($this->student, 'tuition', $account->id, 1000000))->toThrow(ValidationException::class);
+    expect($started->fresh()->approval_started_at)->not->toBeNull();
+});
+
+test('students cannot clear another students unused quote', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $payment = app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 1000000);
+    $other = Student::factory()->create();
+    $this->actingAs($other->user->assignRole('student'));
+    $this->postJson(route('student.controlled-wallet.cancel', $payment->id))->assertForbidden();
+    expect($payment->fresh())->not->toBeNull();
+});
+
+test('expired Circle approvals recover the original challenge without creating another transfer', function (): void {
+    config(['student-wallets.circle_api_key' => 'TEST_API_KEY:test:secret', 'student-wallets.circle_app_id' => 'app']);
+    app(StudentControlledWallets::class)->link($this->student, $this->address, 'circle-user', '22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111');
+    $this->student->refresh();
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $payment = app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 1000000);
+    $challenge = '33333333-3333-4333-8333-333333333333';
+    $payment->forceFill(['approval_started_at' => now(), 'circle_challenge_id' => $challenge])->save();
+    $this->travel(11)->minutes();
+    $http = Mockery::mock(JsonTransport::class);
+    $http->shouldNotReceive('request');
+    $this->app->instance(JsonTransport::class, $http);
+    $this->withSession(['circle_student_auth' => ['student_id' => $this->student->id, 'user_id' => '22222222-2222-4222-8222-222222222222',
+        'token' => encrypt('token'), 'expires' => now()->addMinutes(30)->timestamp]])
+        ->postJson(route('student.controlled-wallet.circle-pay', $payment->id), ['consent' => true])
+        ->assertSuccessful()->assertJson(['challengeId' => $challenge]);
+    $this->postJson(route('student.controlled-wallet.cancel', $payment->id))->assertUnprocessable();
+});
+
+test('Circle request failure before PIN can recover the same payment and idempotency key', function (): void {
+    config(['student-wallets.circle_api_key' => 'TEST_API_KEY:test:secret', 'student-wallets.circle_app_id' => 'app']);
+    app(StudentControlledWallets::class)->link($this->student, $this->address, 'circle-user', '22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111');
+    $this->student->refresh();
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $payment = app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 1000000);
+    $http = Mockery::mock(JsonTransport::class);
+    $calls = 0;
+    mockExpectation($http, 'request')->times(2)->andReturnUsing(function (string $method, string $url, array $headers, ?array $body) use ($payment, &$calls): HttpResponse {
+        expect($body['idempotencyKey'])->toBe($payment->id)
+            ->and($body)->not->toHaveKey('blockchain');
+
+        return ++$calls === 1 ? new HttpResponse(503) : new HttpResponse(201, ['data' => ['challengeId' => '33333333-3333-4333-8333-333333333333']]);
+    });
+    $this->app->instance(JsonTransport::class, $http);
+    $this->withSession(['circle_student_auth' => ['student_id' => $this->student->id, 'user_id' => '22222222-2222-4222-8222-222222222222', 'token' => encrypt('token'), 'expires' => now()->addMinutes(30)->timestamp]]);
+    $this->postJson(route('student.controlled-wallet.circle-pay', $payment->id), ['consent' => true])->assertUnprocessable();
+    expect($payment->fresh()->circle_challenge_id)->toBeNull();
+    $this->postJson(route('student.controlled-wallet.circle-pay', $payment->id), ['consent' => true])->assertSuccessful()->assertJson(['challengeId' => '33333333-3333-4333-8333-333333333333']);
+    expect($account->fresh()->paid_amount)->toBe(0);
+});
+
+test('PIN reconnect checks existing Circle user rather than recreating it', function (): void {
+    config(['student-wallets.circle_api_key' => 'TEST_API_KEY:test:secret', 'student-wallets.circle_app_id' => 'app']);
+    $id = '22222222-2222-4222-8222-222222222222';
+    $http = Mockery::mock(JsonTransport::class);
+    mockExpectation($http, 'request')->once()->with('GET', 'https://api.circle.com/v1/w3s/users/'.$id, Mockery::type('array'), null)
+        ->andReturn(new HttpResponse(200, ['data' => ['user' => ['id' => $id]]]));
+    assert($http instanceof JsonTransport);
+    $service = new CircleStudentWallets($http);
+    $service->ensureUser($id);
+});
+
+test('Circle failure names the operation and never exposes raw provider messages', function (): void {
+    config(['student-wallets.circle_api_key' => 'TEST_API_KEY:test:secret', 'student-wallets.circle_app_id' => 'app']);
+    $http = Mockery::mock(JsonTransport::class);
+    mockExpectation($http, 'request')->once()->andReturn(new HttpResponse(400, ['code' => 155101, 'message' => 'sensitive-provider-detail']));
+    assert($http instanceof JsonTransport);
+    $service = new CircleStudentWallets($http);
+    expect(fn () => $service->request('POST', 'users/token', ['userId' => 'test-user']))
+        ->toThrow(ValidationException::class, 'Circle wallet session failed (HTTP 400). Circle code 155101.');
+});
+
+test('student gas estimate uses exact native USDC arithmetic without assuming sponsorship', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $payment = app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 1000000);
+    /** @var ArcNetworkGateway&MockInterface $arc */
+    $arc = Mockery::mock(ArcNetworkGateway::class);
+    mockExpectation($arc, 'rpc')->andReturnUsing(static fn (string $method, array $params = []): mixed => match ($method) {
+        'eth_chainId' => '0x4cef52', 'eth_estimateGas' => '0x5208', 'eth_gasPrice' => '0x3b9aca00', default => null,
+    });
+    $wallets = new StudentControlledWallets($arc);
+    $checkout = new StudentControlledCheckout($wallets, $arc, new ArcSettlementVerifier($arc));
+    expect($checkout->feeEstimate($payment))->toBe(['estimated_fee' => '0.000021000000000000', 'fee_paid_by' => 'student']);
+});
+
+test('gas preview never creates payment records or reserves an approval', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $this->postJson(route('student.controlled-wallet.estimate'), ['kind' => 'tuition', 'account_id' => $account->id, 'amount' => '1'])->assertSuccessful()->assertJson(['fee_paid_by' => 'student']);
+    $this->postJson(route('student.controlled-wallet.estimate'), ['kind' => 'tuition', 'account_id' => $account->id, 'amount' => '2'])->assertSuccessful();
+    expect(StudentControlledPayment::query()->count())->toBe(0);
+});
+
+test('student dashboard includes existing verified student-controlled payments without allocating twice', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $checkout = app(StudentControlledCheckout::class);
+    $payment = $checkout->create($this->student, 'tuition', $account->id, 2000000);
+    $this->transaction = controlledTransfer($payment);
+    $this->receipt = controlledReceipt($payment);
+    $checkout->confirm($this->student, $payment, '0x'.str_repeat('c', 64));
+
+    $this->get(route('student.dashboard'))->assertSuccessful()->assertInertia(fn ($page) => $page
+        ->where('recentTransactions.0.id', 'controlled-'.$payment->id)
+        ->where('recentTransactions.0.amount', 2)
+        ->where('recentTransactions.0.is_verified', true)
+        ->where('recentTransactions.0.direction', 'outbound'));
+    expect($account->fresh()->paid_amount)->toBe(2000000);
+});
+
+test('student dashboard shows started payments as pending and hides unused quotes', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $payment = app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 1000000);
+    $this->get(route('student.dashboard'))->assertSuccessful()->assertInertia(fn ($page) => $page->has('recentTransactions', 0));
+    $payment->forceFill(['approval_started_at' => now()])->save();
+    $this->get(route('student.dashboard'))->assertSuccessful()->assertInertia(fn ($page) => $page
+        ->where('recentTransactions.0.id', 'controlled-'.$payment->id)
+        ->where('recentTransactions.0.status', 'pending')
+        ->where('recentTransactions.0.is_verified', false));
+});
+
+test('student-controlled activity stays private to its owner', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $payment = app(StudentControlledCheckout::class)->create($this->student, 'tuition', $account->id, 1000000);
+    $payment->forceFill(['approval_started_at' => now()])->save();
+    $other = Student::factory()->withoutPayoutAddress()->create();
+    $this->actingAs($other->user->assignRole('student'));
+    $this->get(route('student.dashboard'))->assertSuccessful()->assertInertia(fn ($page) => $page->has('recentTransactions', 0));
+});
+
+test('My Payments includes stored verified student-controlled e-receipts without another transfer', function (): void {
+    controlledWallet($this->student, $this->address);
+    $account = TuitionAccount::factory()->create(['student_id' => $this->student->id, 'total_amount' => 10000000, 'paid_amount' => 0]);
+    $service = app(StudentControlledCheckout::class);
+    $payment = $service->create($this->student, 'tuition', $account->id, 2000000);
+    $this->transaction = controlledTransfer($payment);
+    $this->receipt = controlledReceipt($payment);
+    $service->confirm($this->student, $payment, '0x'.str_repeat('c', 64));
+    $this->get(route('payments.index'))->assertSuccessful()->assertInertia(fn ($page) => $page
+        ->where('receipts.0.receipt_number', 'TEST-ARC-'.$payment->id)
+        ->where('receipts.0.amount_base_units', '2000000')
+        ->where('receipts.0.tx_hash', '0x'.str_repeat('c', 64))
+        ->where('totals.tuition_paid', 2));
+    expect($account->fresh()->paid_amount)->toBe(2000000);
+});
+
+test('payment receipt notification supports email and states testnet limitations', function (): void {
+    $notification = new StudentControlledPaymentSettled('TEST-ARC-example', '2', '0x'.str_repeat('c', 64));
+    expect($notification->via($this->student->user))->toBe(['database', 'mail']);
+    $mail = $notification->toMail($this->student->user);
+    expect(implode(' ', $mail->introLines))->toContain('not proof of official college tuition payment')
+        ->and($mail->actionUrl)->toBe(route('payments.index'));
 });

@@ -45,15 +45,19 @@ class StudentWalletController extends Controller
      * Re-read the chain, bypassing the short cache, so the refresh action shows
      * current state rather than the copy cached moments ago.
      */
-    public function refresh(Request $request): JsonResponse
+    public function refresh(Request $request): JsonResponse|RedirectResponse
     {
         $student = $this->studentFor($request);
 
         $this->wallets->forget($student);
 
-        return response()->json([
-            'snapshot' => $this->wallets->snapshot($student)->toArray(),
-        ]);
+        $snapshot = $this->wallets->snapshot($student)->toArray();
+
+        if ($request->hasHeader('X-Inertia')) {
+            return back(303)->with('wallet_refresh_available', $snapshot['is_available']);
+        }
+
+        return response()->json(['snapshot' => $snapshot]);
     }
 
     public function update(Request $request): RedirectResponse

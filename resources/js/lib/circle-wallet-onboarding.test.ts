@@ -34,3 +34,30 @@ test('approval without a callback times out instead of hanging', async () => {
     await assertion;
     expect(sdk.execute).toHaveBeenCalledTimes(1);
 });
+
+test('observes pending payment until posted without repeating approval', async () => {
+    vi.stubGlobal('window', globalThis);
+    vi.useFakeTimers();
+    const { watchCircleSettlement } =
+        await import('./circle-wallet-onboarding');
+    const read = vi
+        .fn()
+        .mockResolvedValueOnce({ posted: false, state: 'SENT' })
+        .mockResolvedValue({ posted: true, tx_hash: '0xabc' });
+    const result = watchCircleSettlement(read, vi.fn());
+    await vi.runAllTimersAsync();
+    expect(await result).toEqual({ posted: true, tx_hash: '0xabc' });
+    expect(read).toHaveBeenCalledTimes(2);
+});
+
+test('bounded observation leaves slow payment pending instead of claiming failure', async () => {
+    vi.stubGlobal('window', globalThis);
+    vi.useFakeTimers();
+    const { watchCircleSettlement } =
+        await import('./circle-wallet-onboarding');
+    const read = vi.fn().mockResolvedValue({ posted: false, state: 'SENT' });
+    const result = watchCircleSettlement(read, vi.fn());
+    await vi.runAllTimersAsync();
+    expect(await result).toEqual({ posted: false, state: 'PENDING' });
+    expect(read).toHaveBeenCalledTimes(12);
+});

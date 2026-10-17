@@ -35,6 +35,14 @@ export interface PaymentTransactionView {
 interface PaymentsProps {
     transactions: Paginated<PaymentTransactionView>;
     receipts?: OfficialPaymentReceipt[];
+    controlledTransactions?: {
+        id: string;
+        type: string;
+        amount: string;
+        verified: boolean;
+        tx_hash: string | null;
+        explorer_url: string | null;
+    }[];
     wallet: {
         address: string | null;
     };
@@ -65,6 +73,7 @@ function shortHash(hash: string): string {
 export default function Payments({
     transactions,
     receipts = [],
+    controlledTransactions = [],
     wallet,
     totals,
 }: PaymentsProps) {
@@ -131,12 +140,47 @@ export default function Payments({
                         </div>
                     </header>
 
-                    {/* Official On-Chain e-Receipts Section */}
+                    {controlledTransactions.length > 0 && (
+                        <section className="clay-card flex flex-col gap-4 p-5">
+                            <h2 className="clay-h2">Student wallet payments</h2>
+                            {controlledTransactions.map((payment) => (
+                                <div
+                                    key={payment.id}
+                                    className="flex flex-col gap-2 border-t border-[var(--clay-border)] pt-3 text-sm"
+                                >
+                                    <p className="font-semibold">
+                                        {payment.type} · {payment.amount} USDC
+                                    </p>
+                                    <p>
+                                        {payment.verified
+                                            ? 'Verified testnet allocation'
+                                            : 'Pending — awaiting settlement verification'}
+                                    </p>
+                                    {payment.tx_hash && (
+                                        <p className="break-all font-mono text-xs">
+                                            {payment.tx_hash}
+                                        </p>
+                                    )}
+                                    {payment.explorer_url && (
+                                        <a
+                                            href={payment.explorer_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="underline"
+                                        >
+                                            View on Arc explorer
+                                        </a>
+                                    )}
+                                </div>
+                            ))}
+                        </section>
+                    )}
+                    {/* Verified Testnet e-Receipts Section */}
                     <section className="space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <h2 className="clay-h2 text-lg">
-                                    Official On-Chain e-Receipts
+                                    Verified Testnet e-Receipts
                                 </h2>
                                 <p className="clay-meta text-xs">
                                     Cryptographically verified tuition and
@@ -159,12 +203,12 @@ export default function Payments({
                         {receipts.length === 0 ? (
                             <div className="clay-card flex flex-col items-center gap-3 px-6 py-8 text-center sm:items-start sm:text-left">
                                 <p className="clay-title text-sm">
-                                    No official payment e-receipts issued yet.
+                                    No verified payment e-receipts issued yet.
                                 </p>
                                 <p className="clay-body text-xs text-[var(--clay-text-muted)]">
                                     As soon as your tuition or campus bill
                                     transfer settles on Arc Testnet, your
-                                    official printable e-Receipt appears here
+                                    printable testnet e-Receipt appears here
                                     automatically.
                                 </p>
                             </div>

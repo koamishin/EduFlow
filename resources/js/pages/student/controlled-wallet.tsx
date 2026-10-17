@@ -14,6 +14,7 @@ import { arcTestnet } from 'viem/chains';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { loadCircleSdk } from '@/lib/circle-browser-sdk';
 import {
     executeCircleChallenge,
     waitForCircleWallet,
@@ -21,6 +22,7 @@ import {
 import * as endpoints from '@/actions/App/Http/Controllers/StudentControlledWalletController';
 
 type Quote = {
+    estimated_fee?: string | null;
     id: string;
     snapshot: {
         sender: Hex;
@@ -49,8 +51,10 @@ type Props = {
     payments: {
         id: string;
         tx_hash: string | null;
+        actual_fee_base_units?: string | null;
         via_circle?: boolean;
         posted: boolean;
+        can_cancel?: boolean;
         amount: string;
         applied: string;
         overpayment: string;
@@ -164,6 +168,7 @@ export default function ControlledWallet({
     const [message, setMessage] = useState('');
     const [selection, setSelection] = useState('');
     const [amount, setAmount] = useState('');
+    const [feeConsent, setFeeConsent] = useState(false);
     const [quote, setQuote] = useState<Quote | null>(null);
     const [hash, setHash] = useState('');
     const [recoveryId, setRecoveryId] = useState('');
@@ -192,7 +197,7 @@ export default function ControlledWallet({
         run(async () => {
             if (!circleAppId)
                 throw new Error('Circle embedded wallets are not configured.');
-            const { W3SSdk } = await import('@circle-fin/w3s-pw-web-sdk');
+            const { W3SSdk } = await loadCircleSdk();
             sdk.current = new W3SSdk({ appSettings: { appId: circleAppId } });
             await sdk.current.getDeviceId();
             const auth = await post<{
@@ -221,7 +226,7 @@ export default function ControlledWallet({
         if (!circleAppId) throw new Error('Circle wallets are not configured.');
         const redirect = new URL(endpoints.show.url(), window.location.origin);
         redirect.searchParams.set('wallet_login', providerName);
-        const { W3SSdk } = await import('@circle-fin/w3s-pw-web-sdk');
+        const { W3SSdk } = await loadCircleSdk();
         let deviceId: string | undefined;
         if (!resume) {
             sdk.current ??= new W3SSdk({ appSettings: { appId: circleAppId } });
@@ -382,12 +387,13 @@ export default function ControlledWallet({
                 amount,
             });
             setQuote(q);
+            setFeeConsent(false);
             setRecoveryId(q.id);
             setHash('');
         });
     const pay = () =>
         run(async () => {
-            if (!quote) return;
+            if (!quote || !feeConsent) return;
             if (wallet?.provider === 'circle-user') {
                 if (!sdk.current)
                     throw new Error(
@@ -432,12 +438,6 @@ export default function ControlledWallet({
             const gas = await client.estimateGas(tx);
             const gasPrice = await client.getGasPrice();
             const maxFeePerGas = gasPrice * 2n;
-            if (
-                !window.confirm(
-                    `Arc Testnet only. Send ${formatUnits(BigInt(quote.snapshot.amount_base_units), 6)} USDC to ${quote.snapshot.recipient}. Maximum network fee: ${formatUnits(gas * maxFeePerGas, 18)} USDC. Test funds do not pay official charges. Approve?`,
-                )
-            )
-                return;
             setQuote(null);
             await post(endpoints.start.url(quote.id), { consent: true });
             const txHash = await eth.request({
@@ -811,7 +811,29 @@ export default function ControlledWallet({
                                 Testnet. Network fees are additional; review
                                 them in your wallet before approval.
                             </p>
-                            <Button disabled={busy} onClick={pay}>
+                            <p className="text-sm">
+                                Estimated gas:{' '}
+                                {quote.estimated_fee != null
+                                    ? `${quote.estimated_fee} USDC`
+                                    : 'Unavailable; review in wallet'}
+                                . Paid by you. Estimate is not a guaranteed
+                                final fee.
+                            </p>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={feeConsent}
+                                    onChange={(event) =>
+                                        setFeeConsent(event.target.checked)
+                                    }
+                                />
+                                I agree to this transfer and the additional
+                                network gas fee shown by my wallet.
+                            </label>
+                            <Button
+                                disabled={busy || !feeConsent}
+                                onClick={pay}
+                            >
                                 Approve in my wallet
                             </Button>
                         </div>
@@ -885,6 +907,14 @@ export default function ControlledWallet({
                                     : 'Unresolved — do not pay again'}
                             </p>
                             <p className="break-all">{p.id}</p>
+                            {p.posted && (
+                                <p className="text-xs text-muted-foreground">
+                                    Recorded gas fee:{' '}
+                                    {p.actual_fee_base_units != null
+                                        ? `${formatUnits(BigInt(p.actual_fee_base_units), 6)} USDC`
+                                        : 'Unavailable'}
+                                </p>
+                            )}
                             {!p.posted && (
                                 <Button
                                     variant="outline"
@@ -905,6 +935,26 @@ export default function ControlledWallet({
                                     {p.via_circle
                                         ? 'Check Circle settlement'
                                         : 'Verify with hash'}
+                                </Button>
+                            )}
+                            {!p.posted && p.can_cancel && (
+                                <Button
+                                    variant="outline"
+                                    className="ml-2 text-amber-500 hover:text-amber-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                        run(async () => {
+                                            await post(
+                                                endpoints.cancel.url(p.id),
+                                            );
+                                            toast.success(
+                                                'Unbroadcast attempt cleared.',
+                                            );
+                                            router.reload();
+                                        })
+                                    }
+                                >
+                                    Clear unbroadcast attempt
                                 </Button>
                             )}
                         </div>

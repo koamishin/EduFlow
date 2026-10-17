@@ -20,6 +20,7 @@ import {
     Send,
     ShieldCheck,
     Sparkles,
+    Trash2,
     TriangleAlert,
     Wallet,
     XCircle,
@@ -28,19 +29,32 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { arcTestnet } from 'viem/chains';
-import { createPublicClient, custom, toHex } from 'viem';
+import {
+    createPublicClient,
+    custom,
+    toHex,
+    parseUnits,
+    formatUnits,
+} from 'viem';
 import type { EIP1193Provider } from 'viem';
-import { executeCircleChallenge } from '@/lib/circle-wallet-onboarding';
+import { loadCircleSdk } from '@/lib/circle-browser-sdk';
+import {
+    executeCircleChallenge,
+    watchCircleSettlement,
+} from '@/lib/circle-wallet-onboarding';
 
 import InputError from '@/components/input-error';
+import { Input } from '@/components/ui/input';
 import { OfficialPaymentReceiptModal } from '@/components/official-payment-receipt-modal';
 import { StudentPaymentTracker } from '@/components/student-payment-tracker';
 import {
+    cancel as cancelControlled,
     circlePay,
     circleSession,
     circleStatus,
     confirm as confirmControlled,
     quote as studentQuote,
+    estimate as estimateStudentFee,
     start as startControlled,
 } from '@/actions/App/Http/Controllers/StudentControlledWalletController';
 import { Badge } from '@/components/ui/badge';
@@ -125,6 +139,7 @@ type BillPaymentItem = {
 };
 
 type TuitionQuote = {
+    estimated_student_fee?: string | null;
     network_fee: string;
     total: string;
     payer_debit?: string;
@@ -193,6 +208,17 @@ interface StudentPayPageProps {
     tuition_payment_mode?: 'operator_pilot' | 'student_controlled';
     student_wallets_enabled?: boolean;
     circleAppId?: string | null;
+    controlledPayments?: {
+        id: string;
+        tx_hash: string | null;
+        via_circle: boolean;
+        approval_started: boolean;
+        is_expired: boolean;
+        posted: boolean;
+        can_cancel: boolean;
+        amount_base_units: string;
+        applied_base_units: string;
+    }[];
     tuition_enabled: boolean;
     currency: {
         display: string;
@@ -288,6 +314,7 @@ export default function StudentPayPage({
     tuition_payment_mode = 'operator_pilot',
     student_wallets_enabled: _student_wallets_enabled = false,
     circleAppId: circleAppIdProp = null,
+    controlledPayments = [],
     currency,
 }: StudentPayPageProps) {
     const [mode, setMode] = useState<'tuition' | 'bill'>(
@@ -342,14 +369,12 @@ export default function StudentPayPage({
         const payload = await response.json();
         if (!response.ok) {
             throw new Error(
-                payload?.message ??
-                    (payload?.errors
-                        ? Object.values(
-                              payload.errors as Record<string, string[]>,
-                          )
-                              .flat()
-                              .join(' ')
-                        : null) ??
+                (payload?.errors
+                    ? Object.values(payload.errors as Record<string, string[]>)
+                          .flat()
+                          .join(' ')
+                    : null) ??
+                    payload?.message ??
                     'Request failed.',
             );
         }
@@ -414,13 +439,6 @@ export default function StudentPayPage({
         const gas = await client.estimateGas(request);
         const gasPrice = await client.getGasPrice();
         const maxFeePerGas = gasPrice * 2n;
-        if (
-            !window.confirm(
-                `Arc Testnet only. Send ${((quote.amount_base_units ?? 0) / 1_000_000).toFixed(2)} USDC to ${quote.wallet_recipient}. Maximum network fee ${(Number(gas * maxFeePerGas) / 1e18).toFixed(6)} USDC. Test funds do not pay official charges. Approve?`,
-            )
-        ) {
-            throw new Error('Payment cancelled. Nothing was sent.');
-        }
 
         return eth.request({
             method: 'eth_sendTransaction',
@@ -475,6 +493,175 @@ export default function StudentPayPage({
     const [payQuote, setPayQuote] = useState<TuitionQuote | null>(null);
     const [payError, setPayError] = useState<string | null>(null);
     const [quoting, setQuoting] = useState(false);
+    const [clearingControlledId, setClearingControlledId] = useState<
+        string | null
+    >(null);
+    const [checkingCircleId, setCheckingCircleId] = useState<string | null>(
+        null,
+    );
+    const [manualControlledHash, setManualControlledHash] =
+        useState<string>('');
+
+    const unpostedControlled = controlledPayments.find((p) => !p.posted);
+
+    const handleCancelControlled = async (paymentId: string) => {
+        setClearingControlledId(paymentId);
+        try {
+            const response = await fetch(cancelControlled.url(paymentId), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': readCsrfToken(),
+                    Accept: 'application/json',
+                },
+            });
+            if (response.ok) {
+                toast.success('Unbroadcast attempt cleared.');
+                setPayError(null);
+                router.reload({
+                    only: ['controlledPayments', 'tuitionAccount', 'wallet'],
+                });
+            } else {
+                const data = await response.json();
+                toast.error(data.message ?? 'Could not clear attempt.');
+            }
+        } catch {
+            toast.error('Could not reach the server to clear attempt.');
+        } finally {
+            setClearingControlledId(null);
+        }
+    };
+
+    const handleResumeCircle = async (paymentId: string) => {
+        setPaying(true);
+        setPayError(null);
+        try {
+            toast.loading('Connecting to your Circle wallet…', {
+                id: 'circle-approval',
+            });
+            if (!circleAppId)
+                throw new Error('Circle wallets are not configured.');
+            const { W3SSdk } = await loadCircleSdk();
+            sdk.current ??= new W3SSdk({ appSettings: { appId: circleAppId } });
+            await sdk.current.getDeviceId();
+            const session = await postJson<{
+                userToken: string;
+                encryptionKey: string;
+            }>(circleSession.url());
+            sdk.current.setAuthentication(session);
+            toast.loading('Requesting existing Circle approval…', {
+                id: 'circle-approval',
+            });
+            const challenge = await postJson<{ challengeId: string }>(
+                circlePay.url(paymentId),
+                { consent: true },
+            );
+            toast.loading('Enter your PIN in the Circle approval window.', {
+                id: 'circle-approval',
+            });
+            await executeCircleChallenge(sdk.current, challenge.challengeId);
+            toast.success('Circle approval completed. Checking settlement…', {
+                id: 'circle-approval',
+            });
+            await handleCheckCircleSettlement(paymentId);
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Could not resume Circle approval.';
+            setPayError(message);
+            toast.error(message, { id: 'circle-approval', duration: 12000 });
+        } finally {
+            setPaying(false);
+            router.reload({
+                only: ['controlledPayments', 'tuitionAccount', 'wallet'],
+            });
+        }
+    };
+
+    const handleVerifyControlledHash = async (
+        paymentId: string,
+        txHash: string,
+    ) => {
+        if (!txHash) return;
+        setPaying(true);
+        setPayError(null);
+        try {
+            await postJson(confirmControlled.url(paymentId), {
+                tx_hash: txHash,
+            });
+            toast.success(
+                'Settlement verified. Tuition credited on Arc Testnet.',
+                { id: 'circle-approval' },
+            );
+            setPayQuote(null);
+            setManualControlledHash('');
+            router.reload({
+                only: [
+                    'controlledPayments',
+                    'tuitionAttempts',
+                    'tuitionAccount',
+                    'wallet',
+                ],
+            });
+        } catch (error) {
+            setPayError(
+                error instanceof Error
+                    ? error.message
+                    : 'Could not verify transaction.',
+            );
+        } finally {
+            setPaying(false);
+        }
+    };
+
+    const observeCirclePayment = (paymentId: string) =>
+        watchCircleSettlement(
+            () =>
+                postJson<{ posted: boolean; tx_hash?: string; state?: string }>(
+                    circleStatus.url(paymentId),
+                ),
+            () =>
+                toast.loading(
+                    'Payment approved. Waiting for Arc confirmation…',
+                    { id: 'circle-approval' },
+                ),
+        );
+
+    const handleCheckCircleSettlement = async (paymentId: string) => {
+        setCheckingCircleId(paymentId);
+        try {
+            const status = await observeCirclePayment(paymentId);
+            if (status.posted) {
+                toast.success(
+                    'Settlement verified. Tuition credited on Arc Testnet.',
+                    { id: 'circle-approval' },
+                );
+                router.reload({
+                    only: [
+                        'controlledPayments',
+                        'tuitionAttempts',
+                        'tuitionAccount',
+                        'wallet',
+                    ],
+                });
+            } else {
+                toast.info(
+                    'Payment is still processing. Your existing payment is saved; do not send again.',
+                    { id: 'circle-approval' },
+                );
+            }
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Could not check Circle status.',
+            );
+        } finally {
+            setCheckingCircleId(null);
+        }
+    };
     const [paying, setPaying] = useState(false);
     const [consent, setConsent] = useState(false);
     const [receipt, setReceipt] = useState<TuitionAttempt | null>(null);
@@ -676,11 +863,63 @@ export default function StudentPayPage({
                 return null;
             }
             if (studentRail) {
-                const quote = buildInstantQuote(baseUnits);
-                setPayQuote(quote);
+                abortControllerRef.current?.abort();
+                const controller = new AbortController();
+                abortControllerRef.current = controller;
+                const requestId = ++quoteRequestIdRef.current;
+                setQuoting(true);
+                setConsent(false);
                 setPayError(null);
-
-                return quote;
+                try {
+                    const response = await fetch(estimateStudentFee.url(), {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        signal: controller.signal,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': readCsrfToken(),
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({
+                            kind: 'tuition',
+                            account_id: tuitionAccount.id,
+                            amount: (baseUnits / 1_000_000).toFixed(6),
+                        }),
+                    });
+                    const payload = await response.json();
+                    if (requestId !== quoteRequestIdRef.current) return null;
+                    if (!response.ok)
+                        throw new Error(
+                            Object.values(payload.errors ?? {})
+                                .flat()
+                                .join(' ') || 'Gas estimate unavailable.',
+                        );
+                    const quote = {
+                        ...buildInstantQuote(baseUnits),
+                        estimated_student_fee: payload.estimated_fee ?? null,
+                    };
+                    setPayQuote(quote);
+                    return quote;
+                } catch (error) {
+                    if (
+                        error instanceof DOMException &&
+                        error.name === 'AbortError'
+                    )
+                        return null;
+                    if (requestId === quoteRequestIdRef.current) {
+                        setPayQuote({
+                            ...buildInstantQuote(baseUnits),
+                            estimated_student_fee: null,
+                        });
+                        setPayError(
+                            'Gas estimate unavailable. Your wallet will show final fees before approval.',
+                        );
+                    }
+                    return null;
+                } finally {
+                    if (requestId === quoteRequestIdRef.current)
+                        setQuoting(false);
+                }
             }
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
@@ -808,7 +1047,7 @@ export default function StudentPayPage({
         );
         const formatted = (clamped / 1_000_000).toFixed(2);
         setPayAmount(formatted);
-        setConsent(true);
+        setConsent(false);
         setPayError(null);
         setPayQuote(buildInstantQuote(clamped));
         void requestTuitionQuote(clamped);
@@ -832,13 +1071,15 @@ export default function StudentPayPage({
 
         try {
             if (circleWallet) {
+                toast.loading('Connecting to your Circle wallet…', {
+                    id: 'circle-approval',
+                });
                 if (!sdk.current) {
                     if (!circleAppId)
                         throw new Error(
                             'Circle wallets are not configured. Reconnect on the wallet screen.',
                         );
-                    const { W3SSdk } =
-                        await import('@circle-fin/w3s-pw-web-sdk');
+                    const { W3SSdk } = await loadCircleSdk();
                     sdk.current = new W3SSdk({
                         appSettings: { appId: circleAppId },
                     });
@@ -858,35 +1099,39 @@ export default function StudentPayPage({
                         sdk.current!,
                         session.challengeId,
                     );
+                toast.loading('Requesting Circle payment approval…', {
+                    id: 'circle-approval',
+                });
                 const challenge = await postJson<{ challengeId: string }>(
                     circlePay.url(paymentId),
                     { consent: true },
                 );
+                toast.loading('Enter your PIN in the Circle approval window.', {
+                    id: 'circle-approval',
+                });
                 await executeCircleChallenge(
                     sdk.current!,
                     challenge.challengeId,
                 );
+                toast.dismiss('circle-approval');
                 toast.success('Approved in your Circle wallet.', {
                     description: 'Checking Arc Testnet settlement…',
                 });
-                const status = await postJson<{
-                    posted: boolean;
-                    tx_hash?: string;
-                    state?: string;
-                }>(circleStatus.url(paymentId));
+                const status = await observeCirclePayment(paymentId);
                 if (status.tx_hash)
                     localStorage.setItem(
                         `student-payment-${paymentId}`,
                         status.tx_hash,
                     );
-                if (!status.posted && !status.tx_hash) {
-                    toast.error(
-                        `Circle state: ${status.state ?? 'pending'}. Do not pay again.`,
+                if (!status.posted) {
+                    toast.info(
+                        'Payment is still processing. Progress is saved automatically; do not send again.',
+                        { id: 'circle-approval' },
                     );
-                    setPayError(
-                        'Circle has not confirmed settlement. Re-check status later; never resend.',
-                    );
-                    router.reload({ only: ['tuitionAttempts'] });
+                    router.reload({
+                        only: ['tuitionAttempts', 'controlledPayments'],
+                    });
+                    return;
                 }
             } else {
                 const eth = await arcTestnetProvider();
@@ -922,18 +1167,26 @@ export default function StudentPayPage({
 
             toast.success(
                 'Settlement verified. Tuition credited on Arc Testnet.',
+                { id: 'circle-approval' },
             );
             setPayQuote(null);
+            await postJson(walletRefresh.url()).catch(() => undefined);
             router.reload({
-                only: ['tuitionAttempts', 'tuitionAccount', 'wallet'],
+                only: [
+                    'tuitionAttempts',
+                    'controlledPayments',
+                    'tuitionAccount',
+                    'wallet',
+                ],
             });
         } catch (error: unknown) {
-            setPayError(
+            const message =
                 error instanceof Error
                     ? error.message
-                    : 'Payment could not be completed.',
-            );
-            router.reload({ only: ['tuitionAttempts'] });
+                    : 'Payment could not be completed.';
+            setPayError(message);
+            toast.error(message, { id: 'circle-approval', duration: 12000 });
+            router.reload({ only: ['tuitionAttempts', 'controlledPayments'] });
         } finally {
             setPaying(false);
         }
@@ -978,6 +1231,7 @@ export default function StudentPayPage({
                 const payload = (await response.json()) as
                     | {
                           id: string;
+                          estimated_fee?: string | null;
                           snapshot: {
                               amount_base_units: number;
                               sender: `0x${string}`;
@@ -1005,6 +1259,7 @@ export default function StudentPayPage({
                 const scoped = payload!;
                 const quote: TuitionQuote = {
                     ...buildInstantQuote(scoped.snapshot.amount_base_units),
+                    estimated_student_fee: scoped.estimated_fee ?? null,
                     wallet_sender: scoped.snapshot.sender,
                     wallet_recipient: scoped.snapshot.recipient,
                     wallet_token: scoped.snapshot.token,
@@ -1093,15 +1348,13 @@ export default function StudentPayPage({
 
             if (!response.ok) {
                 const message =
-                    payload?.message ??
                     (payload?.errors
                         ? Object.values(
                               payload.errors as Record<string, string[]>,
                           )
                               .flat()
                               .join(' ')
-                        : null) ??
-                    'The transfer could not be broadcast.';
+                        : null) ?? 'The transfer could not be broadcast.';
                 setPayError(message);
 
                 return;
@@ -1114,13 +1367,18 @@ export default function StudentPayPage({
             });
 
             router.reload({
-                only: ['tuitionAttempts', 'tuitionAccount', 'wallet'],
+                only: [
+                    'tuitionAttempts',
+                    'controlledPayments',
+                    'tuitionAccount',
+                    'wallet',
+                ],
             });
         } catch {
             setPayError(
                 'Connection interrupted while broadcasting. Check live settlement telemetry on the right before retrying.',
             );
-            router.reload({ only: ['tuitionAttempts'] });
+            router.reload({ only: ['tuitionAttempts', 'controlledPayments'] });
         } finally {
             setPaying(false);
         }
@@ -1319,10 +1577,20 @@ export default function StudentPayPage({
             {
                 preserveScroll: true,
                 preserveState: true,
-                onFinish: () => {
-                    setRefreshingWallet(false);
-                    toast.success('On-chain balance synced from Arc RPC.');
+                onSuccess: (page) => {
+                    const refreshed = page.props
+                        .wallet as StudentPayPageProps['wallet'];
+                    if (refreshed?.snapshot?.is_available) {
+                        toast.success('On-chain balance synced from Arc RPC.');
+                    } else {
+                        toast.error(
+                            refreshed?.snapshot?.reason ??
+                                'Live wallet balance is unavailable.',
+                        );
+                    }
                 },
+                onError: () => toast.error('Could not refresh wallet balance.'),
+                onFinish: () => setRefreshingWallet(false),
             },
         );
     };
@@ -1398,7 +1666,9 @@ export default function StudentPayPage({
 
                             <span className="hidden items-center gap-1.5 rounded-full border border-[var(--clay-border)] bg-[var(--clay-surface-soft)] px-3 py-1 text-[11px] font-medium text-[var(--clay-text-muted)] md:inline-flex">
                                 <Zap className="size-3 text-[var(--clay-primary-bright)]" />
-                                Circle W3S Gasless Relayer
+                                {studentRail
+                                    ? 'Student wallet · USDC gas'
+                                    : 'Circle agent payment rail'}
                             </span>
                         </div>
 
@@ -1721,6 +1991,141 @@ export default function StudentPayPage({
                                                 message={payError ?? undefined}
                                                 className="mt-2"
                                             />
+                                            {unpostedControlled && (
+                                                <div className="mt-3 flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs">
+                                                    <div className="flex items-center justify-between gap-2 font-semibold text-amber-300">
+                                                        <span>
+                                                            In-progress payment
+                                                            attempt:{' '}
+                                                            {(
+                                                                Number(
+                                                                    unpostedControlled.amount_base_units,
+                                                                ) / 1_000_000
+                                                            ).toFixed(2)}{' '}
+                                                            USDC
+                                                        </span>
+                                                        <span className="font-mono text-[10px]">
+                                                            #
+                                                            {unpostedControlled.id.slice(
+                                                                0,
+                                                                8,
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[var(--clay-text-muted)]">
+                                                        {unpostedControlled.can_cancel
+                                                            ? 'Wallet approval never started. Clear this unused quote to review a new amount.'
+                                                            : circleWallet &&
+                                                                !unpostedControlled.via_circle
+                                                              ? 'Circle approval was requested, but no challenge was saved. No PIN window can open yet. Resume the existing request below; the app retrieves the hash automatically after settlement.'
+                                                              : unpostedControlled.via_circle
+                                                                ? 'Circle authorization was submitted. Check status below.'
+                                                                : 'Wallet approval started, but its outcome is unknown. Paste the transaction hash from your wallet history. Do not pay again.'}
+                                                    </p>
+                                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                        {unpostedControlled.can_cancel && (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 rounded-full border-amber-500/40 text-xs text-amber-300 hover:bg-amber-500/20"
+                                                                onClick={() =>
+                                                                    handleCancelControlled(
+                                                                        unpostedControlled.id,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    clearingControlledId ===
+                                                                    unpostedControlled.id
+                                                                }
+                                                            >
+                                                                <Trash2 className="mr-1.5 size-3.5" />
+                                                                Clear
+                                                                unbroadcast
+                                                                attempt
+                                                            </Button>
+                                                        )}
+                                                        {circleWallet &&
+                                                            !unpostedControlled.posted && (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    disabled={
+                                                                        paying
+                                                                    }
+                                                                    onClick={() =>
+                                                                        handleResumeCircle(
+                                                                            unpostedControlled.id,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    Resume
+                                                                    existing
+                                                                    Circle
+                                                                    approval
+                                                                </Button>
+                                                            )}
+                                                        {unpostedControlled.via_circle && (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 rounded-full text-xs"
+                                                                onClick={() =>
+                                                                    handleCheckCircleSettlement(
+                                                                        unpostedControlled.id,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    checkingCircleId ===
+                                                                    unpostedControlled.id
+                                                                }
+                                                            >
+                                                                <RefreshCw className="mr-1.5 size-3.5" />
+                                                                Check Circle
+                                                                settlement
+                                                            </Button>
+                                                        )}
+                                                        {!circleWallet &&
+                                                            !unpostedControlled.can_cancel && (
+                                                                <div className="flex w-full flex-wrap items-center gap-2 pt-1">
+                                                                    <Input
+                                                                        placeholder="0x… transaction hash"
+                                                                        value={
+                                                                            manualControlledHash
+                                                                        }
+                                                                        onChange={(
+                                                                            e: React.ChangeEvent<HTMLInputElement>,
+                                                                        ) =>
+                                                                            setManualControlledHash(
+                                                                                e.target.value.trim(),
+                                                                            )
+                                                                        }
+                                                                        className="h-8 flex-1 font-mono text-xs"
+                                                                    />
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        disabled={
+                                                                            !manualControlledHash
+                                                                        }
+                                                                        onClick={() =>
+                                                                            handleVerifyControlledHash(
+                                                                                unpostedControlled.id,
+                                                                                manualControlledHash,
+                                                                            )
+                                                                        }
+                                                                        className="h-8 rounded-full text-xs"
+                                                                    >
+                                                                        Verify
+                                                                        settlement
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                </div>
+                                            )}
                                             {studentRail && (
                                                 <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-400">
                                                     <ShieldCheck className="size-4 shrink-0 text-emerald-400" />
@@ -1821,9 +2226,9 @@ export default function StudentPayPage({
                                                 <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--clay-border)] bg-[var(--clay-surface)] px-3 py-0.5 text-[10px] font-semibold text-[var(--clay-text-muted)]">
                                                     <ArrowDown className="size-3 text-[var(--clay-primary-bright)]" />
                                                     <span>
-                                                        W3S Challenge Signer
-                                                        &middot; 0.00 USDC Payer
-                                                        Gas
+                                                        {studentRail
+                                                            ? 'Your approval · gas paid in USDC'
+                                                            : 'Circle agent signer'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -1911,8 +2316,7 @@ export default function StudentPayPage({
                                                 <div className="flex items-center gap-2">
                                                     <Lock className="size-3.5 text-[var(--clay-primary-bright)]" />
                                                     <span className="text-xs font-semibold text-[var(--clay-text)]">
-                                                        Transaction Quote & Gas
-                                                        Guarantee
+                                                        Network fee estimate
                                                     </span>
                                                     {quoting && (
                                                         <span className="inline-flex items-center gap-1 text-[11px] text-[var(--clay-primary-bright)]">
@@ -1975,17 +2379,48 @@ export default function StudentPayPage({
                                                     <dt className="clay-meta">
                                                         Payer gas fee
                                                     </dt>
-                                                    <dd className="flex items-center gap-2 font-mono font-semibold text-emerald-400">
-                                                        <span>
-                                                            0.000000 USDC
-                                                        </span>
-                                                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-sans text-[10px] font-semibold text-emerald-300">
-                                                            Sponsored by Circle
-                                                        </span>
+                                                    <dd className="font-mono text-xs text-[var(--clay-text)]">
+                                                        {studentRail
+                                                            ? payQuote?.estimated_student_fee !=
+                                                              null
+                                                                ? `Estimated ${payQuote.estimated_student_fee} USDC · paid by you`
+                                                                : quoting
+                                                                  ? 'Estimating gas…'
+                                                                  : 'Unavailable · review fees in your wallet'
+                                                            : payQuote?.fee_paid_by_payer ===
+                                                                false
+                                                              ? 'Sponsored by operator rail'
+                                                              : 'See network quote'}
                                                     </dd>
                                                 </div>
 
-                                                {payQuote && (
+                                                {studentRail &&
+                                                    payQuote?.estimated_student_fee !=
+                                                        null && (
+                                                        <div className="flex items-center justify-between gap-4 border-t border-[var(--clay-border)] pt-2">
+                                                            <dt>
+                                                                Estimated total
+                                                                (principal +
+                                                                gas)
+                                                            </dt>
+                                                            <dd className="font-mono">
+                                                                {formatUnits(
+                                                                    BigInt(
+                                                                        payQuote.amount_base_units ??
+                                                                            0,
+                                                                    ) *
+                                                                        1_000_000_000_000n +
+                                                                        parseUnits(
+                                                                            payQuote.estimated_student_fee,
+                                                                            18,
+                                                                        ),
+                                                                    18,
+                                                                )}{' '}
+                                                                USDC
+                                                            </dd>
+                                                        </div>
+                                                    )}
+                                                {payQuote && !studentRail && (
                                                     <>
                                                         <div className="flex items-center justify-between gap-4">
                                                             <dt className="clay-meta">
@@ -2130,6 +2565,10 @@ export default function StudentPayPage({
                                                 disabled={
                                                     paying ||
                                                     hasTuitionInFlight ||
+                                                    Boolean(
+                                                        unpostedControlled &&
+                                                        !unpostedControlled.can_cancel,
+                                                    ) ||
                                                     !consent ||
                                                     !payAmount ||
                                                     parseBaseUnits(

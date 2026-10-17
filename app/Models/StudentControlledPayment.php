@@ -23,6 +23,7 @@ use LogicException;
  * @property array<string, mixed>|null $evidence
  * @property int $applied_base_units
  * @property int $overpayment_base_units
+ * @property Carbon $created_at
  * @property Carbon $expires_at
  * @property Carbon|null $approval_started_at
  * @property Carbon|null $posted_at

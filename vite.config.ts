@@ -37,9 +37,7 @@ export default defineConfig({
             presets: [reactCompilerPreset()],
         }),
         tailwindcss(),
-        nodePolyfills({
-            include: ['buffer', 'crypto', 'stream', 'util', 'process'],
-        }),
+        nodePolyfills(),
         wayfinder({
             formVariants: true,
         }),

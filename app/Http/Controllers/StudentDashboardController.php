@@ -13,6 +13,7 @@ use App\Enums\TransactionType;
 use App\Models\AgentDecision;
 use App\Models\AssistanceRequest;
 use App\Models\StudentBillPayment;
+use App\Models\StudentControlledPayment;
 use App\Models\StudentTuitionPayment;
 use App\Models\StudentTuitionPaymentAttempt;
 use App\Models\Transaction;
@@ -25,6 +26,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
+use Yukazakiri\Lepton\Support\Amounts;
 
 class StudentDashboardController extends Controller
 {
@@ -205,7 +207,46 @@ class StudentDashboardController extends Controller
                 'timestamp' => $payment->executed_at?->timestamp ?? $payment->created_at?->timestamp ?? 0,
             ]);
 
-        $recentTransactions = collect([...$payoutTxs, ...$tuitionTxs, ...$billTxs])
+        $controlledTxs = StudentControlledPayment::query()
+            ->where('student_id', $student->id)
+            ->where(function ($query): void {
+                $query->whereNotNull('posted_at')->orWhereNotNull('approval_started_at')
+                    ->orWhereNotNull('tx_hash')->orWhereNotNull('circle_challenge_id');
+            })
+            ->latest('created_at')->limit(10)->get()
+            ->map(function (StudentControlledPayment $payment) use ($converter, $displayCurrency): array {
+                $snapshot = $payment->snapshot;
+                $verified = $payment->posted_at !== null && ($payment->evidence['verdict'] ?? null) === 'verified'
+                    && $payment->tx_hash !== null;
+                $tuition = $payment->tuition_account_id !== null;
+                $time = $payment->posted_at ?? $payment->created_at;
+                $amount = (int) $snapshot['amount_base_units'];
+
+                return [
+                    'id' => 'controlled-'.$payment->id,
+                    'type' => $tuition ? 'tuition_payment' : 'bill_payment',
+                    'type_label' => $tuition ? 'Tuition Payment' : 'Campus Bill',
+                    'direction' => 'outbound',
+                    'amount' => (float) Amounts::toDecimalString($amount, 6),
+                    'amount_fiat' => $this->formatFiatAmount($amount / 1_000_000, $converter, $displayCurrency),
+                    'currency' => 'USDC',
+                    'status' => $verified ? 'confirmed' : 'pending',
+                    'status_label' => $verified ? 'Verified testnet allocation' : 'Awaiting settlement verification',
+                    'tx_hash' => $payment->tx_hash,
+                    'explorer_url' => $this->explorerUrl($payment->tx_hash),
+                    'network' => 'ARC-TESTNET',
+                    'network_fee' => isset($payment->evidence['actual_fee_base_units'])
+                        ? Amounts::toDecimalString((int) $payment->evidence['actual_fee_base_units'], 6).' USDC' : null,
+                    'description' => ($tuition ? 'Tuition payment' : 'Campus bill payment').' · student-controlled wallet · testnet only',
+                    'is_verified' => $verified,
+                    'payer_address' => $snapshot['sender'],
+                    'recipient_address' => $snapshot['recipient'],
+                    'executed_at' => $time->format('M d, Y h:i A'),
+                    'timestamp' => $time->timestamp,
+                ];
+            });
+
+        $recentTransactions = collect([...$payoutTxs, ...$tuitionTxs, ...$billTxs, ...$controlledTxs])
             ->sortByDesc('timestamp')
             ->take(8)
             ->map(function (array $tx): array {

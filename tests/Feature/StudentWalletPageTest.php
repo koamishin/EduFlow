@@ -155,3 +155,16 @@ test('legacy wallet update cannot replace a verified Circle payment wallet', fun
     expect($student->fresh()->payout_address)->toBe($address)->and($wallet->fresh()->address)->toBe($address);
     $this->get(route('student.wallet.show'))->assertInertia(fn ($page) => $page->where('walletLocked', true));
 });
+
+test('Inertia wallet refresh redirects back instead of returning plain JSON', function (): void {
+    $address = '0x'.str_repeat('d', 40);
+    $student = Student::factory()->create(['payout_address' => $address]);
+    $this->fake->seedBalance($address, 7000000);
+    actingAsStudent($student);
+
+    $this->from(route('student.pay'))->withHeader('X-Inertia', 'true')
+        ->post(route('student.wallet.refresh'))
+        ->assertStatus(303)
+        ->assertRedirect(route('student.pay'))
+        ->assertSessionHas('wallet_refresh_available', true);
+});

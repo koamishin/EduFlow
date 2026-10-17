@@ -107,11 +107,13 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('social-complete', 'socialComplete')->middleware('throttle:10,1')->name('social-complete');
         Route::post('circle-session', 'circleSession')->middleware('throttle:5,1')->name('circle-session');
         Route::post('circle-connect', 'circleConnect')->middleware('throttle:10,1')->name('circle-connect');
+        Route::post('estimate', 'estimate')->middleware('throttle:30,1')->name('estimate');
         Route::post('quote', 'quote')->middleware('throttle:10,1')->name('quote');
         Route::post('{payment}/start', 'start')->middleware('throttle:5,1')->name('start');
         Route::post('{payment}/circle-pay', 'circlePay')->middleware('throttle:5,1')->name('circle-pay');
         Route::post('{payment}/circle-status', 'circleStatus')->middleware('throttle:20,1')->name('circle-status');
         Route::post('{payment}/confirm', 'confirm')->middleware('throttle:20,1')->name('confirm');
+        Route::post('{payment}/cancel', 'cancel')->middleware('throttle:10,1')->name('cancel');
     });
     Route::get('student/wallet', [StudentWalletController::class, 'show'])->name('student.wallet.show');
     Route::post('student/wallet/refresh', [StudentWalletController::class, 'refresh'])->middleware('throttle:10,1')->name('student.wallet.refresh');

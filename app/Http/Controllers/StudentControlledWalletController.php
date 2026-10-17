@@ -49,10 +49,19 @@ class StudentControlledWalletController extends Controller
                 'id' => $b->id, 'kind' => 'bill', 'label' => $b->description, 'remaining' => (string) $b->remainingAmount(),
             ]))->values(),
             'payments' => StudentControlledPayment::query()->where('student_id', $student->id)->latest('id')->limit(20)->get()
-                ->map(fn (StudentControlledPayment $p): array => ['id' => $p->id, 'tx_hash' => $p->tx_hash,
+                ->map(fn (StudentControlledPayment $p): array => [
+                    'id' => $p->id,
+                    'tx_hash' => $p->tx_hash,
                     'via_circle' => $p->circle_challenge_id !== null,
-                    'posted' => $p->posted_at !== null, 'amount' => (string) $p->snapshot['amount_base_units'],
-                    'applied' => (string) $p->applied_base_units, 'overpayment' => (string) $p->overpayment_base_units]),
+                    'approval_started' => $p->approval_started_at !== null,
+                    'is_expired' => $p->expires_at->isPast(),
+                    'posted' => $p->posted_at !== null,
+                    'can_cancel' => $p->posted_at === null && $p->approval_started_at === null && $p->tx_hash === null && $p->circle_challenge_id === null,
+                    'actual_fee_base_units' => isset($p->evidence['actual_fee_base_units']) ? (string) $p->evidence['actual_fee_base_units'] : null,
+                    'amount' => (string) $p->snapshot['amount_base_units'],
+                    'applied' => (string) $p->applied_base_units,
+                    'overpayment' => (string) $p->overpayment_base_units,
+                ]),
         ]);
     }
 
@@ -206,6 +215,15 @@ class StudentControlledWalletController extends Controller
         return response()->json(['state' => 'connected', 'address' => $wallet['address']]);
     }
 
+    public function estimate(Request $request, StudentControlledCheckout $checkout): JsonResponse
+    {
+        $student = $this->student($request);
+        $data = $request->validate(['kind' => ['required', 'in:tuition,bill'], 'account_id' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', 'string', 'regex:/^\d{1,9}(\.\d{1,6})?$/']]);
+
+        return response()->json($checkout->previewFee($student, $data['kind'], (int) $data['account_id'], Amounts::fromDecimalString($data['amount'])));
+    }
+
     public function quote(Request $request, StudentControlledCheckout $checkout): JsonResponse
     {
         $student = $this->student($request);
@@ -214,7 +232,7 @@ class StudentControlledWalletController extends Controller
         $payment = $checkout->create($student, $data['kind'], (int) $data['account_id'],
             Amounts::fromDecimalString($data['amount']));
 
-        return response()->json(['id' => $payment->id, 'snapshot' => $payment->snapshot]);
+        return response()->json(['id' => $payment->id, 'snapshot' => $payment->snapshot, ...$checkout->feeEstimate($payment)]);
     }
 
     public function start(Request $request, StudentControlledPayment $payment): JsonResponse
@@ -243,7 +261,7 @@ class StudentControlledWalletController extends Controller
         abort_unless($payment->student_id === $student->id, 404);
         $this->wallets->assertTestnet();
         $request->validate(['consent' => ['required', 'accepted']]);
-        if ($payment->expires_at->isPast() || $payment->posted_at !== null || $student->wallet?->provider !== 'circle-user'
+        if (($payment->expires_at->isPast() && $payment->approval_started_at === null) || $payment->posted_at !== null || $student->wallet?->provider !== 'circle-user'
             || $student->wallet->id !== $payment->student_wallet_id
             || ! hash_equals($payment->snapshot_digest, PaymentIntent::digest($payment->snapshot))) {
             throw ValidationException::withMessages(['payment' => 'Payment expired or wallet changed.']);
@@ -262,8 +280,11 @@ class StudentControlledWalletController extends Controller
         $data = $this->circle->request('POST', 'user/transactions/contractExecution', [
             'idempotencyKey' => $payment->id, 'walletId' => $student->wallet->getAttribute('circle_wallet_id'),
             'contractAddress' => StudentControlledWallets::TOKEN, 'callData' => $s['data'],
-            'feeLevel' => 'MEDIUM', 'blockchain' => 'ARC-TESTNET', 'refId' => $payment->id,
+            'feeLevel' => 'MEDIUM', 'refId' => $payment->id,
         ], $token);
+        if (! is_string($data['challengeId'] ?? null) || ! Str::isUuid($data['challengeId'])) {
+            throw ValidationException::withMessages(['circle' => 'Circle did not return a valid approval challenge. Resume this existing payment to recover the same request; do not create another payment.']);
+        }
         $payment->forceFill(['circle_challenge_id' => $data['challengeId']])->save();
 
         return response()->json(['challengeId' => $data['challengeId']]);
@@ -279,7 +300,7 @@ class StudentControlledWalletController extends Controller
             return response()->json(['posted' => true, 'tx_hash' => $payment->tx_hash]);
         }
         if ($payment->circle_challenge_id === null) {
-            throw ValidationException::withMessages(['circle' => 'This payment was approved in your browser wallet, not through Circle. Paste its transaction hash and use Verify on-chain settlement instead.']);
+            throw ValidationException::withMessages(['circle' => 'No approval challenge is saved for this request. If you use Circle, resume the existing Circle approval to recover it. If you used a browser wallet, verify its transaction hash.']);
         }
         $challenge = $this->circle->request('GET', 'user/challenges/'.$payment->circle_challenge_id, token: $token)['challenge'];
         $ids = $challenge['correlationIds'] ?? [];
@@ -298,6 +319,24 @@ class StudentControlledWalletController extends Controller
         $stored = $checkout->confirm($student, $payment, $hash);
 
         return response()->json(['posted' => $stored->posted_at !== null, 'tx_hash' => $stored->tx_hash]);
+    }
+
+    public function cancel(Request $request, StudentControlledPayment $payment): JsonResponse
+    {
+        $student = $this->student($request);
+        abort_unless($payment->student_id === $student->id, 403);
+
+        DB::transaction(function () use ($student, $payment): void {
+            Student::query()->whereKey($student->id)->lockForUpdate()->firstOrFail();
+            $stored = StudentControlledPayment::query()->lockForUpdate()->findOrFail($payment->id);
+            if ($stored->posted_at !== null || $stored->approval_started_at !== null
+                || $stored->tx_hash !== null || $stored->circle_challenge_id !== null) {
+                throw ValidationException::withMessages(['payment' => 'Approval already started. Its outcome may be unknown: verify the existing transaction rather than clearing it or paying again.']);
+            }
+            $stored->delete();
+        });
+
+        return response()->json(['cancelled' => true]);
     }
 
     public function confirm(Request $request, StudentControlledPayment $payment, StudentControlledCheckout $checkout): JsonResponse

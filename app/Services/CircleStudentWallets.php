@@ -23,11 +23,23 @@ class CircleStudentWallets
             $headers['X-User-Token'] = $token;
         }
         $response = $this->http->request($method, 'https://api.circle.com/v1/w3s/'.$path, $headers, $body);
+        if ($method === 'GET' && str_starts_with($path, 'users/') && $response->status === 404) {
+            return [];
+        }
         if ($path === 'users' && ($response->status === 409 || ($response->data['code'] ?? null) === 155101)) {
             return [];
         }
         if ($response->status < 200 || $response->status >= 300 || ! is_array($response->data['data'] ?? null)) {
-            throw ValidationException::withMessages(['circle' => 'Circle request could not complete (HTTP '.$response->status.'). Reconnect your wallet session; do not resend an unresolved payment.']);
+            $operation = match (true) {
+                $path === 'users' => 'user creation',
+                $path === 'users/token' => 'wallet session',
+                $path === 'user/initialize' => 'wallet initialization',
+                $path === 'user/transactions/contractExecution' => 'payment approval',
+                default => 'wallet lookup',
+            };
+            $code = $response->data['code'] ?? null;
+            $detail = is_int($code) ? ' Circle code '.$code.'.' : '';
+            throw ValidationException::withMessages(['circle' => 'Circle '.$operation.' failed (HTTP '.$response->status.').'.$detail.' Resume the existing payment; do not send another transfer.']);
         }
 
         return $response->data['data'];
@@ -35,7 +47,9 @@ class CircleStudentWallets
 
     public function ensureUser(string $userId): void
     {
-        $this->request('POST', 'users', ['userId' => $userId]);
+        if ($this->request('GET', 'users/'.rawurlencode($userId)) === []) {
+            $this->request('POST', 'users', ['userId' => $userId]);
+        }
     }
 
     /** @return array<string, mixed> */
