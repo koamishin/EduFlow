@@ -42,7 +42,9 @@ export default function PostIndex({ posts }: { posts: Post[] }) {
                         ))}
                     </ul>
                 ) : (
-                    <p className="text-sm text-muted-foreground">No posts yet.</p>
+                    <p className="text-sm text-muted-foreground">
+                        No posts yet.
+                    </p>
                 )}
             </div>
         </>

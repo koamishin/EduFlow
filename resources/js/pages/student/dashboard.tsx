@@ -703,9 +703,14 @@ export default function StudentDashboard({
                                             {tuitionAccounts.map((acc) => (
                                                 <Link
                                                     key={acc.id}
-                                                    href={dashboard.url({ query: { account: acc.id } })}
+                                                    href={dashboard.url({
+                                                        query: {
+                                                            account: acc.id,
+                                                        },
+                                                    })}
                                                     className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                                                        tuitionAccount?.id === acc.id
+                                                        tuitionAccount?.id ===
+                                                        acc.id
                                                             ? 'bg-[var(--clay-primary)] text-[var(--clay-primary-foreground)]'
                                                             : 'border border-[var(--clay-border)] bg-[var(--clay-surface-soft)] text-[var(--clay-text-muted)] hover:text-[var(--clay-text)]'
                                                     }`}
@@ -851,14 +856,25 @@ export default function StudentDashboard({
                                                 Select a tuition account
                                             </p>
                                             <p className="clay-body text-sm">
-                                                You have {tuitionAccounts.length} tuition {tuitionAccounts.length === 1 ? 'account' : 'accounts'} on record. Choose an account below to view details and balance:
+                                                You have{' '}
+                                                {tuitionAccounts.length} tuition{' '}
+                                                {tuitionAccounts.length === 1
+                                                    ? 'account'
+                                                    : 'accounts'}{' '}
+                                                on record. Choose an account
+                                                below to view details and
+                                                balance:
                                             </p>
                                         </div>
                                         <div className="grid gap-2 sm:grid-cols-2">
                                             {tuitionAccounts.map((acc) => (
                                                 <Link
                                                     key={acc.id}
-                                                    href={dashboard.url({ query: { account: acc.id } })}
+                                                    href={dashboard.url({
+                                                        query: {
+                                                            account: acc.id,
+                                                        },
+                                                    })}
                                                     className="flex flex-col justify-between rounded-lg border border-[var(--clay-border)] bg-[var(--clay-surface-soft)] p-3.5 text-left transition hover:border-[var(--clay-primary)] hover:bg-[var(--clay-surface)]"
                                                 >
                                                     <div className="flex items-center justify-between gap-2">
@@ -872,9 +888,13 @@ export default function StudentDashboard({
                                                         )}
                                                     </div>
                                                     <div className="mt-2.5 flex items-baseline justify-between text-xs text-[var(--clay-text-muted)]">
-                                                        <span>Balance due:</span>
+                                                        <span>
+                                                            Balance due:
+                                                        </span>
                                                         <span className="text-sm font-semibold text-[var(--clay-text)]">
-                                                            {formatUsdc(acc.remaining_amount)}
+                                                            {formatUsdc(
+                                                                acc.remaining_amount,
+                                                            )}
                                                         </span>
                                                     </div>
                                                 </Link>
