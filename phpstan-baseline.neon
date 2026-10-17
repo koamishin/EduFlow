@@ -37,14 +37,44 @@ parameters:
 			path: app/Actions/EvaluateAssistancePolicy.php
 
 		-
-			rawMessage: 'Call to an undefined static method App\Models\User::create().'
+			rawMessage: 'Call to an undefined static method App\Models\AcademicTerm::create().'
 			identifier: staticMethod.notFound
 			count: 1
 			path: app/Actions/Fortify/CreateNewUser.php
 
 		-
+			rawMessage: 'Call to an undefined static method App\Models\Student::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Actions/Fortify/CreateNewUser.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\StudentWallet::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Actions/Fortify/CreateNewUser.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\TuitionAccount::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Actions/Fortify/CreateNewUser.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\User::create().'
+			identifier: staticMethod.notFound
+			count: 2
+			path: app/Actions/Fortify/CreateNewUser.php
+
+		-
 			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
 			identifier: staticMethod.notFound
+			count: 2
+			path: app/Actions/Fortify/CreateNewUser.php
+
+		-
+			rawMessage: 'Method App\Actions\Fortify\CreateNewUser::emailRules() should return array<int, array<mixed>|Illuminate\Contracts\Validation\Rule|string> but returns array<int, Illuminate\Validation\Rules\Unique|string>.'
+			identifier: return.type
 			count: 1
 			path: app/Actions/Fortify/CreateNewUser.php
 
@@ -847,6 +877,12 @@ parameters:
 			path: app/Http/Controllers/ChatHistoryController.php
 
 		-
+			rawMessage: 'Access to an undefined property App\Models\Organization|Illuminate\Database\Eloquent\Collection<int, App\Models\Organization>::$is_setup_completed.'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ConsoleRedirectController.php
+
+		-
 			rawMessage: Access to an undefined property Illuminate\Notifications\DatabaseNotification::$created_at.
 			identifier: property.notFound
 			count: 1
@@ -881,6 +917,96 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/DashboardController.php
+
+		-
+			rawMessage: 'Using nullsafe property access on non-nullable type App\Models\InstitutionPolicyVersion|Illuminate\Database\Eloquent\Collection<int, App\Models\InstitutionPolicyVersion>. Use -> instead.'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/InstitutionPolicyController.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Budget::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionRegistrationController.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionRegistrationController.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\User::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionRegistrationController.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Wallet::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionRegistrationController.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionRegistrationController.php
+
+		-
+			rawMessage: 'Access to an undefined property App\Models\Organization|Illuminate\Database\Eloquent\Collection<int, App\Models\Organization>::$country.'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: 'Access to an undefined property App\Models\Organization|Illuminate\Database\Eloquent\Collection<int, App\Models\Organization>::$domain.'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: 'Access to an undefined property App\Models\Organization|Illuminate\Database\Eloquent\Collection<int, App\Models\Organization>::$is_setup_completed.'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: 'Access to an undefined property App\Models\Organization|Illuminate\Database\Eloquent\Collection<int, App\Models\Organization>::$slug.'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: 'Access to an undefined property App\Models\Organization|Illuminate\Database\Eloquent\Collection<int, App\Models\Organization>::$timezone.'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->address" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->network" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->provider" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/InstitutionSetupController.php
+
+		-
+			rawMessage: Using nullsafe property access "?->status" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/InstitutionSetupController.php
 
 		-
 			rawMessage: Access to an undefined property Illuminate\Notifications\DatabaseNotification::$created_at.
@@ -1219,16 +1345,16 @@ parameters:
 			path: app/Policies/TransactionPolicy.php
 
 		-
-			rawMessage: Class Yukazakiri\Lepton\Drivers\Circle\CircleCliGateway not found.
-			identifier: class.notFound
-			count: 1
-			path: app/Providers/AppServiceProvider.php
-
-		-
 			rawMessage: 'Offset ''authenticated'' on array{authenticated: bool, email: string|null, status: string|null, expires_in: string|null} on left side of ?? always exists and is not nullable.'
 			identifier: nullCoalesce.offset
 			count: 1
 			path: app/Providers/AppServiceProvider.php
+
+		-
+			rawMessage: Access to an undefined property App\Models\Organization::$slug.
+			identifier: property.notFound
+			count: 1
+			path: app/Providers/FortifyServiceProvider.php
 
 		-
 			rawMessage: Access to an undefined property Illuminate\Http\Request::$email.
@@ -1253,6 +1379,12 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/Ai/AiProviderResolver.php
+
+		-
+			rawMessage: 'Call to function is_array() with array<string, mixed> will always evaluate to true.'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/ArcNetworkGateway.php
 
 		-
 			rawMessage: 'Call to static method query() on an unknown class App\Services\TuitionAccount.'
@@ -1321,42 +1453,6 @@ parameters:
 			path: app/Services/AutonomousPipelineBridge.php
 
 		-
-			rawMessage: 'Call to method createAgentWallet() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
-			identifier: class.notFound
-			count: 1
-			path: app/Services/CircleAgentWalletCli.php
-
-		-
-			rawMessage: 'Call to method estimateFee() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
-			identifier: class.notFound
-			count: 1
-			path: app/Services/CircleAgentWalletCli.php
-
-		-
-			rawMessage: 'Call to method fundTestnetWallet() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
-			identifier: class.notFound
-			count: 1
-			path: app/Services/CircleAgentWalletCli.php
-
-		-
-			rawMessage: 'Call to method isAuthenticatedFor() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
-			identifier: class.notFound
-			count: 1
-			path: app/Services/CircleAgentWalletCli.php
-
-		-
-			rawMessage: 'Call to method listWallets() on an unknown class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway.'
-			identifier: class.notFound
-			count: 1
-			path: app/Services/CircleAgentWalletCli.php
-
-		-
-			rawMessage: Class Yukazakiri\Lepton\Drivers\CircleRest\CircleRestGateway not found.
-			identifier: class.notFound
-			count: 5
-			path: app/Services/CircleAgentWalletCli.php
-
-		-
 			rawMessage: 'Call to an undefined static method App\Models\Transaction::create().'
 			identifier: staticMethod.notFound
 			count: 2
@@ -1369,6 +1465,30 @@ parameters:
 			path: app/Services/FinancialPolicyEngine.php
 
 		-
+			rawMessage: Access to an undefined property App\Models\User::$student.
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InstallationInstitution.php
+
+		-
+			rawMessage: Using nullsafe method call on non-nullable type Illuminate\Http\Request. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/InstallationInstitution.php
+
+		-
+			rawMessage: 'Parameter #1 $array (list<mixed>) of array_values is already a list, call has no effect.'
+			identifier: arrayValues.list
+			count: 1
+			path: app/Services/InstitutionPolicyTemplates.php
+
+		-
+			rawMessage: Using nullsafe property access "?->title" on left side of ?? is unnecessary. Use -> instead.
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/InstitutionPolicyTemplates.php
+
+		-
 			rawMessage: Access to an undefined property App\Models\Invoice::$updated_at.
 			identifier: property.notFound
 			count: 1
@@ -1379,6 +1499,18 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Services/InvoiceSettlement.php
+
+		-
+			rawMessage: Access to an undefined property App\Models\InstitutionPolicyPublication::$created_at.
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JevHealthService.php
+
+		-
+			rawMessage: 'Method App\Services\JevHealthService::inspect() should return array{jev: array{status: string, policy_id: int|null, policy_title: string, policy_digest: string|null, has_active_controls: bool, categories_count: int, clauses_count: int, published_at: string|null, ...}, ai: array{status: string, provider: string, model: string, endpoint: string, advisory_enabled: bool, disclosure_accepted: bool, may_call_provider: bool, latency_ms: int|null, ...}, timestamp: string} but returns array{jev: array<string, mixed>, ai: array<string, mixed>, timestamp: string}.'
+			identifier: return.type
+			count: 1
+			path: app/Services/JevHealthService.php
 
 		-
 			rawMessage: Using nullsafe property access on non-nullable type App\Models\Wallet. Use -> instead.
@@ -1685,6 +1817,12 @@ parameters:
 			identifier: staticMethod.notFound
 			count: 1
 			path: tests/Feature/AssistanceShowAiTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Auth/RegistrationTest.php
 
 		-
 			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
@@ -2515,9 +2653,51 @@ parameters:
 			path: tests/Feature/FinancialPolicyEngineTest.php
 
 		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::count().'
+			identifier: staticMethod.notFound
+			count: 4
+			path: tests/Feature/FreshInstallWorkflowTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
+			identifier: staticMethod.notFound
+			count: 4
+			path: tests/Feature/FreshInstallWorkflowTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/FreshInstallWorkflowTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Student::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/FreshInstallWorkflowTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\User::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/FreshInstallWorkflowTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 2
+			path: tests/Feature/FreshInstallWorkflowTest.php
+
+		-
 			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$id.'
 			identifier: property.notFound
-			count: 8
+			count: 13
+			path: tests/Feature/InstallationInstitutionTest.php
+
+		-
+			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$slug.'
+			identifier: property.notFound
+			count: 1
 			path: tests/Feature/InstallationInstitutionTest.php
 
 		-
@@ -2581,6 +2761,48 @@ parameters:
 			path: tests/Feature/InstitutionInstallationTest.php
 
 		-
+			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$id.'
+			identifier: property.notFound
+			count: 3
+			path: tests/Feature/InstitutionPolicyTemplatesTest.php
+
+		-
+			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$is_setup_completed.'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/InstitutionPolicyTemplatesTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Budget::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/InstitutionRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::where().'
+			identifier: staticMethod.notFound
+			count: 4
+			path: tests/Feature/InstitutionRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\User::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/InstitutionRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Wallet::where().'
+			identifier: staticMethod.notFound
+			count: 2
+			path: tests/Feature/InstitutionRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/InstitutionRegistrationTest.php
+
+		-
 			rawMessage: Access to an undefined property Illuminate\Database\Eloquent\Model::$id.
 			identifier: property.notFound
 			count: 1
@@ -2619,8 +2841,20 @@ parameters:
 		-
 			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$id.'
 			identifier: property.notFound
-			count: 32
+			count: 38
 			path: tests/Feature/JevAnalyticsTest.php
+
+		-
+			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$id.'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/JevHealthTest.php
+
+		-
+			rawMessage: 'Parameter #1 $institution of method App\Services\JevHealthService::inspect() expects App\Models\Organization, Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model given.'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/JevHealthTest.php
 
 		-
 			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
@@ -2673,7 +2907,7 @@ parameters:
 		-
 			rawMessage: 'Call to an undefined static method App\Models\Transaction::create().'
 			identifier: staticMethod.notFound
-			count: 5
+			count: 6
 			path: tests/Feature/LeptonTreasuryPanelTest.php
 
 		-
@@ -2809,6 +3043,42 @@ parameters:
 			path: tests/Feature/StudentWalletGenerationTest.php
 
 		-
+			rawMessage: 'Call to an undefined static method App\Models\Organization::create().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentWalletRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\Student::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentWalletRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\StudentWallet::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentWalletRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\TuitionAccount::where().'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/StudentWalletRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method App\Models\User::where().'
+			identifier: staticMethod.notFound
+			count: 3
+			path: tests/Feature/StudentWalletRegistrationTest.php
+
+		-
+			rawMessage: 'Call to an undefined static method Spatie\Permission\Models\Role::firstOrCreate().'
+			identifier: staticMethod.notFound
+			count: 2
+			path: tests/Feature/StudentWalletRegistrationTest.php
+
+		-
 			rawMessage: 'Call to an undefined static method App\Models\Invoice::create().'
 			identifier: staticMethod.notFound
 			count: 3
@@ -2831,3 +3101,9 @@ parameters:
 			identifier: staticMethod.notFound
 			count: 1
 			path: tests/Feature/TreasuryForecastTest.php
+
+		-
+			rawMessage: 'Access to an undefined property Illuminate\Database\Eloquent\Collection<int, Illuminate\Database\Eloquent\Model>|Illuminate\Database\Eloquent\Model::$id.'
+			identifier: property.notFound
+			count: 2
+			path: tests/Helpers/InstitutionPolicyFixtures.php

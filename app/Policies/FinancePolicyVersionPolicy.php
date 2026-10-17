@@ -31,29 +31,13 @@ class FinancePolicyVersionPolicy
             return false;
         }
 
-        $staffCount = User::query()
-            ->where('organization_id', $policy->organization_id)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['admin', 'super_admin', 'finance_officer'])->where('guard_name', 'web'))
-            ->count();
-
-        if ($staffCount > 1 && $user->id === $policy->created_by && ! $user->hasRole('super_admin')) {
-            $isTemplate = InstitutionPolicyVersion::query()
+        if ($user->id === $policy->created_by) {
+            $linkedVersion = InstitutionPolicyVersion::query()
                 ->where('finance_policy_version_id', $policy->id)
-                ->where(function ($query): void {
-                    $templates = [
-                        'Standard Academic Operations',
-                        'Campus Fest & Student Activities',
-                        'STEM Labs & Research Procurement',
-                        'Autonomous Fast-Track Operations',
-                        'Strict Fiscal Governance',
-                    ];
-                    foreach ($templates as $title) {
-                        $query->orWhere('title', 'like', "%{$title}%");
-                    }
-                })
-                ->exists();
+                ->latest('id')
+                ->first();
 
-            if (! $isTemplate) {
+            if (! $linkedVersion?->isSystemVerified()) {
                 return false;
             }
         }

@@ -52,9 +52,11 @@ return [
     // When false, raw circle commands via lepton:circle or runCircle() are blocked.
     'allow_raw_commands' => (bool) env('LEPTON_ALLOW_RAW_CIRCLE', false),
 
+    'explorer_url' => env('LEPTON_EXPLORER_URL', env('LEPTON_EXPLORER_TESTNET', 'https://testnet.arcscan.app')),
+
     'explorer' => [
-        'testnet' => env('LEPTON_EXPLORER_TESTNET', 'https://testnet.arcscan.io'),
-        'mainnet' => env('LEPTON_EXPLORER_MAINNET', 'https://explorer.arc.network'),
+        'testnet' => env('LEPTON_EXPLORER_TESTNET', 'https://testnet.arcscan.app'),
+        'mainnet' => env('LEPTON_EXPLORER_MAINNET', 'https://explorer.arc.io'),
     ],
 
     'rpc' => [

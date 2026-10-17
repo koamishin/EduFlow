@@ -46,26 +46,8 @@ class InstitutionPolicyPublication extends Model
             $activation = FinancePolicyActivation::query()->find($this->finance_policy_activation_id);
 
             $hasSeparateReviewer = $this->version->created_by !== $this->approved_by;
-            if (! $hasSeparateReviewer) {
-                $templates = [
-                    'Standard Academic Operations',
-                    'Campus Fest & Student Activities',
-                    'STEM Labs & Research Procurement',
-                    'Autonomous Fast-Track Operations',
-                    'Strict Fiscal Governance',
-                ];
-                $isTemplate = collect($templates)->contains(fn ($title) => str_contains((string) $this->version->title, $title));
-
-                if (! $isTemplate) {
-                    $staffCount = User::query()
-                        ->where('organization_id', $this->organization_id)
-                        ->whereHas('roles', fn ($query) => $query->whereIn('name', ['admin', 'super_admin', 'finance_officer'])->where('guard_name', 'web'))
-                        ->count();
-
-                    if ($staffCount > 1) {
-                        return false;
-                    }
-                }
+            if (! $hasSeparateReviewer && ! $this->version->isSystemVerified()) {
+                return false;
             }
 
             return $activation !== null && $activation->hasValidEvidence($this->version->financePolicy)

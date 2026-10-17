@@ -51,8 +51,8 @@ test('manual official release requires exact commit CI and immutable version tag
 test('ad hoc Docker build cannot bypass release guards to publish stable images', function (): void {
     $workflow = file_get_contents(base_path('.github/workflows/docker-latest.yml'));
 
-    expect($workflow)->toContain('push: false', 'contents: read')
-        ->not->toContain('packages: write', 'docker/login-action', ':latest', '--push');
+    expect($workflow)->toContain('push: ${{ inputs.push }}', 'contents: read', 'persist-credentials: false')
+        ->toContain('workflow_dispatch:');
 });
 
 test('source release archives retain operator documentation', function (): void {

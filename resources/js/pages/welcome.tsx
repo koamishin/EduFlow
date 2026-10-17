@@ -372,7 +372,10 @@ export default function Welcome({
                     {!hasInstitutions ? (
                         <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-1.5 text-xs font-mono text-amber-900 shadow-sm">
                             <Sparkles className="size-3.5 text-amber-600 animate-pulse" />
-                            <span>FRESH INSTALLATION · SETUP FIRST INSTITUTION TO ENABLE STUDENT ENROLLMENT</span>
+                            <span>
+                                FRESH INSTALLATION · SETUP FIRST INSTITUTION TO
+                                ENABLE STUDENT ENROLLMENT
+                            </span>
                         </div>
                     ) : (
                         <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-stone-200/80 bg-white px-3.5 py-1 text-xs font-mono text-stone-600 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
@@ -381,7 +384,11 @@ export default function Welcome({
                                 <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
                             </span>
                             <span>
-                                MULTI-SCHOOL SAAS PLATFORM · {institutionCount} {institutionCount === 1 ? 'INSTITUTION' : 'INSTITUTIONS'} ACTIVE
+                                MULTI-SCHOOL SAAS PLATFORM · {institutionCount}{' '}
+                                {institutionCount === 1
+                                    ? 'INSTITUTION'
+                                    : 'INSTITUTIONS'}{' '}
+                                ACTIVE
                             </span>
                         </div>
                     )}

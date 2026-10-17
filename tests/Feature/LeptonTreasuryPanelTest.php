@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\DTOs\StudentWalletSnapshot;
+use App\DTOs\WalletReadState;
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
 use App\Filament\Resources\Transactions\Tables\TransactionsTable;
@@ -9,6 +11,7 @@ use App\Filament\Widgets\LeptonNetworkWidget;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\Wallet;
+use App\Services\ArcNetworkGateway as AppArcNetworkGateway;
 use App\Services\LeptonTreasuryService;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
@@ -420,4 +423,58 @@ test('lepton network widget renders chain stats for the treasury', function (): 
         ->and($labels)->toContain('On-Chain Treasury')
         ->and($labels)->toContain('Agent Wallet')
         ->and($labels)->toContain('Lepton Driver');
+});
+
+test('arc network gateway and config default to resolving arcscan.app and explorer.arc.io domains', function (): void {
+    expect(config('lepton.explorer_url'))->toBe('https://testnet.arcscan.app')
+        ->and(config('lepton.explorer.testnet'))->toBe('https://testnet.arcscan.app')
+        ->and(config('lepton.explorer.mainnet'))->toBe('https://explorer.arc.io');
+
+    $testnetGateway = new AppArcNetworkGateway(chainCode: 'ARC-TESTNET', chainId: 5042);
+    expect($testnetGateway->explorerUrl('0xabc'))->toBe('https://testnet.arcscan.app/tx/0xabc')
+        ->and($testnetGateway->addressExplorerUrl('0xdef'))->toBe('https://testnet.arcscan.app/address/0xdef');
+
+    $mainnetGateway = new AppArcNetworkGateway(chainCode: 'ARC-MAINNET', chainId: 5040);
+    expect($mainnetGateway->explorerUrl('0xabc'))->toBe('https://explorer.arc.io/tx/0xabc')
+        ->and($mainnetGateway->addressExplorerUrl('0xdef'))->toBe('https://explorer.arc.io/address/0xdef');
+
+    // Legacy env/config overrides and stored metadata are normalized to live explorer domains
+    config([
+        'lepton.explorer_url' => 'https://testnet.arcscan.io',
+        'lepton.explorer.testnet' => 'https://explorer.testnet.arc.network',
+        'lepton.explorer.mainnet' => 'https://explorer.arc.network',
+    ]);
+
+    $legacyTestnetGateway = new AppArcNetworkGateway(chainCode: 'ARC-TESTNET', chainId: 5042002);
+    expect($legacyTestnetGateway->explorerUrl('0x123'))->toBe('https://testnet.arcscan.app/tx/0x123')
+        ->and($legacyTestnetGateway->addressExplorerUrl('0x456'))->toBe('https://testnet.arcscan.app/address/0x456');
+
+    $legacyMainnetGateway = new AppArcNetworkGateway(chainCode: 'ARC-MAINNET', chainId: 5040);
+    expect($legacyMainnetGateway->explorerUrl('0x123'))->toBe('https://explorer.arc.io/tx/0x123');
+
+    $legacyTx = Transaction::create([
+        'organization_id' => $this->org->id,
+        'wallet_id' => $this->wallet->id,
+        'type' => TransactionType::VENDOR_PAYMENT,
+        'recipient_address' => '0xvendor',
+        'amount' => 25.00,
+        'status' => TransactionStatus::CONFIRMED,
+        'provider_tx_hash' => '0x'.str_repeat('d', 64),
+        'metadata' => ['gateway' => 'circle-cli', 'is_fake' => false, 'explorer_url' => 'https://testnet.arcscan.io/tx/0xlegacy'],
+    ]);
+
+    expect(TransactionsTable::explorerUrl($legacyTx))->toBe('https://testnet.arcscan.app/tx/0xlegacy');
+
+    $snapshot = new StudentWalletSnapshot(
+        state: WalletReadState::OK,
+        address: '0x7d41e0AA33A4850E20ECa993dF6F0403d6527C6E',
+        balance: '10.00',
+        chain: 'ARC-TESTNET',
+        explorerUrl: 'https://testnet.arcscan.io/address/0x7d41e0AA33A4850E20ECa993dF6F0403d6527C6E',
+        isFake: false,
+        reason: null,
+        cachedAt: null,
+    );
+
+    expect($snapshot->toArray()['explorer_url'])->toBe('https://testnet.arcscan.app/address/0x7d41e0AA33A4850E20ECa993dF6F0403d6527C6E');
 });

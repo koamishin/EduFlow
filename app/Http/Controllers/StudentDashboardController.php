@@ -34,7 +34,7 @@ class StudentDashboardController extends Controller
         }
 
         if ($request->user()->hasAnyRole(['finance_officer', 'admin', 'super_admin'])) {
-            return Inertia::location(url('/finance'));
+            return redirect()->route('filament.finance.resources.assistance-requests.index');
         }
 
         return app(DashboardController::class)->index($request, app(CurrencyConverter::class));
@@ -46,7 +46,7 @@ class StudentDashboardController extends Controller
         $student = $request->user()->student()->firstOrFail();
         $accounts = $student->tuitionAccounts()->with('academicTerm')
             ->whereHas('academicTerm', fn ($query) => $query->whereDate('starts_on', '<=', today())->whereDate('ends_on', '>=', today()))->get();
-        $account = $accounts->sortByDesc('id')->first() ?? $student->tuitionAccounts()->with('academicTerm')->latest('id')->first();
+        $account = $accounts->count() === 1 ? $accounts->first() : null;
 
         $displayCurrency = CurrencyCode::tryFrom(strtoupper((string) config('eduflow.display_currency', 'PHP'))) ?? CurrencyCode::PHP;
         $quote = $converter->lockQuote($displayCurrency);

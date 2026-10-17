@@ -37,14 +37,14 @@ class InstitutionRegistrationController extends Controller
                 'mainnet' => [
                     'chainId' => 5040,
                     'name' => 'Arc Mainnet',
-                    'rpc' => 'https://rpc.arc.network',
-                    'explorer' => 'https://explorer.arc.network',
+                    'rpc' => 'https://rpc.mainnet.arc.io',
+                    'explorer' => 'https://explorer.arc.io',
                 ],
                 'testnet' => [
                     'chainId' => 5042,
                     'name' => 'Arc Testnet',
-                    'rpc' => 'https://testnet-rpc.arc.network',
-                    'explorer' => 'https://testnet.arcscan.io',
+                    'rpc' => 'https://rpc.testnet.arc.io',
+                    'explorer' => 'https://testnet.arcscan.app',
                 ],
             ],
         ]);
@@ -71,83 +71,81 @@ class InstitutionRegistrationController extends Controller
             'admin_password' => ['required', 'string', 'confirmed', Password::defaults()],
         ]);
 
-        [$org, $admin] = GuardSingleInstitution::withoutGuard(function () use ($validated, $request): array {
-            return DB::transaction(function () use ($validated, $request): array {
-                $slug = ! empty($validated['slug'])
-                    ? Str::slug($validated['slug'])
-                    : Str::slug($validated['name']);
+        [$org, $admin] = GuardSingleInstitution::withoutGuard(fn (): array => DB::transaction(function () use ($validated, $request): array {
+            $slug = empty($validated['slug'])
+                ? Str::slug($validated['name'])
+                : Str::slug($validated['slug']);
 
-                $domain = ! empty($validated['domain'])
-                    ? $validated['domain']
-                    : ($slug.'.eduflow.internal');
+            $domain = empty($validated['domain'])
+                ? $slug.'.eduflow.internal'
+                : ($validated['domain']);
 
-                $org = Organization::create([
-                    'name' => $validated['name'],
-                    'slug' => $slug,
-                    'domain' => $domain,
-                    'country' => $validated['country'],
-                    'timezone' => $validated['timezone'],
-                    'type' => 'school',
-                    'currency' => 'USDC',
-                    'minimum_reserve' => 20.00,
-                    'max_auto_payment' => 50.00,
-                    'max_daily_disbursement' => 200.00,
-                    'human_approval_threshold' => 50.00,
-                ]);
+            $org = Organization::create([
+                'name' => $validated['name'],
+                'slug' => $slug,
+                'domain' => $domain,
+                'country' => $validated['country'],
+                'timezone' => $validated['timezone'],
+                'type' => 'school',
+                'currency' => 'USDC',
+                'minimum_reserve' => 20.00,
+                'max_auto_payment' => 50.00,
+                'max_daily_disbursement' => 200.00,
+                'human_approval_threshold' => 50.00,
+            ]);
 
-                $useAgentWallet = $request->boolean('use_agent_wallet');
-                $treasuryAddress = $useAgentWallet
-                    ? (string) (! empty($validated['treasury_address']) ? $validated['treasury_address'] : (config('lepton.arc.treasury') ?: '0x3a9B97F3dF02B418E97E1C7D6B9c7E67eB3682cA'))
-                    : (string) $validated['treasury_address'];
+            $useAgentWallet = $request->boolean('use_agent_wallet');
+            $treasuryAddress = $useAgentWallet
+                ? (string) (empty($validated['treasury_address']) ? (config('lepton.arc.treasury') ?: '0x3a9B97F3dF02B418E97E1C7D6B9c7E67eB3682cA') : ($validated['treasury_address']))
+                : (string) $validated['treasury_address'];
 
-                Wallet::create([
+            Wallet::create([
+                'organization_id' => $org->id,
+                'address' => $treasuryAddress,
+                'provider' => $useAgentWallet ? 'circle' : 'manual',
+                'network' => 'arc',
+                'balance' => 0.00,
+                'status' => 'active',
+            ]);
+
+            // Initialize baseline categories & budgets
+            $baselineBudgets = [
+                ['name' => 'Technology & Cloud', 'category' => 'technology', 'amount' => 400.00],
+                ['name' => 'School Operations', 'category' => 'operations', 'amount' => 1000.00],
+                ['name' => 'Student Assistance & Aid', 'category' => 'assistance', 'amount' => 200.00],
+                ['name' => 'Campus Equipment & Lab', 'category' => 'equipment', 'amount' => 500.00],
+            ];
+
+            foreach ($baselineBudgets as $b) {
+                Budget::create([
                     'organization_id' => $org->id,
-                    'address' => $treasuryAddress,
-                    'provider' => $useAgentWallet ? 'circle' : 'manual',
-                    'network' => 'arc',
-                    'balance' => 0.00,
+                    'name' => $b['name'],
+                    'category' => $b['category'],
+                    'allocated_amount' => $b['amount'],
+                    'spent_amount' => 0.00,
+                    'remaining_amount' => $b['amount'],
                     'status' => 'active',
                 ]);
+            }
 
-                // Initialize baseline categories & budgets
-                $baselineBudgets = [
-                    ['name' => 'Technology & Cloud', 'category' => 'technology', 'amount' => 400.00],
-                    ['name' => 'School Operations', 'category' => 'operations', 'amount' => 1000.00],
-                    ['name' => 'Student Assistance & Aid', 'category' => 'assistance', 'amount' => 200.00],
-                    ['name' => 'Campus Equipment & Lab', 'category' => 'equipment', 'amount' => 500.00],
-                ];
+            $superAdminRole = Role::firstOrCreate([
+                'name' => RoleEnums::SUPER_ADMIN->value,
+                'guard_name' => 'web',
+            ]);
 
-                foreach ($baselineBudgets as $b) {
-                    Budget::create([
-                        'organization_id' => $org->id,
-                        'name' => $b['name'],
-                        'category' => $b['category'],
-                        'allocated_amount' => $b['amount'],
-                        'spent_amount' => 0.00,
-                        'remaining_amount' => $b['amount'],
-                        'status' => 'active',
-                    ]);
-                }
+            $admin = User::create([
+                'name' => $validated['admin_name'],
+                'email' => $validated['admin_email'],
+                'password' => Hash::make($validated['admin_password']),
+                'organization_id' => $org->id,
+            ]);
 
-                $superAdminRole = Role::firstOrCreate([
-                    'name' => RoleEnums::SUPER_ADMIN->value,
-                    'guard_name' => 'web',
-                ]);
+            $admin->forceFill(['email_verified_at' => now()])->save();
 
-                $admin = User::create([
-                    'name' => $validated['admin_name'],
-                    'email' => $validated['admin_email'],
-                    'password' => Hash::make($validated['admin_password']),
-                    'organization_id' => $org->id,
-                ]);
+            $admin->assignRole($superAdminRole);
 
-                $admin->forceFill(['email_verified_at' => now()])->save();
-
-                $admin->assignRole($superAdminRole);
-
-                return [$org, $admin];
-            });
-        });
+            return [$org, $admin];
+        }));
 
         // Set active session for the created institution
         $request->session()->put('current_organization_id', $org->id);

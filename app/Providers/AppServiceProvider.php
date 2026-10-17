@@ -228,13 +228,12 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new ArcNetworkGateway(
-                arc: null,
                 chainCode: (string) config('lepton.arc.chain', 'ARC-TESTNET'),
                 chainId: (int) config('lepton.arc.chain_id', 5042),
                 treasuryAddress: config('lepton.arc.treasury'),
                 configuredRpcUrl: config('lepton.arc.rpc_url'),
-                testnetExplorer: (string) config('lepton.explorer.testnet', 'https://testnet.arcscan.io'),
-                mainnetExplorer: (string) config('lepton.explorer.mainnet', 'https://explorer.arc.network'),
+                testnetExplorer: (string) config('lepton.explorer.testnet', 'https://testnet.arcscan.app'),
+                mainnetExplorer: (string) config('lepton.explorer.mainnet', 'https://explorer.arc.io'),
                 transport: $app->make(JsonTransport::class),
             );
         });

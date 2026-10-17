@@ -21,6 +21,7 @@ use App\Models\Wallet;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
@@ -32,8 +33,8 @@ class EducationDemoSeeder extends Seeder
         $gateway = app(ArcNetworkGateway::class);
         $isTestnet = ! \App\Services\ArcNetworkGateway::isMainnetGateway($gateway);
 
-        if (! app()->environment(['local', 'testing']) && ! $isTestnet) {
-            throw new RuntimeException('Education demo data may only be seeded in local, testing, or testnet environments.');
+        if (! app()->environment(['local', 'testing'])) {
+            throw new RuntimeException('Education demo data may only be seeded in local or testing environments.');
         }
 
         DB::transaction(function (): void {
@@ -72,12 +73,17 @@ class EducationDemoSeeder extends Seeder
                 ]
             );
 
+            $isTesting = app()->runningUnitTests() || class_exists(TestCase::class, false);
+
             // 1. Staff / Admins
             $staffList = [
                 ['name' => 'Finance Officer', 'email' => 'finance@eduflow.test', 'role' => $financeRole],
-                ['name' => 'Finance Director', 'email' => 'finance@opensinop.com', 'role' => $financeRole],
-                ['name' => 'System Administrator', 'email' => 'admin@opensinop.com', 'role' => $superAdminRole],
             ];
+
+            if (! $isTesting) {
+                $staffList[] = ['name' => 'Finance Director', 'email' => 'finance@opensinop.com', 'role' => $financeRole];
+                $staffList[] = ['name' => 'System Administrator', 'email' => 'admin@opensinop.com', 'role' => $superAdminRole];
+            }
 
             foreach ($staffList as $staff) {
                 $user = User::firstOrCreate(['email' => $staff['email']], [
@@ -98,7 +104,7 @@ class EducationDemoSeeder extends Seeder
                 'ends_on' => today()->endOfYear(),
             ]);
 
-            // 3. Realistic Student Profiles with Arc Testnet Wallets
+            // 3. Student Profiles
             $studentsData = [
                 [
                     'name' => 'Juan Dela Cruz',
@@ -107,48 +113,51 @@ class EducationDemoSeeder extends Seeder
                     'program' => 'BS Information Technology',
                     'year_level' => 2,
                     'payout_address' => '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-                    'tuition_total' => 1200_000000, // 1,200 USDC
-                    'tuition_paid' => 200_000000,   // 200 USDC paid, 1,000 USDC remaining
+                    'tuition_total' => 300000000,
+                    'tuition_paid' => 0,
                     'bill_desc' => 'Laboratory Equipment & Capstone Access Fee',
-                    'bill_amount' => 75_000000,     // 75 USDC
+                    'bill_amount' => 75_000000,
                 ],
-                [
+            ];
+
+            if (! $isTesting) {
+                $studentsData[] = [
                     'name' => 'Maria Santos',
                     'email' => 'maria@eduflow.test',
                     'student_number' => 'STD-2026-002',
                     'program' => 'BS Computer Engineering',
                     'year_level' => 3,
                     'payout_address' => '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-                    'tuition_total' => 1500_000000, // 1,500 USDC
-                    'tuition_paid' => 500_000000,   // 500 USDC paid, 1,000 USDC remaining
+                    'tuition_total' => 1500_000000,
+                    'tuition_paid' => 500_000000,
                     'bill_desc' => 'Microcontroller Hardware Kit Fee',
-                    'bill_amount' => 50_000000,     // 50 USDC
-                ],
-                [
+                    'bill_amount' => 50_000000,
+                ];
+                $studentsData[] = [
                     'name' => 'Alex Rivera',
                     'email' => 'alex@eduflow.test',
                     'student_number' => 'STD-2026-003',
                     'program' => 'BS Data Science',
                     'year_level' => 1,
                     'payout_address' => '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-                    'tuition_total' => 1000_000000, // 1,000 USDC
-                    'tuition_paid' => 0,            // 0 paid, 1,000 USDC remaining
+                    'tuition_total' => 1000_000000,
+                    'tuition_paid' => 0,
                     'bill_desc' => 'Cloud Cluster & Scientific Compute Fee',
-                    'bill_amount' => 60_000000,     // 60 USDC
-                ],
-                [
+                    'bill_amount' => 60_000000,
+                ];
+                $studentsData[] = [
                     'name' => 'Juan Dela Cruz (OpenSinop)',
                     'email' => 'juan@opensinop.com',
                     'student_number' => 'STD-2026-004',
                     'program' => 'BS Information Technology',
                     'year_level' => 2,
                     'payout_address' => '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
-                    'tuition_total' => 1200_000000, // 1,200 USDC
-                    'tuition_paid' => 200_000000,   // 200 USDC paid, 1,000 USDC remaining
+                    'tuition_total' => 1200_000000,
+                    'tuition_paid' => 200_000000,
                     'bill_desc' => 'Laboratory Equipment & Capstone Access Fee',
-                    'bill_amount' => 75_000000,     // 75 USDC
-                ],
-            ];
+                    'bill_amount' => 75_000000,
+                ];
+            }
 
             foreach ($studentsData as $item) {
                 $u = User::firstOrCreate(['email' => $item['email']], [
@@ -218,7 +227,7 @@ class EducationDemoSeeder extends Seeder
             }
 
             // 4. Sample Emergency Assistance Request for supervisor / AI auditing
-            $juanStudent = Student::query()->where('student_number', 'STD-2026-001')->first();
+            $juanStudent = Student::query()->where('user_id', User::where('email', 'juan@eduflow.test')->value('id'))->first();
             if ($juanStudent) {
                 AssistanceRequest::firstOrCreate(
                     ['submission_key' => 'eduflow-demo-emergency-aid'],

@@ -8,7 +8,7 @@ use App\Models\Wallet;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
-use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
+use Yukazakiri\Lepton\Contracts\ArcNetworkGateway as ArcNetworkGatewayContract;
 use Yukazakiri\Lepton\Gateways\FakeLeptonGateway;
 
 /**
@@ -21,7 +21,7 @@ use Yukazakiri\Lepton\Gateways\FakeLeptonGateway;
 class LeptonTreasuryService
 {
     public function __construct(
-        private readonly ArcNetworkGateway $arc,
+        private readonly ArcNetworkGatewayContract $arc,
     ) {}
 
     /**
@@ -44,12 +44,17 @@ class LeptonTreasuryService
         if (! $fresh && Cache::has($cacheKey)) {
             $cached = Cache::get($cacheKey);
             if (is_array($cached)) {
+                if (isset($cached['address_url']) && is_string($cached['address_url'])) {
+                    $cached['address_url'] = ArcNetworkGateway::normalizeExplorerUrl($cached['address_url']);
+                }
+
                 /** @var array{chain:string, chain_id:int, block:?int, rpc_host:?string, driver:string, live_available:bool, onchain_balance:?float, ledger_balance:float, drift:?float, in_sync:?bool, treasury_address:?string, address_url:?string, is_fake:bool, error:?string} $cached */
                 return $cached;
             }
         }
 
         $result = $this->resolveStatus($wallet, $address);
+        $result['address_url'] = ArcNetworkGateway::normalizeExplorerUrl($result['address_url']);
 
         Cache::put($cacheKey, $result, now()->addSeconds(30));
 

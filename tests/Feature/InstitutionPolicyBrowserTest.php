@@ -79,3 +79,34 @@ test('playground queues policy interpretation and shows persisted result with re
         ->assertNoJavaScriptErrors();
     expect(Transaction::query()->count())->toBe(0);
 })->group('browser');
+
+test('simple rulebook lets regular users toggle categories pick safety limits and activate policy in one click', function (): void {
+    $this->withVite();
+    config(['eduflow.institution_id' => null]);
+    Organization::factory()->create(['name' => 'Sunnyvale High School']);
+    $admin = User::factory()->create()->assignRole(Role::findOrCreate('super_admin', 'web'));
+    $this->actingAs($admin);
+
+    $page = visit('/finance/policies')
+        ->assertSee('School Spending Playbook')
+        ->assertSee('What types of bills and fees are allowed?')
+        ->click('Select Core 6')
+        ->assertSee('Spending Categories Updated')
+        ->type('#custom-cat-name', 'Robotics Club Kits')
+        ->type('#custom-cat-inc', 'Arduino boards, sensors, motors')
+        ->click('Add Category')
+        ->assertSee('ON · Custom')
+        ->assertSee('Robotics Club Kits')
+        ->click('⚡ Electric & Internet Bill')
+        ->assertSee('Allowed Category: Approved Supplier Invoices')
+        ->click('Balanced Everyday Mode')
+        ->assertSee('Safety Limits Updated')
+        ->click('Save & Turn On Policy')
+        ->assertSee('Rules Saved & Turned On')
+        ->assertNoJavaScriptErrors();
+
+    $latest = InstitutionPolicyVersion::query()->latest('id')->first();
+    expect(InstitutionPolicyPublication::query()->count())->toBe(1)
+        ->and($latest?->content['controls']['minimum_reserve'])->toBe('500')
+        ->and(collect($latest?->content['categories'] ?? [])->pluck('id')->all())->toContain('robotics-club-kits');
+})->group('browser');

@@ -13,18 +13,16 @@ beforeEach(function (): void {
     Role::firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);
 
-    $this->org = Organization::withoutSingleInstitutionGuard(function () {
-        return Organization::create([
-            'name' => 'Continental University of Technology',
-            'slug' => 'continental-tech',
-            'domain' => 'continental.edu',
-            'country' => 'Kenya',
-            'timezone' => 'Africa/Nairobi',
-            'currency' => 'USDC',
-            'type' => 'school',
-            'is_setup_completed' => true,
-        ]);
-    });
+    $this->org = Organization::withoutSingleInstitutionGuard(fn () => Organization::create([
+        'name' => 'Continental University of Technology',
+        'slug' => 'continental-tech',
+        'domain' => 'continental.edu',
+        'country' => 'Kenya',
+        'timezone' => 'Africa/Nairobi',
+        'currency' => 'USDC',
+        'type' => 'school',
+        'is_setup_completed' => true,
+    ]));
 });
 
 test('student registration screen renders successfully', function (): void {

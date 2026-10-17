@@ -8,6 +8,7 @@ use App\Models\CollectionBatchReview;
 use App\Models\FinancePlanReview;
 use App\Models\FinanceWorkflowRun;
 use App\Models\InstitutionPolicyEvaluation;
+use App\Models\InstitutionPolicyVersion;
 use App\Models\Invoice;
 use App\Models\PaymentAuthorization;
 use App\Models\PaymentIntent;
@@ -65,6 +66,11 @@ final readonly class JevAnalyticsService
             ];
         }
 
+        $policyVersions = InstitutionPolicyVersion::query()
+            ->whereIn('id', $evaluations->pluck('institution_policy_version_id')->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
         $needsReview = 0;
         $matches = 0;
         $holds = 0;
@@ -93,10 +99,66 @@ final readonly class JevAnalyticsService
                 $confidenceCount++;
             }
 
+            if ($eval->source_type === 'budget_snapshot' && is_array($result) && is_array($result['lines'] ?? null)) {
+                $lineConfidences = [];
+                foreach ($result['lines'] as $line) {
+                    if (! is_array($line)) {
+                        continue;
+                    }
+                    $catId = isset($line['category_id']) ? (string) $line['category_id'] : '';
+                    $isClassified = ($line['checks']['policy_classified'] ?? null) === true
+                        || ($line['decision'] ?? null) === 'propose_human_review';
+                    if ($catId === '') {
+                        continue;
+                    }
+                    if ($catId === 'needs_review') {
+                        continue;
+                    }
+                    if (! $isClassified) {
+                        continue;
+                    }
+
+                    $catName = $this->resolveCategoryName(
+                        $eval,
+                        $catId,
+                        isset($line['category_name']) ? (string) $line['category_name'] : (isset($line['top_category_name']) ? (string) $line['top_category_name'] : null),
+                        isset($line['explanation']) ? (string) $line['explanation'] : null,
+                        $policyVersions
+                    );
+                    $conf = $this->extractConfidence($line);
+                    $lineConfidences[] = $conf;
+
+                    if (! isset($categoryCounts[$catId])) {
+                        $categoryCounts[$catId] = [
+                            'id' => $catId,
+                            'name' => $catName,
+                            'count' => 0,
+                            'total_confidence' => 0.0,
+                        ];
+                    }
+
+                    $categoryCounts[$catId]['count']++;
+                    $categoryCounts[$catId]['total_confidence'] += $conf;
+                }
+
+                if (! isset($result['confidence']) && $lineConfidences !== []) {
+                    $totalConfidence += array_sum($lineConfidences) / count($lineConfidences);
+                    $confidenceCount++;
+                }
+
+                continue;
+            }
+
             if ($decision === 'match' && is_array($result) && ! empty($result['category_id'])) {
                 $catId = (string) $result['category_id'];
-                $catName = (string) ($result['top_category_name'] ?? $catId);
-                $conf = isset($result['confidence']) && is_numeric($result['confidence']) ? (float) $result['confidence'] : 1.0;
+                $catName = $this->resolveCategoryName(
+                    $eval,
+                    $catId,
+                    isset($result['top_category_name']) ? (string) $result['top_category_name'] : null,
+                    isset($result['explanation']) ? (string) $result['explanation'] : null,
+                    $policyVersions
+                );
+                $conf = $this->extractConfidence($result);
 
                 if (! isset($categoryCounts[$catId])) {
                     $categoryCounts[$catId] = [
@@ -336,7 +398,8 @@ final readonly class JevAnalyticsService
                 if (in_array('exempt', $decisions, true) && ! in_array('propose_human_review', $decisions, true)) {
                     return 'exempt';
                 }
-                if (! in_array('hold', $decisions, true) && in_array('propose_human_review', $decisions, true)) {
+                $hasUnclassifiedLine = array_any($lines, fn ($line): bool => is_array($line) && isset($line['checks']['policy_classified']) && $line['checks']['policy_classified'] === false);
+                if (! $hasUnclassifiedLine && in_array('propose_human_review', $decisions, true)) {
                     return 'match';
                 }
 
@@ -556,18 +619,15 @@ final readonly class JevAnalyticsService
             ->limit($limit)
             ->get();
 
-        return $evaluations->map(function (InstitutionPolicyEvaluation $eval): array {
+        $policyVersions = InstitutionPolicyVersion::query()
+            ->whereIn('id', $evaluations->pluck('institution_policy_version_id')->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
+        return $evaluations->map(function (InstitutionPolicyEvaluation $eval) use ($policyVersions): array {
             $jevDecision = $this->classifyDecision($eval);
             $approval = $this->resolveStaffApproval($eval);
-            $result = $eval->result;
-
-            $confidence = is_array($result) && isset($result['confidence']) && is_numeric($result['confidence'])
-                ? (int) round(((float) $result['confidence']) * 100)
-                : null;
-
-            $catName = is_array($result)
-                ? ($result['top_category_name'] ?? $result['category_id'] ?? null)
-                : null;
+            $summary = $this->describeEvaluationCategory($eval, $policyVersions);
 
             $timeHuman = $approval['time_to_approval_seconds'] !== null
                 ? $this->formatSeconds($approval['time_to_approval_seconds'])
@@ -580,8 +640,8 @@ final readonly class JevAnalyticsService
                 'label' => $eval->input['label'] ?? ucfirst($eval->source_type).' #'.$eval->source_id,
                 'reason' => $eval->reason,
                 'jev_decision' => $jevDecision,
-                'category_name' => $catName,
-                'confidence_percent' => $confidence,
+                'category_name' => $summary['category_name'],
+                'confidence_percent' => $summary['confidence_percent'],
                 'staff_status' => $approval['status'],
                 'reviewer_name' => $approval['reviewer_name'],
                 'time_to_approval' => $timeHuman,
@@ -590,6 +650,163 @@ final readonly class JevAnalyticsService
                 'created_at' => $eval->created_at,
             ];
         });
+    }
+
+    /**
+     * Resolve human-readable category summary and confidence percentage for an evaluation row.
+     *
+     * @param  Collection<int, InstitutionPolicyVersion>|null  $policyVersions
+     * @return array{category_name: string|null, confidence_percent: int|null}
+     */
+    public function describeEvaluationCategory(InstitutionPolicyEvaluation $eval, ?Collection $policyVersions = null): array
+    {
+        $result = $eval->result;
+        if (! is_array($result)) {
+            return ['category_name' => null, 'confidence_percent' => null];
+        }
+
+        if ($eval->source_type === 'budget_snapshot' && is_array($result['lines'] ?? null) && $result['lines'] !== []) {
+            $names = [];
+            $confidences = [];
+            foreach ($result['lines'] as $line) {
+                if (! is_array($line)) {
+                    continue;
+                }
+                $catId = isset($line['category_id']) ? (string) $line['category_id'] : '';
+                $isClassified = ($line['checks']['policy_classified'] ?? null) === true
+                    || ($line['decision'] ?? null) === 'propose_human_review';
+                if ($catId === '') {
+                    continue;
+                }
+                if ($catId === 'needs_review') {
+                    continue;
+                }
+                if (! $isClassified) {
+                    continue;
+                }
+
+                $name = $this->resolveCategoryName(
+                    $eval,
+                    $catId,
+                    isset($line['category_name']) ? (string) $line['category_name'] : (isset($line['top_category_name']) ? (string) $line['top_category_name'] : null),
+                    isset($line['explanation']) ? (string) $line['explanation'] : null,
+                    $policyVersions
+                );
+                if (! in_array($name, $names, true)) {
+                    $names[] = $name;
+                }
+                $confidences[] = $this->extractConfidence($line);
+            }
+
+            if ($names === []) {
+                return ['category_name' => null, 'confidence_percent' => null];
+            }
+
+            $summaryName = count($names) <= 2
+                ? implode(', ', $names)
+                : $names[0].', '.$names[1].' (+'.(count($names) - 2).' more)';
+
+            $avgConf = $confidences !== []
+                ? (int) round((array_sum($confidences) / count($confidences)) * 100)
+                : null;
+
+            return ['category_name' => $summaryName, 'confidence_percent' => $avgConf];
+        }
+
+        $confidence = isset($result['confidence']) && is_numeric($result['confidence'])
+            ? (int) round(((float) $result['confidence']) * 100)
+            : $this->extractConfidencePercent($result);
+
+        $catId = isset($result['category_id']) && is_string($result['category_id']) && $result['category_id'] !== ''
+            ? $result['category_id']
+            : null;
+        $topName = isset($result['top_category_name']) && is_string($result['top_category_name']) && $result['top_category_name'] !== ''
+            ? $result['top_category_name']
+            : null;
+
+        if ($topName !== null) {
+            return ['category_name' => $topName, 'confidence_percent' => $confidence];
+        }
+
+        if ($catId !== null) {
+            return [
+                'category_name' => $this->resolveCategoryName(
+                    $eval,
+                    $catId,
+                    null,
+                    isset($result['explanation']) ? (string) $result['explanation'] : null,
+                    $policyVersions
+                ),
+                'confidence_percent' => $confidence,
+            ];
+        }
+
+        return ['category_name' => null, 'confidence_percent' => $confidence];
+    }
+
+    /**
+     * @param  Collection<int, InstitutionPolicyVersion>|null  $policyVersions
+     */
+    private function resolveCategoryName(
+        InstitutionPolicyEvaluation $eval,
+        string $categoryId,
+        ?string $explicitName = null,
+        ?string $explanation = null,
+        ?Collection $policyVersions = null
+    ): string {
+        if ($explicitName !== null && trim($explicitName) !== '' && $explicitName !== $categoryId) {
+            return $explicitName;
+        }
+
+        if ($explanation !== null && preg_match('/JEV matched "([^"]+)"/i', $explanation, $matches) === 1) {
+            return $matches[1];
+        }
+
+        $policy = $policyVersions instanceof Collection
+            ? $policyVersions->get($eval->institution_policy_version_id)
+            : ($eval->institution_policy_version_id ? InstitutionPolicyVersion::query()->find($eval->institution_policy_version_id) : null);
+
+        if ($policy instanceof InstitutionPolicyVersion && is_array($policy->content['categories'] ?? null)) {
+            foreach ($policy->content['categories'] as $category) {
+                if (is_array($category) && ($category['id'] ?? null) === $categoryId && ! empty($category['name'])) {
+                    return (string) $category['name'];
+                }
+            }
+        }
+
+        return $explicitName !== null && trim($explicitName) !== '' ? $explicitName : $categoryId;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function extractConfidence(array $payload): float
+    {
+        if (isset($payload['confidence']) && is_numeric($payload['confidence'])) {
+            $val = (float) $payload['confidence'];
+
+            return $val > 1.0 ? $val / 100.0 : $val;
+        }
+
+        $explanation = isset($payload['explanation']) && is_string($payload['explanation']) ? $payload['explanation'] : '';
+        if ($explanation !== '' && preg_match('/with\s+(\d+(?:\.\d+)?)%\s+confidence/i', $explanation, $matches) === 1) {
+            return ((float) $matches[1]) / 100.0;
+        }
+
+        return 1.0;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function extractConfidencePercent(array $payload): ?int
+    {
+        $explanation = isset($payload['explanation']) && is_string($payload['explanation']) ? $payload['explanation'] : '';
+        if ($explanation !== '' && preg_match('/with\s+(\d+(?:\.\d+)?)%\s+confidence/i', $explanation, $matches) === 1) {
+            return (int) round((float) $matches[1]);
+        }
+
+        return null;
     }
 
     /**

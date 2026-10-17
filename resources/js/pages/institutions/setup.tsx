@@ -20,7 +20,13 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -101,15 +107,22 @@ export default function InstitutionSetup({
     policyTemplates = [],
 }: Props) {
     const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
-    const [selectedTemplate, setSelectedTemplate] = useState<string>('standard');
-    const [minReserve, setMinReserve] = useState<number>(institution.minimum_reserve || 500);
-    const [maxAutoPayment, setMaxAutoPayment] = useState<number>(institution.max_auto_payment || 50);
+    const [selectedTemplate, setSelectedTemplate] =
+        useState<string>('standard');
+    const [minReserve, setMinReserve] = useState<number>(
+        institution.minimum_reserve || 500,
+    );
+    const [maxAutoPayment, setMaxAutoPayment] = useState<number>(
+        institution.max_auto_payment || 50,
+    );
     const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false);
     const [submitting, setSubmitting] = useState<boolean>(false);
 
     const page = usePage();
-    const flash = (page.props as any).flash as { success?: string; error?: string; status?: string } | undefined;
+    const flash = (page.props as any).flash as
+        | { success?: string; error?: string; status?: string }
+        | undefined;
 
     useEffect(() => {
         if (flash?.success) {
@@ -123,7 +136,11 @@ export default function InstitutionSetup({
 
     const handleBudgetChange = (id: number, value: string) => {
         const val = parseFloat(value) || 0;
-        setBudgets(budgets.map((b) => (b.id === id ? { ...b, allocated_amount: val } : b)));
+        setBudgets(
+            budgets.map((b) =>
+                b.id === id ? { ...b, allocated_amount: val } : b,
+            ),
+        );
     };
 
     const handleSelectTemplate = (key: string) => {
@@ -134,7 +151,9 @@ export default function InstitutionSetup({
                 setMinReserve(parseFloat(tpl.controls.minimum_reserve) || 0);
             }
             if (tpl.controls.max_auto_payment) {
-                setMaxAutoPayment(parseFloat(tpl.controls.max_auto_payment) || 0);
+                setMaxAutoPayment(
+                    parseFloat(tpl.controls.max_auto_payment) || 0,
+                );
             }
         }
     };
@@ -154,23 +173,30 @@ export default function InstitutionSetup({
         e.preventDefault();
         setSubmitting(true);
 
-        router.post('/institutions/setup/complete', {
-            policy_template: selectedTemplate,
-            minimum_reserve: minReserve,
-            max_auto_payment: maxAutoPayment,
-            budgets: budgets.map((b) => ({
-                id: b.id,
-                allocated_amount: b.allocated_amount,
-            })),
-        }, {
-            onSuccess: () => {
-                window.location.href = '/finance';
+        router.post(
+            '/institutions/setup/complete',
+            {
+                policy_template: selectedTemplate,
+                minimum_reserve: minReserve,
+                max_auto_payment: maxAutoPayment,
+                budgets: budgets.map((b) => ({
+                    id: b.id,
+                    allocated_amount: b.allocated_amount,
+                })),
             },
-            onFinish: () => setSubmitting(false),
-        });
+            {
+                onSuccess: () => {
+                    window.location.href = '/finance';
+                },
+                onFinish: () => setSubmitting(false),
+            },
+        );
     };
 
-    const totalAllocated = budgets.reduce((acc, b) => acc + (Number(b.allocated_amount) || 0), 0);
+    const totalAllocated = budgets.reduce(
+        (acc, b) => acc + (Number(b.allocated_amount) || 0),
+        0,
+    );
 
     return (
         <div className="min-h-screen bg-[#0d0c0b] text-[#ede8e1] selection:bg-[#c4a46c]/30 selection:text-[#f3eee7] font-sans antialiased">
@@ -194,7 +220,10 @@ export default function InstitutionSetup({
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[11px] font-mono border-amber-500/30 bg-amber-500/10 text-amber-400">
+                        <Badge
+                            variant="outline"
+                            className="text-[11px] font-mono border-amber-500/30 bg-amber-500/10 text-amber-400"
+                        >
                             Setup Wizard · 5 Steps
                         </Badge>
                     </div>
@@ -212,7 +241,10 @@ export default function InstitutionSetup({
                         Welcome to OpenSinop, {institution.name}.
                     </h1>
                     <p className="text-sm sm:text-base text-stone-400 max-w-2xl leading-relaxed">
-                        Your sovereign school treasury, autonomous JEV finance agent, and multi-school tenancy are provisioned. Review and confirm your first-time application configuration below before opening your finance console.
+                        Your sovereign school treasury, autonomous JEV finance
+                        agent, and multi-school tenancy are provisioned. Review
+                        and confirm your first-time application configuration
+                        below before opening your finance console.
                     </p>
                 </div>
 
@@ -220,8 +252,12 @@ export default function InstitutionSetup({
                     <div className="mb-8 flex items-start gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-emerald-200 shadow-xl backdrop-blur-sm animate-in fade-in duration-300">
                         <CheckCircle2 className="size-5 shrink-0 text-emerald-400 mt-0.5" />
                         <div>
-                            <p className="font-semibold text-white">Tenancy Deployed Successfully</p>
-                            <p className="text-xs text-emerald-300/90 mt-0.5">{flash.success}</p>
+                            <p className="font-semibold text-white">
+                                Tenancy Deployed Successfully
+                            </p>
+                            <p className="text-xs text-emerald-300/90 mt-0.5">
+                                {flash.success}
+                            </p>
                         </div>
                     </div>
                 )}
@@ -237,7 +273,8 @@ export default function InstitutionSetup({
                                         1. Institution Profile & Identity
                                     </CardTitle>
                                     <CardDescription className="text-xs text-stone-400">
-                                        Academic domain, sovereign tenancy context, and accounting currency.
+                                        Academic domain, sovereign tenancy
+                                        context, and accounting currency.
                                     </CardDescription>
                                 </div>
                                 <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
@@ -247,20 +284,37 @@ export default function InstitutionSetup({
                         </CardHeader>
                         <CardContent className="pt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                             <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">School Slug</span>
-                                <span className="font-mono font-semibold text-white text-sm">{institution.slug}</span>
+                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                                    School Slug
+                                </span>
+                                <span className="font-mono font-semibold text-white text-sm">
+                                    {institution.slug}
+                                </span>
                             </div>
                             <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">Country / Timezone</span>
-                                <span className="font-medium text-white text-sm">{institution.country} · {institution.timezone}</span>
+                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                                    Country / Timezone
+                                </span>
+                                <span className="font-medium text-white text-sm">
+                                    {institution.country} ·{' '}
+                                    {institution.timezone}
+                                </span>
                             </div>
                             <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">Accounting Currency</span>
-                                <span className="font-mono font-bold text-emerald-400 text-sm">{institution.currency}</span>
+                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                                    Accounting Currency
+                                </span>
+                                <span className="font-mono font-bold text-emerald-400 text-sm">
+                                    {institution.currency}
+                                </span>
                             </div>
                             <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3.5 space-y-1">
-                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">Campus Domain</span>
-                                <span className="font-mono text-stone-300 text-sm truncate block">{institution.domain}</span>
+                                <span className="font-mono text-[10px] text-stone-400 uppercase tracking-wider block">
+                                    Campus Domain
+                                </span>
+                                <span className="font-mono text-stone-300 text-sm truncate block">
+                                    {institution.domain}
+                                </span>
                             </div>
                         </CardContent>
                     </Card>
@@ -275,28 +329,47 @@ export default function InstitutionSetup({
                                         2. Baseline Department Budgets
                                     </CardTitle>
                                     <CardDescription className="text-xs text-stone-400">
-                                        Allocated operational categories. JEV uses these to automatically review bills and authorize payment proposals.
+                                        Allocated operational categories. JEV
+                                        uses these to automatically review bills
+                                        and authorize payment proposals.
                                     </CardDescription>
                                 </div>
                                 <div className="text-right">
-                                    <span className="text-[10px] font-mono text-stone-400 uppercase tracking-wider block">Total Allocated</span>
-                                    <span className="text-sm font-mono font-bold text-white">{totalAllocated.toFixed(2)} {institution.currency}</span>
+                                    <span className="text-[10px] font-mono text-stone-400 uppercase tracking-wider block">
+                                        Total Allocated
+                                    </span>
+                                    <span className="text-sm font-mono font-bold text-white">
+                                        {totalAllocated.toFixed(2)}{' '}
+                                        {institution.currency}
+                                    </span>
                                 </div>
                             </div>
                         </CardHeader>
                         <CardContent className="pt-5 space-y-4">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {budgets.map((budget) => (
-                                    <div key={budget.id} className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 space-y-2">
+                                    <div
+                                        key={budget.id}
+                                        className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 space-y-2"
+                                    >
                                         <div className="flex items-center justify-between">
-                                            <span className="font-medium text-xs text-white">{budget.name}</span>
-                                            <Badge variant="outline" className="text-[10px] font-mono border-stone-700 text-stone-400">
+                                            <span className="font-medium text-xs text-white">
+                                                {budget.name}
+                                            </span>
+                                            <Badge
+                                                variant="outline"
+                                                className="text-[10px] font-mono border-stone-700 text-stone-400"
+                                            >
                                                 {budget.category}
                                             </Badge>
                                         </div>
                                         <div className="flex items-center gap-2 pt-1">
-                                            <Label htmlFor={`budget-${budget.id}`} className="text-xs text-stone-400 shrink-0 font-mono">
-                                                Allocation ({institution.currency}):
+                                            <Label
+                                                htmlFor={`budget-${budget.id}`}
+                                                className="text-xs text-stone-400 shrink-0 font-mono"
+                                            >
+                                                Allocation (
+                                                {institution.currency}):
                                             </Label>
                                             <Input
                                                 id={`budget-${budget.id}`}
@@ -304,7 +377,12 @@ export default function InstitutionSetup({
                                                 step="10"
                                                 min="0"
                                                 value={budget.allocated_amount}
-                                                onChange={(e) => handleBudgetChange(budget.id, e.target.value)}
+                                                onChange={(e) =>
+                                                    handleBudgetChange(
+                                                        budget.id,
+                                                        e.target.value,
+                                                    )
+                                                }
                                                 className="h-8 font-mono text-xs bg-stone-950 border-stone-700 text-white"
                                             />
                                         </div>
@@ -321,10 +399,12 @@ export default function InstitutionSetup({
                                 <div className="space-y-1">
                                     <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
                                         <Shield className="size-4.5 text-[#c4a46c]" />
-                                        3. Autonomous Arc Treasury & Safety Guardrails
+                                        3. Autonomous Arc Treasury & Safety
+                                        Guardrails
                                     </CardTitle>
                                     <CardDescription className="text-xs text-stone-400">
-                                        Arc blockchain settlement rails and JEV safety buffer settings.
+                                        Arc blockchain settlement rails and JEV
+                                        safety buffer settings.
                                     </CardDescription>
                                 </div>
                                 <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px]">
@@ -338,18 +418,33 @@ export default function InstitutionSetup({
                                 <div className="space-y-1">
                                     <span className="text-[11px] font-mono text-stone-400 uppercase tracking-wider flex items-center gap-1.5">
                                         <WalletIcon className="size-3.5 text-[#c4a46c]" />
-                                        School Treasury Address ({treasury.provider === 'circle' ? 'Autonomous Circle Agent Wallet' : 'Manual EVM Multisig'})
+                                        School Treasury Address (
+                                        {treasury.provider === 'circle'
+                                            ? 'Autonomous Circle Agent Wallet'
+                                            : 'Manual EVM Multisig'}
+                                        )
                                     </span>
-                                    <span className="font-mono text-xs text-white break-all">{treasury.address}</span>
+                                    <span className="font-mono text-xs text-white break-all">
+                                        {treasury.address}
+                                    </span>
                                 </div>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => copyToClipboard(treasury.address, 'address')}
+                                    onClick={() =>
+                                        copyToClipboard(
+                                            treasury.address,
+                                            'address',
+                                        )
+                                    }
                                     className="shrink-0 h-8 text-xs border-stone-700 hover:bg-stone-800 flex items-center gap-1.5 text-stone-300"
                                 >
-                                    {copiedAddress ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+                                    {copiedAddress ? (
+                                        <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                        <Copy className="size-3.5" />
+                                    )}
                                     {copiedAddress ? 'Copied' : 'Copy Address'}
                                 </Button>
                             </div>
@@ -357,35 +452,53 @@ export default function InstitutionSetup({
                             {/* Safety Threshold Inputs */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 space-y-2">
-                                    <Label htmlFor="min-reserve" className="text-xs font-medium text-white flex items-center gap-1.5">
-                                        Minimum Emergency Reserve ({institution.currency})
+                                    <Label
+                                        htmlFor="min-reserve"
+                                        className="text-xs font-medium text-white flex items-center gap-1.5"
+                                    >
+                                        Minimum Emergency Reserve (
+                                        {institution.currency})
                                     </Label>
                                     <p className="text-[11px] text-stone-400">
-                                        Funds below this balance cannot be spent by automated payment pipelines.
+                                        Funds below this balance cannot be spent
+                                        by automated payment pipelines.
                                     </p>
                                     <Input
                                         id="min-reserve"
                                         type="number"
                                         min="0"
                                         value={minReserve}
-                                        onChange={(e) => setMinReserve(parseFloat(e.target.value) || 0)}
+                                        onChange={(e) =>
+                                            setMinReserve(
+                                                parseFloat(e.target.value) || 0,
+                                            )
+                                        }
                                         className="h-8 font-mono text-xs bg-stone-950 border-stone-700 text-white"
                                     />
                                 </div>
 
                                 <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-4 space-y-2">
-                                    <Label htmlFor="max-auto-payment" className="text-xs font-medium text-white flex items-center gap-1.5">
-                                        Max Auto-Payment Limit ({institution.currency})
+                                    <Label
+                                        htmlFor="max-auto-payment"
+                                        className="text-xs font-medium text-white flex items-center gap-1.5"
+                                    >
+                                        Max Auto-Payment Limit (
+                                        {institution.currency})
                                     </Label>
                                     <p className="text-[11px] text-stone-400">
-                                        Invoices higher than this amount always require manual bursar approval.
+                                        Invoices higher than this amount always
+                                        require manual bursar approval.
                                     </p>
                                     <Input
                                         id="max-auto-payment"
                                         type="number"
                                         min="0"
                                         value={maxAutoPayment}
-                                        onChange={(e) => setMaxAutoPayment(parseFloat(e.target.value) || 0)}
+                                        onChange={(e) =>
+                                            setMaxAutoPayment(
+                                                parseFloat(e.target.value) || 0,
+                                            )
+                                        }
                                         className="h-8 font-mono text-xs bg-stone-950 border-stone-700 text-white"
                                     />
                                 </div>
@@ -403,7 +516,11 @@ export default function InstitutionSetup({
                                         4. JEV AI Policy & Operational Blueprint
                                     </CardTitle>
                                     <CardDescription className="text-xs text-stone-400">
-                                        Choose an out-of-the-box operational policy template. JEV AI uses this blueprint to classify invoices, match student tuition, and enforce fiscal guardrails.
+                                        Choose an out-of-the-box operational
+                                        policy template. JEV AI uses this
+                                        blueprint to classify invoices, match
+                                        student tuition, and enforce fiscal
+                                        guardrails.
                                     </CardDescription>
                                 </div>
                                 <Badge className="bg-[#c4a46c]/20 text-[#c4a46c] border border-[#c4a46c]/30 text-[10px]">
@@ -414,11 +531,16 @@ export default function InstitutionSetup({
                         <CardContent className="pt-5 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                                 {policyTemplates.map((template) => {
-                                    const isSelected = selectedTemplate === template.key;
+                                    const isSelected =
+                                        selectedTemplate === template.key;
                                     return (
                                         <div
                                             key={template.key}
-                                            onClick={() => handleSelectTemplate(template.key)}
+                                            onClick={() =>
+                                                handleSelectTemplate(
+                                                    template.key,
+                                                )
+                                            }
                                             className={`relative rounded-xl border p-4 cursor-pointer transition-all flex flex-col justify-between ${
                                                 isSelected
                                                     ? 'border-[#c4a46c] bg-[#c4a46c]/10 shadow-md ring-1 ring-[#c4a46c]/40'
@@ -433,7 +555,10 @@ export default function InstitutionSetup({
                                                     {isSelected ? (
                                                         <CheckCircle2 className="size-4 text-[#c4a46c] shrink-0" />
                                                     ) : (
-                                                        <Badge variant="outline" className="text-[9px] font-mono border-stone-700 text-stone-400">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-[9px] font-mono border-stone-700 text-stone-400"
+                                                        >
                                                             {template.badge}
                                                         </Badge>
                                                     )}
@@ -449,15 +574,37 @@ export default function InstitutionSetup({
                                             <div className="pt-3 mt-3 border-t border-stone-800/80 space-y-2">
                                                 <div className="flex items-center justify-between text-[11px] font-mono text-stone-400">
                                                     <span>Reserve:</span>
-                                                    <span className="text-white font-semibold">{template.controls.minimum_reserve} {institution.currency}</span>
+                                                    <span className="text-white font-semibold">
+                                                        {
+                                                            template.controls
+                                                                .minimum_reserve
+                                                        }{' '}
+                                                        {institution.currency}
+                                                    </span>
                                                 </div>
                                                 <div className="flex items-center justify-between text-[11px] font-mono text-stone-400">
                                                     <span>Auto-Pay Cap:</span>
-                                                    <span className="text-white font-semibold">{template.controls.max_auto_payment} {institution.currency}</span>
+                                                    <span className="text-white font-semibold">
+                                                        {
+                                                            template.controls
+                                                                .max_auto_payment
+                                                        }{' '}
+                                                        {institution.currency}
+                                                    </span>
                                                 </div>
                                                 <div className="flex items-center justify-between text-[10px] text-stone-400 pt-1">
-                                                    <span>{template.categories_count} Categories</span>
-                                                    <span>{template.examples_count} Scenarios</span>
+                                                    <span>
+                                                        {
+                                                            template.categories_count
+                                                        }{' '}
+                                                        Categories
+                                                    </span>
+                                                    <span>
+                                                        {
+                                                            template.examples_count
+                                                        }{' '}
+                                                        Scenarios
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -474,13 +621,20 @@ export default function InstitutionSetup({
                                 <div className="space-y-1">
                                     <CardTitle className="text-base font-serif font-bold text-white flex items-center gap-2">
                                         <GraduationCap className="size-4.5 text-[#c4a46c]" />
-                                        5. Student Enrollment Link (Share with Students)
+                                        5. Student Enrollment Link (Share with
+                                        Students)
                                     </CardTitle>
                                     <CardDescription className="text-xs text-stone-400">
-                                        Provide this direct link to your students to register their academic identity and link their Web3 payout wallet.
+                                        Provide this direct link to your
+                                        students to register their academic
+                                        identity and link their Web3 payout
+                                        wallet.
                                     </CardDescription>
                                 </div>
-                                <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-400">
+                                <Badge
+                                    variant="outline"
+                                    className="text-[10px] font-mono border-emerald-500/30 text-emerald-400"
+                                >
                                     Ready to Share
                                 </Badge>
                             </div>
@@ -494,11 +648,22 @@ export default function InstitutionSetup({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => copyToClipboard(studentRegistrationUrl, 'url')}
+                                    onClick={() =>
+                                        copyToClipboard(
+                                            studentRegistrationUrl,
+                                            'url',
+                                        )
+                                    }
                                     className="shrink-0 h-8 text-xs border-[#c4a46c]/40 text-[#c4a46c] hover:bg-[#c4a46c]/10 flex items-center gap-1.5"
                                 >
-                                    {copiedUrl ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
-                                    {copiedUrl ? 'Copied to Clipboard!' : 'Copy Student Link'}
+                                    {copiedUrl ? (
+                                        <Check className="size-3.5 text-emerald-400" />
+                                    ) : (
+                                        <Copy className="size-3.5" />
+                                    )}
+                                    {copiedUrl
+                                        ? 'Copied to Clipboard!'
+                                        : 'Copy Student Link'}
                                 </Button>
                             </div>
                         </CardContent>
@@ -511,7 +676,9 @@ export default function InstitutionSetup({
                                 Ready to open your Financial Operations Console?
                             </h3>
                             <p className="text-xs text-stone-400">
-                                Confirming will finalize your initial application setup and transition you to your live dashboard.
+                                Confirming will finalize your initial
+                                application setup and transition you to your
+                                live dashboard.
                             </p>
                         </div>
                         <Button

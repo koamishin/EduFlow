@@ -52,6 +52,8 @@ require_once __DIR__.'/Helpers/PaymentAuthorization.php';
 require_once __DIR__.'/Helpers/TuitionConsent.php';
 require_once __DIR__.'/Helpers/StudentBillFixtures.php';
 require_once __DIR__.'/Helpers/InstitutionPolicyFixtures.php';
+require_once __DIR__.'/Helpers/PaymentReservationFixtures.php';
+require_once __DIR__.'/Helpers/StandingMandateFixtures.php';
 
 if (! function_exists('mockExpectation')) {
     /**

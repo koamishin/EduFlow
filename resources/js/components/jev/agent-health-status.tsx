@@ -99,15 +99,20 @@ export function AgentHealthStatus({
         timestamp: new Date().toISOString(),
     };
 
-    const [health, setHealth] = useState<JevAiHealth>(initialHealth ?? defaultHealth);
+    const [health, setHealth] = useState<JevAiHealth>(
+        initialHealth ?? defaultHealth,
+    );
     const [testing, setTesting] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [testFeedback, setTestFeedback] = useState<string | null>(null);
 
     const getCsrfToken = () => {
         return (
-            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)
-                ?.content ?? ''
+            (
+                document.querySelector(
+                    'meta[name="csrf-token"]',
+                ) as HTMLMetaElement
+            )?.content ?? ''
         );
     };
 
@@ -133,7 +138,8 @@ export function AgentHealthStatus({
                     );
                 } else {
                     setTestFeedback(
-                        json.data.ai?.message || 'AI Agent is currently unreachable.',
+                        json.data.ai?.message ||
+                            'AI Agent is currently unreachable.',
                     );
                 }
             }
@@ -163,7 +169,9 @@ export function AgentHealthStatus({
                 setTestFeedback(json.message);
             }
         } catch (err: any) {
-            setTestFeedback(err?.message || 'Failed to update advisory settings.');
+            setTestFeedback(
+                err?.message || 'Failed to update advisory settings.',
+            );
         } finally {
             setToggling(false);
         }
@@ -186,7 +194,9 @@ export function AgentHealthStatus({
                                   : 'bg-rose-500'
                         }`}
                     />
-                    <span className="font-semibold text-foreground">JEV Brain:</span>
+                    <span className="font-semibold text-foreground">
+                        JEV Brain:
+                    </span>
                     <Badge
                         variant={
                             health.jev.status === 'online'
@@ -218,7 +228,9 @@ export function AgentHealthStatus({
                                   : 'bg-rose-500'
                         }`}
                     />
-                    <span className="font-semibold text-foreground">AI Agent:</span>
+                    <span className="font-semibold text-foreground">
+                        AI Agent:
+                    </span>
                     <Badge
                         variant={
                             health.ai.status === 'online'
@@ -246,7 +258,9 @@ export function AgentHealthStatus({
                     className="h-6 gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
                     title="Ping AI Agent & Check JEV Status"
                 >
-                    <RefreshCw className={`size-3 ${testing ? 'animate-spin' : ''}`} />
+                    <RefreshCw
+                        className={`size-3 ${testing ? 'animate-spin' : ''}`}
+                    />
                     {testing ? 'Testing...' : 'Test Connection'}
                 </Button>
             </div>
@@ -298,7 +312,9 @@ export function AgentHealthStatus({
                                 {health.jev.policy_title}
                             </p>
                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                <span>{health.jev.categories_count} Categories</span>
+                                <span>
+                                    {health.jev.categories_count} Categories
+                                </span>
                                 <span>·</span>
                                 <span>{health.jev.clauses_count} Clauses</span>
                                 {health.jev.has_active_controls && (
@@ -353,7 +369,10 @@ export function AgentHealthStatus({
                                 {health.ai.model}
                             </p>
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span className="truncate max-w-[200px]" title={health.ai.endpoint}>
+                                <span
+                                    className="truncate max-w-[200px]"
+                                    title={health.ai.endpoint}
+                                >
                                     {health.ai.endpoint.replace('https://', '')}
                                 </span>
                                 <Button
@@ -364,7 +383,9 @@ export function AgentHealthStatus({
                                     onClick={handleTestConnection}
                                     className="h-5 px-1.5 text-xs text-primary hover:text-primary/80"
                                 >
-                                    <RefreshCw className={`size-3 mr-1 ${testing ? 'animate-spin' : ''}`} />
+                                    <RefreshCw
+                                        className={`size-3 mr-1 ${testing ? 'animate-spin' : ''}`}
+                                    />
                                     {testing ? 'Testing...' : 'Ping Agent'}
                                 </Button>
                             </div>
@@ -375,11 +396,17 @@ export function AgentHealthStatus({
                 {/* Status Notice or Feedback */}
                 {testFeedback && (
                     <Alert
-                        variant={health.ai.status === 'online' ? 'success' : 'warning'}
+                        variant={
+                            health.ai.status === 'online'
+                                ? 'success'
+                                : 'warning'
+                        }
                         className="py-2 text-xs"
                     >
                         <CheckCircle2 className="size-3.5" />
-                        <AlertTitle className="text-xs font-medium">Connectivity Test Result</AlertTitle>
+                        <AlertTitle className="text-xs font-medium">
+                            Connectivity Test Result
+                        </AlertTitle>
                         <AlertDescription className="text-xs">
                             {testFeedback}
                         </AlertDescription>
@@ -395,7 +422,9 @@ export function AgentHealthStatus({
                                 AI Advisory is currently disabled
                             </AlertTitle>
                             <AlertDescription className="text-xs text-muted-foreground">
-                                JEV will simulate using deterministic policy matching. To enable AI neural classification, acknowledge disclosure:
+                                JEV will simulate using deterministic policy
+                                matching. To enable AI neural classification,
+                                acknowledge disclosure:
                             </AlertDescription>
                             <div className="pt-1">
                                 <Button
@@ -407,7 +436,9 @@ export function AgentHealthStatus({
                                     className="gap-1 h-6 text-xs"
                                 >
                                     <Power className="size-3" />
-                                    {toggling ? 'Enabling...' : 'Enable AI Advisory'}
+                                    {toggling
+                                        ? 'Enabling...'
+                                        : 'Enable AI Advisory'}
                                 </Button>
                             </div>
                         </div>
@@ -431,7 +462,8 @@ export function AgentHealthStatus({
                                 JEV Engine & AI Agent Operational Telemetry
                             </FrameTitle>
                             <FrameDescription className="text-xs">
-                                Live health, neural response latency, and fail-closed deterministic policy status
+                                Live health, neural response latency, and
+                                fail-closed deterministic policy status
                             </FrameDescription>
                         </div>
                     </div>
@@ -448,7 +480,9 @@ export function AgentHealthStatus({
                             <RefreshCw
                                 className={`size-3.5 ${testing ? 'animate-spin' : ''}`}
                             />
-                            {testing ? 'Testing Agent...' : 'Test AI Connection'}
+                            {testing
+                                ? 'Testing Agent...'
+                                : 'Test AI Connection'}
                         </Button>
                     </div>
                 </div>
@@ -502,31 +536,51 @@ export function AgentHealthStatus({
 
                         <div className="rounded-lg bg-muted/40 p-3 space-y-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Active Document:</span>
-                                <span className="font-medium text-foreground truncate max-w-[220px]" title={health.jev.policy_title}>
+                                <span className="text-muted-foreground">
+                                    Active Document:
+                                </span>
+                                <span
+                                    className="font-medium text-foreground truncate max-w-[220px]"
+                                    title={health.jev.policy_title}
+                                >
                                     {health.jev.policy_title}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Rules Loaded:</span>
+                                <span className="text-muted-foreground">
+                                    Rules Loaded:
+                                </span>
                                 <span className="font-semibold text-foreground">
-                                    {health.jev.categories_count} Categories · {health.jev.clauses_count} Clauses
+                                    {health.jev.categories_count} Categories ·{' '}
+                                    {health.jev.clauses_count} Clauses
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Financial Controls:</span>
+                                <span className="text-muted-foreground">
+                                    Financial Controls:
+                                </span>
                                 <Badge
-                                    variant={health.jev.has_active_controls ? 'success-light' : 'warning-light'}
+                                    variant={
+                                        health.jev.has_active_controls
+                                            ? 'success-light'
+                                            : 'warning-light'
+                                    }
                                     size="sm"
                                 >
-                                    {health.jev.has_active_controls ? 'Active & Enforcing' : 'Standby / Paused'}
+                                    {health.jev.has_active_controls
+                                        ? 'Active & Enforcing'
+                                        : 'Standby / Paused'}
                                 </Badge>
                             </div>
                             {health.jev.published_at && (
                                 <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">Published At:</span>
+                                    <span className="text-muted-foreground">
+                                        Published At:
+                                    </span>
                                     <span className="text-foreground">
-                                        {new Date(health.jev.published_at).toLocaleString()}
+                                        {new Date(
+                                            health.jev.published_at,
+                                        ).toLocaleString()}
                                     </span>
                                 </div>
                             )}
@@ -535,7 +589,9 @@ export function AgentHealthStatus({
                         <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                             <Shield className="size-3 text-emerald-500 shrink-0" />
                             <span>
-                                Fail-closed architecture: JEV holds any ambiguous transactions for dual-custody human signoff.
+                                Fail-closed architecture: JEV holds any
+                                ambiguous transactions for dual-custody human
+                                signoff.
                             </span>
                         </p>
                     </div>
@@ -561,7 +617,8 @@ export function AgentHealthStatus({
                                         Autonomous AI Agent
                                     </h4>
                                     <p className="text-xs text-muted-foreground">
-                                        Neural policy classifier & pipeline advisor
+                                        Neural policy classifier & pipeline
+                                        advisor
                                     </p>
                                 </div>
                             </div>
@@ -586,30 +643,49 @@ export function AgentHealthStatus({
 
                         <div className="rounded-lg bg-muted/40 p-3 space-y-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">AI Model:</span>
+                                <span className="text-muted-foreground">
+                                    AI Model:
+                                </span>
                                 <span className="font-mono font-medium text-foreground">
                                     {health.ai.model}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Gateway Endpoint:</span>
-                                <span className="font-mono text-muted-foreground truncate max-w-[200px]" title={health.ai.endpoint}>
+                                <span className="text-muted-foreground">
+                                    Gateway Endpoint:
+                                </span>
+                                <span
+                                    className="font-mono text-muted-foreground truncate max-w-[200px]"
+                                    title={health.ai.endpoint}
+                                >
                                     {health.ai.endpoint}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Roundtrip Latency:</span>
+                                <span className="text-muted-foreground">
+                                    Roundtrip Latency:
+                                </span>
                                 <span className="font-semibold text-foreground">
-                                    {health.ai.latency_ms ? `${health.ai.latency_ms} ms` : 'Awaiting ping test'}
+                                    {health.ai.latency_ms
+                                        ? `${health.ai.latency_ms} ms`
+                                        : 'Awaiting ping test'}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Provider Disclosure:</span>
+                                <span className="text-muted-foreground">
+                                    Provider Disclosure:
+                                </span>
                                 <Badge
-                                    variant={health.ai.disclosure_accepted ? 'success-light' : 'warning-light'}
+                                    variant={
+                                        health.ai.disclosure_accepted
+                                            ? 'success-light'
+                                            : 'warning-light'
+                                    }
                                     size="sm"
                                 >
-                                    {health.ai.disclosure_accepted ? 'Acknowledged' : 'Pending Signoff'}
+                                    {health.ai.disclosure_accepted
+                                        ? 'Acknowledged'
+                                        : 'Pending Signoff'}
                                 </Badge>
                             </div>
                         </div>
@@ -629,7 +705,9 @@ export function AgentHealthStatus({
                                     className="gap-1 text-xs"
                                 >
                                     <Power className="size-3" />
-                                    {toggling ? 'Enabling...' : 'Enable AI Advisory'}
+                                    {toggling
+                                        ? 'Enabling...'
+                                        : 'Enable AI Advisory'}
                                 </Button>
                             </div>
                         ) : (
@@ -648,11 +726,17 @@ export function AgentHealthStatus({
                 {testFeedback && (
                     <div className="mt-4">
                         <Alert
-                            variant={health.ai.status === 'online' ? 'success' : 'warning'}
+                            variant={
+                                health.ai.status === 'online'
+                                    ? 'success'
+                                    : 'warning'
+                            }
                             className="text-xs py-2"
                         >
                             <CheckCircle2 className="size-3.5" />
-                            <AlertTitle className="text-xs font-medium">Connectivity Test Status</AlertTitle>
+                            <AlertTitle className="text-xs font-medium">
+                                Connectivity Test Status
+                            </AlertTitle>
                             <AlertDescription className="text-xs">
                                 {testFeedback}
                             </AlertDescription>

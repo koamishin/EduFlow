@@ -12,11 +12,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
-final class JevHealthService
+final readonly class JevHealthService
 {
     public function __construct(
-        private readonly AiSettings $settings,
-        private readonly InstitutionPolicyWorkspace $workspace,
+        private AiSettings $settings,
+        private InstitutionPolicyWorkspace $workspace,
     ) {}
 
     /**
@@ -154,7 +154,7 @@ final class JevHealthService
             ];
         }
 
-        if (empty($endpoint)) {
+        if ($endpoint === '' || $endpoint === '0') {
             return [
                 'status' => 'misconfigured',
                 'provider' => $provider,
@@ -211,7 +211,7 @@ final class JevHealthService
 
         try {
             $client = Http::timeout($timeout);
-            if (! empty($key)) {
+            if ($key !== '' && $key !== '0') {
                 $client = $client->withToken($key);
             }
 

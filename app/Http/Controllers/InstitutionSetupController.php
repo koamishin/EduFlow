@@ -72,14 +72,14 @@ class InstitutionSetupController extends Controller
                 'mainnet' => [
                     'chainId' => 5040,
                     'name' => 'Arc Mainnet',
-                    'rpc' => 'https://rpc.arc.network',
-                    'explorer' => 'https://explorer.arc.network',
+                    'rpc' => 'https://rpc.mainnet.arc.io',
+                    'explorer' => 'https://explorer.arc.io',
                 ],
                 'testnet' => [
                     'chainId' => 5042,
                     'name' => 'Arc Testnet',
-                    'rpc' => 'https://testnet-rpc.arc.network',
-                    'explorer' => 'https://testnet.arcscan.io',
+                    'rpc' => 'https://rpc.testnet.arc.io',
+                    'explorer' => 'https://testnet.arcscan.app',
                 ],
             ],
             'policyTemplates' => app(InstitutionPolicyTemplates::class)->all($org),

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\DTOs;
 
+use App\Services\ArcNetworkGateway;
+
 /**
  * A student's on-chain wallet state at a point in time.
  *
@@ -78,7 +80,7 @@ final readonly class StudentWalletSnapshot
             'address' => $this->address,
             'balance' => $this->balance,
             'chain' => $this->chain,
-            'explorer_url' => $this->explorerUrl,
+            'explorer_url' => ArcNetworkGateway::normalizeExplorerUrl($this->explorerUrl),
             'is_fake' => $this->isFake,
             'is_available' => $this->isReadable(),
             'state' => $this->state->value,

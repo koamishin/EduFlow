@@ -13,20 +13,27 @@ interface NetworkBadgeProps {
     compact?: boolean;
 }
 
-export function NetworkBadge({ className = '', compact = false }: NetworkBadgeProps) {
+export function NetworkBadge({
+    className = '',
+    compact = false,
+}: NetworkBadgeProps) {
     const page = usePage();
-    const network = page.props.network as {
-        isMainnet: boolean;
-        name: string;
-        chainCode: string;
-        chainId: number;
-        explorerUrl: string;
-    } | undefined;
+    const network = page.props.network as
+        | {
+              isMainnet: boolean;
+              name: string;
+              chainCode: string;
+              chainId: number;
+              explorerUrl: string;
+          }
+        | undefined;
 
     const isMainnet = network?.isMainnet ?? false;
     const name = network?.name ?? (isMainnet ? 'Arc Mainnet' : 'Arc Testnet');
     const chainId = network?.chainId ?? (isMainnet ? 5040 : 5042);
-    const explorerUrl = network?.explorerUrl ?? (isMainnet ? 'https://explorer.arc.network' : 'https://testnet.arcscan.io');
+    const explorerUrl =
+        network?.explorerUrl ??
+        (isMainnet ? 'https://explorer.arc.io' : 'https://testnet.arcscan.app');
 
     const badgeContent = (
         <a
@@ -52,7 +59,11 @@ export function NetworkBadge({ className = '', compact = false }: NetworkBadgePr
                 />
             </span>
             <span className="font-mono font-medium">
-                {compact ? (isMainnet ? 'Mainnet' : 'Testnet') : `${name} (${chainId})`}
+                {compact
+                    ? isMainnet
+                        ? 'Mainnet'
+                        : 'Testnet'
+                    : `${name} (${chainId})`}
             </span>
             <ExternalLink className="size-2.5 opacity-60" />
         </a>
@@ -60,12 +71,14 @@ export function NetworkBadge({ className = '', compact = false }: NetworkBadgePr
 
     return (
         <Tooltip>
-            <TooltipTrigger asChild>
-                {badgeContent}
-            </TooltipTrigger>
+            <TooltipTrigger asChild>{badgeContent}</TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
-                <p className="font-semibold">{name} (Chain ID: {chainId})</p>
-                <p className="text-[11px] text-muted-foreground">Click to open Arcscan block explorer</p>
+                <p className="font-semibold">
+                    {name} (Chain ID: {chainId})
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                    Click to open Arcscan block explorer
+                </p>
             </TooltipContent>
         </Tooltip>
     );

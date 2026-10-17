@@ -9,7 +9,6 @@ use Throwable;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway as ArcNetworkGatewayContract;
 use Yukazakiri\Lepton\Contracts\JsonTransport;
 use Yukazakiri\Lepton\Support\Amounts;
-use Yukazakiri\Lepton\Support\CliRunner;
 use Yukazakiri\Lepton\Support\LeptonRuntimeException;
 
 final class ArcNetworkGateway implements ArcNetworkGatewayContract
@@ -20,9 +19,9 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
 
     public const TESTNET_RPC_URL = 'https://rpc.testnet.arc.io';
 
-    public const MAINNET_EXPLORER = 'https://explorer.arc.network';
+    public const MAINNET_EXPLORER = 'https://explorer.arc.io';
 
-    public const TESTNET_EXPLORER = 'https://testnet.arcscan.io';
+    public const TESTNET_EXPLORER = 'https://testnet.arcscan.app';
 
     public const MAINNET_CHAIN_ID = 5040;
 
@@ -31,7 +30,6 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
     public const TESTNET_CHAIN_ID_ALT = 5042002;
 
     public function __construct(
-        private readonly ?CliRunner $arc = null,
         private readonly string $chainCode = 'ARC-TESTNET',
         private readonly int $chainId = 5042,
         private readonly ?string $treasuryAddress = null,
@@ -97,12 +95,16 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
 
     public static function isMainnetGateway(ArcNetworkGatewayContract $gateway): bool
     {
-        if (method_exists($gateway, 'isMainnet')) {
-            return $gateway->isMainnet();
-        }
+        try {
+            if (method_exists($gateway, 'isMainnet')) {
+                return $gateway->isMainnet();
+            }
 
-        return in_array($gateway->chainCode(), ['ARC', 'ARC-MAINNET'], true)
-            || $gateway->chainId() === self::MAINNET_CHAIN_ID;
+            return in_array($gateway->chainCode(), ['ARC', 'ARC-MAINNET'], true)
+                || $gateway->chainId() === self::MAINNET_CHAIN_ID;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     public function isMainnet(): bool
@@ -111,15 +113,46 @@ final class ArcNetworkGateway implements ArcNetworkGatewayContract
             || $this->chainId === self::MAINNET_CHAIN_ID;
     }
 
+    public static function normalizeExplorerUrl(?string $url): ?string
+    {
+        if (! is_string($url) || $url === '') {
+            return $url;
+        }
+
+        return str_replace(
+            [
+                'https://testnet.arcscan.io',
+                'http://testnet.arcscan.io',
+                'https://explorer.testnet.arc.network',
+                'http://explorer.testnet.arc.network',
+                'https://explorer.arc.network',
+                'http://explorer.arc.network',
+            ],
+            [
+                self::TESTNET_EXPLORER,
+                self::TESTNET_EXPLORER,
+                self::TESTNET_EXPLORER,
+                self::TESTNET_EXPLORER,
+                self::MAINNET_EXPLORER,
+                self::MAINNET_EXPLORER,
+            ],
+            $url,
+        );
+    }
+
     private function explorerBase(): string
     {
         if ($this->isMainnet()) {
-            return $this->mainnetExplorer
+            $base = $this->mainnetExplorer
                 ?: (string) config('lepton.explorer.mainnet', self::MAINNET_EXPLORER);
+
+            return (string) self::normalizeExplorerUrl($base);
         }
 
-        return $this->testnetExplorer
+        $base = $this->testnetExplorer
             ?: (string) config('lepton.explorer.testnet', self::TESTNET_EXPLORER);
+
+        return (string) self::normalizeExplorerUrl($base);
     }
 
     public function rpc(string $method, array $params = []): mixed

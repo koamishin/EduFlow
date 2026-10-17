@@ -102,7 +102,7 @@ test('finance jev analytics page renders with health telemetry prop', function (
     $this->actingAs($this->financeOfficer)
         ->get(route('finance.jev-analytics'))
         ->assertOk()
-        ->assertInertia(fn (AssertableInertia $page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('finance/analytics')
             ->has('health')
             ->has('breakdown')
@@ -115,7 +115,7 @@ test('finance policies page renders with health telemetry prop', function (): vo
     $this->actingAs($this->admin)
         ->get(route('finance.policies.index'))
         ->assertOk()
-        ->assertInertia(fn (AssertableInertia $page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('finance/policies/index')
             ->has('health')
             ->has('versions')

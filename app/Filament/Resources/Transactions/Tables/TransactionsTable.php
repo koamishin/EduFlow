@@ -8,6 +8,7 @@ use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
 use App\Models\InstitutionPolicyEvaluation;
 use App\Models\Transaction;
+use App\Services\ArcNetworkGateway as AppArcNetworkGateway;
 use App\Services\LeptonReconciliationService;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
@@ -278,11 +279,13 @@ class TransactionsTable
         $captured = $record->metadata['explorer_url'] ?? null;
 
         if (is_string($captured) && $captured !== '') {
-            return $captured;
+            return AppArcNetworkGateway::normalizeExplorerUrl($captured);
         }
 
         try {
-            return app(ArcNetworkGateway::class)->explorerUrl($record->provider_tx_hash);
+            return AppArcNetworkGateway::normalizeExplorerUrl(
+                app(ArcNetworkGateway::class)->explorerUrl($record->provider_tx_hash)
+            );
         } catch (Throwable) {
             return null;
         }

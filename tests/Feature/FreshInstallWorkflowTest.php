@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -24,7 +25,7 @@ class FreshInstallWorkflowTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertInertia(fn (Assert $page) => $page
+        $response->assertInertia(fn (Assert $page): AssertableInertia => $page
             ->component('welcome')
             ->where('hasInstitutions', false)
             ->where('institutionCount', 0)
@@ -56,7 +57,7 @@ class FreshInstallWorkflowTest extends TestCase
         $response = $this->get('/register');
 
         $response->assertOk();
-        $response->assertInertia(fn (Assert $page) => $page
+        $response->assertInertia(fn (Assert $page): AssertableInertia => $page
             ->component('auth/register')
             ->where('hasInstitutions', false)
             ->has('institutions', 0)
@@ -83,7 +84,7 @@ class FreshInstallWorkflowTest extends TestCase
         $response = $this->get('/login');
 
         $response->assertOk();
-        $response->assertInertia(fn (Assert $page) => $page
+        $response->assertInertia(fn (Assert $page): AssertableInertia => $page
             ->component('auth/login')
             ->where('hasInstitutions', false)
         );
@@ -142,7 +143,7 @@ class FreshInstallWorkflowTest extends TestCase
         $response = $this->actingAs($admin)->get('/institutions/setup');
 
         $response->assertOk();
-        $response->assertInertia(fn (Assert $page) => $page
+        $response->assertInertia(fn (Assert $page): AssertableInertia => $page
             ->component('institutions/setup')
             ->where('institution.name', 'Imperial Science Institute')
             ->where('institution.slug', 'imperial-science')
@@ -236,7 +237,7 @@ class FreshInstallWorkflowTest extends TestCase
         // Registration page now has hasInstitutions = true
         $regResponse = $this->get('/register');
         $regResponse->assertOk();
-        $regResponse->assertInertia(fn (Assert $page) => $page
+        $regResponse->assertInertia(fn (Assert $page): AssertableInertia => $page
             ->component('auth/register')
             ->where('hasInstitutions', true)
             ->has('institutions', 1)

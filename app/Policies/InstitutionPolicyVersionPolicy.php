@@ -45,26 +45,7 @@ class InstitutionPolicyVersionPolicy
             return false;
         }
 
-        $staffCount = User::query()
-            ->where('organization_id', $version->organization_id)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['admin', 'super_admin', 'finance_officer'])->where('guard_name', 'web'))
-            ->count();
-
-        if ($staffCount > 1 && $user->id === $version->created_by && ! $user->hasRole('super_admin')) {
-            $isTemplate = collect([
-                'Standard Academic Operations',
-                'Campus Fest & Student Activities',
-                'STEM Labs & Research Procurement',
-                'Autonomous Fast-Track Operations',
-                'Strict Fiscal Governance',
-            ])->contains(fn ($title) => str_contains($version->title, $title));
-
-            if (! $isTemplate) {
-                return false;
-            }
-        }
-
-        return true;
+        return $user->id !== $version->created_by || $version->isSystemVerified();
     }
 
     /**

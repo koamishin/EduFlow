@@ -92,6 +92,15 @@ class InstitutionPolicyVersion extends Model
         }
     }
 
+    public function isSystemVerified(): bool
+    {
+        return InstitutionPolicyAssessment::query()
+            ->where('institution_policy_version_id', $this->id)
+            ->where('provider', 'System Template Verifier')
+            ->where('state', 'completed')
+            ->exists();
+    }
+
     /** @return BelongsTo<FinancePolicyVersion, $this> */
     public function financePolicy(): BelongsTo
     {

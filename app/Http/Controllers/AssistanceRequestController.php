@@ -14,6 +14,7 @@ use App\Http\Requests\StoreAssistanceRequest;
 use App\Http\Requests\StoreAssistanceRequestRequest;
 use App\Models\AssistanceRequest;
 use App\Models\Transaction;
+use App\Services\ArcNetworkGateway;
 use App\Services\CurrencyConverter;
 use App\Services\DecisionExplainer;
 use Illuminate\Http\RedirectResponse;
@@ -101,7 +102,9 @@ class AssistanceRequestController extends Controller
                     'amount' => number_format((float) $t->amount, 2).' USDC',
                     'status' => $t->status instanceof \BackedEnum ? $t->status->value : (string) $t->status,
                     'network' => $t->network,
-                    'explorer_url' => $t->metadata['explorer_url'] ?? ($t->provider_tx_hash ? 'https://testnet.arcscan.app/tx/'.$t->provider_tx_hash : null),
+                    'explorer_url' => ArcNetworkGateway::normalizeExplorerUrl(
+                        $t->metadata['explorer_url'] ?? ($t->provider_tx_hash ? 'https://testnet.arcscan.app/tx/'.$t->provider_tx_hash : null)
+                    ),
                     'executed_at' => $t->executed_at?->toIso8601String(),
                 ])
                 ->values()

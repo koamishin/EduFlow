@@ -9,7 +9,6 @@ use App\Models\StudentBill;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use Carbon\CarbonInterface;
-use LogicException;
 
 /**
  * A bill is a record that a debt exists. Nothing in this lane proves money

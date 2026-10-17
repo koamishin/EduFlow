@@ -201,14 +201,14 @@ class JevAnalyticsDashboard extends Page implements HasTable
 
                 TextColumn::make('category_name')
                     ->label('Policy Category / Confidence')
-                    ->state(function (InstitutionPolicyEvaluation $record): string {
-                        $result = $record->result;
-                        if (! is_array($result)) {
+                    ->state(function (InstitutionPolicyEvaluation $record) use ($analytics): string {
+                        if (! is_array($record->result)) {
                             return '—';
                         }
-                        $cat = $result['top_category_name'] ?? $result['category_id'] ?? null;
-                        $conf = isset($result['confidence']) && is_numeric($result['confidence'])
-                            ? round(((float) $result['confidence']) * 100).'%'
+                        $summary = $analytics->describeEvaluationCategory($record);
+                        $cat = $summary['category_name'];
+                        $conf = $summary['confidence_percent'] !== null
+                            ? $summary['confidence_percent'].'%'
                             : null;
 
                         if ($cat && $conf) {

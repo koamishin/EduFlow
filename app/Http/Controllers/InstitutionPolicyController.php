@@ -176,12 +176,58 @@ class InstitutionPolicyController extends Controller
             'message' => $autoPublish
                 ? 'Policy template successfully applied and activated for JEV AI.'
                 : 'Policy template saved as a draft revision in your workspace.',
-            'version' => $result['version']->only(['id', 'title', 'content', 'content_digest', 'created_at']),
+            'version' => $result['version']->only(['id', 'title', 'created_by', 'content', 'content_digest', 'created_at']),
             'publication' => $result['publication'] ? [
                 'id' => $result['publication']->id,
+                'institution_policy_version_id' => $result['publication']->institution_policy_version_id,
                 'publication_digest' => $result['publication']->publication_digest,
+                'approved_by' => $result['publication']->approved_by,
                 'controls_active' => $result['publication']->hasActiveControls(),
             ] : null,
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Save and optionally activate a guided/custom policy revision in 1-click.
+     */
+    public function quickActivate(
+        Request $request,
+        InstallationInstitution $institutions,
+        InstitutionPolicyTemplates $templates
+    ): JsonResponse {
+        Gate::forUser($request->user())->authorize('create', InstitutionPolicyVersion::class);
+        $institution = $institutions->require();
+
+        $autoPublish = (bool) ($request->input('auto_publish', true));
+        if ($autoPublish && ! $request->user()->hasAnyRole(['admin', 'super_admin'])) {
+            throw ValidationException::withMessages([
+                'publication' => 'Only administrators can directly activate policies.',
+            ]);
+        }
+
+        $reason = is_string($request->input('reason')) ? $request->input('reason') : null;
+        $result = $templates->saveAndActivateCustom(
+            $request->user(),
+            $institution,
+            $request->all(),
+            $autoPublish,
+            $reason
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $autoPublish
+                ? "Policy '{$result['version']->title}' verified and activated for JEV AI."
+                : "Policy '{$result['version']->title}' saved as a draft revision in your workspace.",
+            'version' => $result['version']->only(['id', 'title', 'created_by', 'content', 'content_digest', 'created_at']),
+            'publication' => $result['publication'] ? [
+                'id' => $result['publication']->id,
+                'institution_policy_version_id' => $result['publication']->institution_policy_version_id,
+                'publication_digest' => $result['publication']->publication_digest,
+                'approved_by' => $result['publication']->approved_by,
+                'controls_active' => $result['publication']->hasActiveControls(),
+            ] : null,
+            'can_execute' => false,
         ])->header('Cache-Control', 'no-store, private');
     }
 
@@ -201,10 +247,26 @@ class InstitutionPolicyController extends Controller
         $data = $request->validate([
             'description' => ['required', 'string', 'max:1000'],
             'version_id' => ['nullable', 'integer'],
+            'draft_content' => ['nullable', 'array'],
+            'draft_content.title' => ['nullable', 'string', 'max:160'],
+            'draft_content.categories' => ['nullable', 'array', 'max:30'],
+            'draft_content.clauses' => ['nullable', 'array', 'max:40'],
         ]);
 
         $policy = null;
-        if (! empty($data['version_id'])) {
+        if (! empty($data['draft_content']['categories']) && is_array($data['draft_content']['categories'])) {
+            $policy = new InstitutionPolicyVersion([
+                'organization_id' => $institution->id,
+                'title' => (string) ($data['draft_content']['title'] ?? "{$institution->name} Draft Policy"),
+                'content' => [
+                    'title' => (string) ($data['draft_content']['title'] ?? "{$institution->name} Draft Policy"),
+                    'categories' => $data['draft_content']['categories'],
+                    'clauses' => is_array($data['draft_content']['clauses'] ?? null) ? $data['draft_content']['clauses'] : [],
+                ],
+            ]);
+        }
+
+        if (! $policy && ! empty($data['version_id'])) {
             $policy = InstitutionPolicyVersion::query()
                 ->where('organization_id', $institution->id)
                 ->find($data['version_id']);
@@ -224,7 +286,8 @@ class InstitutionPolicyController extends Controller
                 ->first();
         }
 
-        if (! $policy || ! $policy->hasValidContent()) {
+        $hasDraftCategories = ! empty($policy?->content['categories']) && is_array($policy?->content['categories']);
+        if (! $policy || (! $policy->exists && ! $hasDraftCategories) || ($policy->exists && ! $policy->hasValidContent())) {
             return response()->json([
                 'data' => [
                     'status' => 'needs_review',
@@ -305,7 +368,7 @@ class InstitutionPolicyController extends Controller
 
         if ($matchedCategory && $highestScore >= 2) {
             $clauses = array_column($policy->content['clauses'] ?? [], 'text', 'id');
-            $citations = array_map(fn ($id) => ['clause_id' => $id, 'quote' => $clauses[$id] ?? ''], $matchedCategory['clause_ids'] ?? []);
+            $citations = array_map(fn ($id): array => ['clause_id' => $id, 'quote' => $clauses[$id] ?? ''], $matchedCategory['clause_ids'] ?? []);
 
             return response()->json([
                 'data' => [

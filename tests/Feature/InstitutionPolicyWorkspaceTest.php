@@ -24,6 +24,7 @@ use App\Services\FinanceWorkflows;
 use App\Services\InstallationInstitution;
 use App\Services\InstitutionPolicyAdvice;
 use App\Services\InstitutionPolicyInterpreter;
+use App\Services\InstitutionPolicyTemplates;
 use App\Services\InstitutionPolicyWorkspace;
 use App\Settings\AiSettings;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -287,4 +288,234 @@ test('AI output cannot smuggle spending permission or erase unknown classificati
     $answer = app(InstitutionPolicyInterpreter::class)->sanitize($c['policy'], $payload, 'classification');
     expect($answer['can_execute'])->toBeFalse()->and($answer['needs_review'])->toBeTrue()->and($answer['category_id'])->toBeNull()
         ->and($answer)->not->toHaveKeys(['approved', 'recipient', 'amount']);
+});
+
+test('1-click template application and guided quick-activate succeed even when a policy is already published', function (): void {
+    $c = institutionPolicyContext();
+
+    // First, apply a template via 1-click endpoint
+    $first = $this->actingAs($c['reviewer'])->postJson(route('finance.policies.apply-template'), [
+        'template_key' => InstitutionPolicyTemplates::TEMPLATE_STANDARD,
+        'auto_publish' => true,
+        'reason' => 'Initial blueprint activation',
+    ])->assertSuccessful()->json();
+
+    expect($first['status'])->toBe('success')
+        ->and($first['publication']['controls_active'])->toBeTrue();
+
+    // Second, apply another template on top of the active publication (verifies predecessor_id and expected_current_digest binding)
+    $second = $this->actingAs($c['reviewer'])->postJson(route('finance.policies.apply-template'), [
+        'template_key' => InstitutionPolicyTemplates::TEMPLATE_STEM_RESEARCH,
+        'auto_publish' => true,
+        'reason' => 'Switch to STEM blueprint',
+    ])->assertSuccessful()->json();
+
+    expect($second['status'])->toBe('success')
+        ->and($second['publication']['controls_active'])->toBeTrue()
+        ->and($second['version']['id'])->toBeGreaterThan($first['version']['id']);
+
+    // Third, use Guided Policy Builder quick-activate endpoint to save and activate a custom multi-category policy in 1 click
+    $customPayload = [
+        'title' => 'Guided Custom Multi-Category Governance Policy',
+        'clauses' => [
+            [
+                'id' => 'obligations',
+                'title' => 'Core Institutional Obligations',
+                'text' => 'Tuition receipts and verified supplier invoices are governed under institutional reserve rules.',
+            ],
+            [
+                'id' => 'stem-labs',
+                'title' => 'STEM Lab Procurement',
+                'text' => 'Laboratory equipment and consumables are classified against approved departmental budgets.',
+            ],
+        ],
+        'categories' => [
+            [
+                'id' => 'tuition-receipts',
+                'name' => 'Tuition & Academic Fees',
+                'description' => 'Student tuition and enrollment fees.',
+                'inclusions' => 'Tuition downpayments, semester fees',
+                'exclusions' => 'Vendor disbursements',
+                'clause_ids' => ['obligations'],
+            ],
+            [
+                'id' => 'supplier-invoices',
+                'name' => 'Approved Supplier Invoices',
+                'description' => 'Verified vendor obligations and utilities.',
+                'inclusions' => 'Electricity, internet, facility repairs',
+                'exclusions' => 'Personal gifts',
+                'clause_ids' => ['obligations'],
+            ],
+            [
+                'id' => 'budget-equipment',
+                'name' => 'STEM Lab & Capital Equipment',
+                'description' => 'Lab consumables and research hardware.',
+                'inclusions' => 'Pipettes, microscopes, lab sensors',
+                'exclusions' => 'Uncited consumer electronics',
+                'clause_ids' => ['stem-labs'],
+            ],
+        ],
+        'examples' => [],
+        'controls' => [
+            'minimum_reserve' => '500',
+            'max_auto_payment' => '250',
+            'max_daily_disbursement' => '1500',
+            'max_fee' => '5',
+        ],
+        'priorities' => '1. Maintain reserve floor. 2. Pay core utilities and STEM lab supplies.',
+        'clarifications' => [],
+        'auto_publish' => true,
+        'reason' => 'Activated via Interactive Guided Policy Builder',
+    ];
+
+    $third = $this->actingAs($c['reviewer'])->postJson(route('finance.policies.quick-activate'), $customPayload)
+        ->assertSuccessful()
+        ->json();
+
+    expect($third['status'])->toBe('success')
+        ->and($third['can_execute'])->toBeFalse()
+        ->and($third['publication']['controls_active'])->toBeTrue()
+        ->and($third['version']['title'])->toBe('Guided Custom Multi-Category Governance Policy')
+        ->and(count($third['version']['content']['categories']))->toBe(3)
+        ->and(count($third['version']['content']['examples']))->toBe(3);
+});
+
+test('quick activate sanitizes blank placeholder clauses and rejects malformed controls or spoofed self-publication', function (): void {
+    $c = institutionPolicyContext();
+
+    // 1. Blank placeholder clause alongside valid clause + empty priorities is sanitized and activated cleanly
+    $payloadWithPlaceholder = [
+        'title' => 'Guided Policy With Placeholder Clause',
+        'clauses' => [
+            ['id' => 'policy-1', 'title' => '', 'text' => ''],
+            ['id' => 'obligations', 'title' => 'Core Obligations', 'text' => 'Approved obligations are funded within reserve limits.'],
+        ],
+        'categories' => [
+            [
+                'id' => 'tuition-receipts',
+                'name' => 'Tuition & Academic Fees',
+                'description' => 'Student tuition and enrollment fees.',
+                'inclusions' => 'Tuition downpayments',
+                'exclusions' => 'Vendor disbursements',
+                'clause_ids' => ['obligations'],
+            ],
+        ],
+        'examples' => [
+            ['description' => 'Removed category example', 'category_id' => 'deleted-category'],
+        ],
+        'controls' => [
+            'minimum_reserve' => '500',
+            'max_auto_payment' => '100',
+            'max_daily_disbursement' => '1000',
+            'max_fee' => '2',
+        ],
+        'priorities' => '',
+        'auto_publish' => true,
+    ];
+
+    $res = $this->actingAs($c['reviewer'])
+        ->postJson(route('finance.policies.quick-activate'), $payloadWithPlaceholder)
+        ->assertSuccessful()
+        ->json();
+
+    expect(count($res['version']['content']['clauses']))->toBe(1)
+        ->and($res['version']['content']['clauses'][0]['id'])->toBe('obligations')
+        ->and($res['version']['content']['examples'][0]['category_id'])->toBe('tuition-receipts');
+
+    // 2. Malformed controls or duplicate category IDs fail validation (422)
+    $badPayload = $payloadWithPlaceholder;
+    $badPayload['controls']['minimum_reserve'] = '-50';
+    $this->actingAs($c['reviewer'])
+        ->postJson(route('finance.policies.quick-activate'), $badPayload)
+        ->assertUnprocessable();
+
+    // 3. Finance officer (non-admin) cannot auto_publish via quick-activate, but can save as draft (auto_publish = false)
+    $this->actingAs($c['maker'])
+        ->postJson(route('finance.policies.quick-activate'), $payloadWithPlaceholder)
+        ->assertUnprocessable();
+
+    $draftRes = $this->actingAs($c['maker'])
+        ->postJson(route('finance.policies.quick-activate'), [...$payloadWithPlaceholder, 'auto_publish' => false])
+        ->assertSuccessful()
+        ->json();
+    expect($draftRes['publication'])->toBeNull();
+
+    // 4. Manual draft spoofing a template title cannot bypass separation of duties for self-publication
+    $spoofedInput = institutionPolicyInput();
+    $spoofedInput['title'] = 'Standard Academic Operations — Spoofed Manual Draft';
+    $spoofedInput['predecessor_id'] = $res['version']['id'];
+    $spoofedInput['expected_current_digest'] = $res['publication']['publication_digest'];
+    $spoofedDraft = app(InstitutionPolicyWorkspace::class)->save($c['reviewer'], $spoofedInput);
+
+    expect($spoofedDraft->isSystemVerified())->toBeFalse();
+    $this->actingAs($c['reviewer'])->postJson(route('finance.policies.publish', $spoofedDraft), [
+        'expected_digest' => $spoofedDraft->content_digest,
+        'expected_current_digest' => $res['publication']['publication_digest'],
+        'reason' => 'Attempted self-publish with spoofed template title',
+        'attestation' => true,
+    ])->assertForbidden();
+});
+
+test('quick activate repairs partial clauses and orphaned category clause references and simulate supports live draft content', function (): void {
+    config(['eduflow.institution_id' => null]);
+    Organization::factory()->create(['name' => 'Draft Simulation Academy']);
+    $admin = User::factory()->create()->assignRole(Role::findOrCreate('super_admin', 'web'));
+
+    // 1. Simulate works against unsaved draft_content even before any policy is saved in DB
+    $simRes = $this->actingAs($admin)->postJson(route('finance.policies.simulate'), [
+        'description' => 'Monthly campus electricity & fiber internet bill',
+        'amount' => '340',
+        'draft_content' => [
+            'title' => 'Unsaved Draft Rulebook',
+            'clauses' => [
+                ['id' => 'obligations', 'title' => 'Core Obligations', 'text' => 'Utilities and suppliers are approved.'],
+            ],
+            'categories' => [
+                [
+                    'id' => 'supplier-invoices',
+                    'name' => 'Utilities & Regular Suppliers',
+                    'description' => 'Monthly bills for power, water, internet, and approved campus suppliers.',
+                    'inclusions' => 'Electricity, water, internet, recurring software, campus maintenance',
+                    'exclusions' => 'Unverified one-off cash requests',
+                    'clause_ids' => ['obligations'],
+                ],
+            ],
+        ],
+    ])->assertSuccessful()->json();
+
+    expect($simRes['data']['status'])->toBe('match')
+        ->and($simRes['data']['category_id'])->toBe('supplier-invoices')
+        ->and($simRes['data']['category_name'])->toBe('Utilities & Regular Suppliers');
+
+    // 2. Quick-activate repairs half-filled clause (title only) and category referencing stripped placeholder policy-1
+    $activateRes = $this->actingAs($admin)->postJson(route('finance.policies.quick-activate'), [
+        'title' => 'Partial Clause Repair Policy',
+        'clauses' => [
+            ['id' => 'policy-1', 'title' => 'Custom Rule Title Only', 'text' => ''],
+        ],
+        'categories' => [
+            [
+                'id' => 'supplier-invoices',
+                'name' => 'Utilities & Regular Suppliers',
+                'description' => 'Monthly bills for power, water, internet.',
+                'inclusions' => 'Electricity, water, internet',
+                'exclusions' => 'Personal items',
+                'clause_ids' => ['policy-1'],
+            ],
+        ],
+        'examples' => [],
+        'controls' => [
+            'minimum_reserve' => '500',
+            'max_auto_payment' => '150',
+            'max_daily_disbursement' => '1000',
+            'max_fee' => '3',
+        ],
+        'priorities' => '',
+        'auto_publish' => true,
+    ])->assertSuccessful()->json();
+
+    expect($activateRes['status'])->toBe('success')
+        ->and($activateRes['version']['content']['clauses'][0]['title'])->toBe('Custom Rule Title Only')
+        ->and($activateRes['version']['content']['clauses'][0]['text'])->not->toBeEmpty()
+        ->and($activateRes['version']['content']['categories'][0]['clause_ids'])->toContain('policy-1');
 });

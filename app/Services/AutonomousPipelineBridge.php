@@ -32,7 +32,9 @@ use App\Models\Organization;
 use App\Models\PaymentIntent;
 use App\Models\PaymentReviewerEnrollment;
 use App\Models\PaymentSubmissionOutbox;
+use App\Models\ReceiptAllocationPlan;
 use App\Models\StudentTuitionPayment;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\VendorDestinationApproval;
 use App\Models\Wallet;
@@ -123,7 +125,8 @@ final readonly class AutonomousPipelineBridge
         $snapshot = $this->ensureBudgetSnapshot($maker, $billVersion, $collectionReview, $batch);
 
         // Step 5: JEV Policy Allocation & Plan Proposal
-        $this->proposeAllocation->handle($reviewer, $snapshot, (string) Str::uuid(), fresh: true);
+        $plan = $this->proposeAllocation->handle($reviewer, $snapshot, (string) Str::uuid(), fresh: true);
+        $this->ensureBudgetSnapshotEvaluation($reviewer, $snapshot, $plan);
 
         // Ensure background finance workflow run is executed and reviewed
         /** @var FinanceWorkflowRun $run */
@@ -258,6 +261,18 @@ final readonly class AutonomousPipelineBridge
         if ($settled) {
             $this->reconciler->mirrorSettlement($outbox, $verdict);
             $billVersion->invoice->update(['status' => 'paid']);
+
+            /** @var Transaction|null $settledTransaction */
+            $settledTransaction = Transaction::query()
+                ->where('organization_id', $institution->id)
+                ->where('reference_type', PaymentIntent::class)
+                ->where('reference_id', $intent->id)
+                ->latest('id')
+                ->first();
+
+            if ($settledTransaction instanceof Transaction) {
+                $this->ensureTransactionEvaluation($reviewer, $settledTransaction);
+            }
         }
 
         return [
@@ -624,6 +639,132 @@ final readonly class AutonomousPipelineBridge
                 'expected_publication_digest' => $publication->publication_digest,
                 'request_key' => (string) Str::uuid(),
                 'reason' => 'Autonomous pipeline intake evaluation against current institution policy.',
+            ]);
+
+            app()->call([new EvaluateInstitutionPolicy($evaluation->id), 'handle']);
+
+            return $evaluation->refresh();
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+    }
+
+    public function ensureBudgetSnapshotEvaluation(
+        User $reviewer,
+        BudgetSnapshot $snapshot,
+        ReceiptAllocationPlan $plan
+    ): ?InstitutionPolicyEvaluation {
+        try {
+            /** @var InstitutionPolicyEvaluation|null $existing */
+            $existing = InstitutionPolicyEvaluation::query()
+                ->where('organization_id', $snapshot->organization_id)
+                ->where('receipt_allocation_plan_id', $plan->id)
+                ->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            $workspace = app(InstitutionPolicyWorkspace::class);
+            $publication = $workspace->active();
+            if (! $publication instanceof InstitutionPolicyPublication) {
+                return null;
+            }
+
+            $evaluations = app(InstitutionPolicyEvaluations::class);
+            $source = $evaluations->source($reviewer, 'budget_snapshot', $snapshot->id);
+            $interpreter = app(InstitutionPolicyInterpreter::class);
+            $description = $interpreter->classificationProvider();
+            $lines = is_array($plan->plan['lines'] ?? null) ? $plan->plan['lines'] : [];
+            $totalTargets = count($lines);
+            $needsReview = in_array('hold', array_column($lines, 'decision'), true);
+
+            $evaluation = InstitutionPolicyEvaluation::query()->create([
+                'organization_id' => $snapshot->organization_id,
+                'institution_policy_version_id' => $plan->institution_policy_version_id,
+                'requested_by' => $reviewer->id,
+                'request_key' => (string) Str::uuid(),
+                'source_type' => 'budget_snapshot',
+                'source_id' => $snapshot->id,
+                'source_digest' => $source['source_digest'],
+                'policy_digest' => $plan->policy_digest,
+                'publication_digest' => $plan->publication_digest,
+                'reason' => 'Autonomous pipeline budget snapshot & receipt allocation evaluation against active institution policy.',
+                'input' => $source,
+                'input_digest' => PaymentIntent::digest($source),
+                'timeline' => [[
+                    'stage' => 'queued',
+                    'message' => 'Autonomous allocation evaluation queued.',
+                    'at' => now()->utc()->toIso8601String(),
+                ]],
+            ]);
+
+            $evaluation->checkpoint(
+                $needsReview ? 'needs_review' : 'completed',
+                $needsReview
+                    ? 'Advisory allocation recorded with holds or questions for finance review. Nothing was paid.'
+                    : 'Advisory allocation ready for finance review. Nothing was paid.',
+                [
+                    'state' => $needsReview ? 'needs_review' : 'completed',
+                    'provider' => $description['name'],
+                    'model' => $description['model'],
+                    'completed_targets' => $totalTargets,
+                    'total_targets' => $totalTargets,
+                    'receipt_allocation_plan_id' => $plan->id,
+                    'result' => $plan->plan,
+                    'result_digest' => $plan->plan_digest,
+                    'started_at' => now(),
+                    'completed_at' => now(),
+                    'last_error' => null,
+                ]
+            );
+
+            return $evaluation->refresh();
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+    }
+
+    public function ensureTransactionEvaluation(User $reviewer, Transaction $transaction): ?InstitutionPolicyEvaluation
+    {
+        try {
+            $workspace = app(InstitutionPolicyWorkspace::class);
+            $publication = $workspace->active();
+            if (! $publication instanceof InstitutionPolicyPublication) {
+                return null;
+            }
+
+            /** @var InstitutionPolicyEvaluation|null $existing */
+            $existing = InstitutionPolicyEvaluation::query()
+                ->where('organization_id', $transaction->organization_id)
+                ->where('source_type', 'transaction')
+                ->where('source_id', $transaction->id)
+                ->latest('id')
+                ->first();
+
+            if ($existing !== null && $existing->completed_at !== null) {
+                return $existing;
+            }
+
+            Permission::findOrCreate('View:Transaction', 'web');
+            if (! $reviewer->hasDirectPermission('View:Transaction')) {
+                $reviewer->givePermissionTo('View:Transaction');
+            }
+
+            $evaluations = app(InstitutionPolicyEvaluations::class);
+            $source = $evaluations->source($reviewer, 'transaction', $transaction->id);
+
+            $evaluation = $evaluations->request($reviewer, [
+                'source_type' => 'transaction',
+                'source_id' => $transaction->id,
+                'source_digest' => $source['source_digest'],
+                'expected_publication_digest' => $publication->publication_digest,
+                'request_key' => (string) Str::uuid(),
+                'reason' => 'Autonomous pipeline settled disbursement evaluation against current institution policy.',
             ]);
 
             app()->call([new EvaluateInstitutionPolicy($evaluation->id), 'handle']);

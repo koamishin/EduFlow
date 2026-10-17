@@ -17,7 +17,6 @@ use App\Services\StudentBillPaymentQuote;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use LogicException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
 use Yukazakiri\Lepton\Contracts\WalletGateway;

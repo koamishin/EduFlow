@@ -9,7 +9,6 @@ use App\Models\StudentWalletFunding;
 use App\Services\CircleAgentWalletCli;
 use App\Services\StudentWalletGenerationService;
 use Illuminate\Support\Facades\Cache;
-use RuntimeException;
 use Yukazakiri\Lepton\Support\CliRunner;
 use Yukazakiri\Lepton\Support\LeptonCliException;
 

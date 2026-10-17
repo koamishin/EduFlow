@@ -5,39 +5,60 @@
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-103e34" alt="License: MIT" /></a>
   <img src="https://img.shields.io/badge/status-early_development-b7791f" alt="Status: early development" />
-  <img src="https://img.shields.io/badge/network-Arc_testnet-103e34" alt="Network: Arc testnet" />
+  <img src="https://img.shields.io/badge/network-Arc_Mainnet_%26_Testnet-103e34" alt="Network: Arc Mainnet & Testnet" />
   <img src="https://img.shields.io/badge/payments-USDC-2775ca" alt="Payments: USDC" />
   <img src="https://img.shields.io/badge/Laravel-13-ef4444" alt="Laravel 13" />
   <img src="https://img.shields.io/badge/PHP-8.5-777bb4" alt="PHP 8.5" />
+  <img src="https://img.shields.io/badge/Filament-v5-f59e0b" alt="Filament v5" />
+  <img src="https://img.shields.io/badge/Inertia_v3-React_19-61dafb" alt="Inertia v3 + React 19" />
 </p>
 
-<p><a href="https://opensinop.koamishin.com">Institutional app</a> · <a href="#getting-started">Get started</a> · <a href="#production-readiness">Current limits</a></p>
+<p>
+  <a href="https://opensinop.koamishin.com">Institutional app</a> ·
+  <a href="#quick-start-local-development">Get started</a> ·
+  <a href="#key-features">Key features</a> ·
+  <a href="#production-readiness">Current limits</a> ·
+  <a href="https://koamishin.github.io/OpenSinop/">Documentation</a>
+</p>
 
 # OpenSinop
 
-**Bounded departmental finance on Circle Agent Wallets + Arc**
+**Deterministic Institutional Finance & Treasury Orchestration on Circle Agent Wallets + Arc**
 
-Current pilot target: review collected student fees, propose their use within one
-department's approved budget, and link authorized bills to USDC payments on Arc testnet.
+Review verified student fee collections, plan departmental allocations against protected reserves, evaluate institutional policies with auditable AI advisory, and settle authorized USDC obligations on **Arc** via **Circle Wallets**.
 
 </div>
 
-> **Project status:** OpenSinop is under active development. Self-hosting does not
-> certify financial readiness. Use simulated data or an explicitly authorized
-> Arc testnet pilot; review the safety boundaries below before enabling payments.
+---
 
-## Contents
+> [!IMPORTANT]
+> **Project Status:** OpenSinop is under active development. Self-hosting does not certify financial readiness for live institutional funds. Use simulated data (`LEPTON_DRIVER=fake`) or an explicitly authorized Arc testnet pilot, and review the [Production readiness](#production-readiness) gates before enabling payment execution.
+
+## Table of Contents
 
 - [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture & Design Principles](#architecture--design-principles)
 - [Production readiness](#production-readiness)
-- [Getting started](#getting-started)
-- [Requirements](#requirements--prerequisites)
-- [Installation and updates](#setup)
-- [Wallets and configuration](#lepton-agent-package-circle--arc)
-- [Commands](#commands)
-- [Testing](#testing)
+- [Prerequisites](#prerequisites)
+- [Quick Start (Local Development)](#quick-start-local-development)
+- [Self-Hosting & Production Deployment](#self-hosting--production-deployment)
+  - [Option A — Docker Swarm Installer (Recommended)](#option-a--docker-swarm-installer-recommended)
+  - [Option B — Docker Compose](#option-b--docker-compose)
+  - [Option C — Bare-Metal Production Setup](#option-c--bare-metal-production-setup)
+- [Wallets, Circle & Arc Configuration](#wallets-circle--arc-configuration)
+- [Core Workflows & Modules](#core-workflows--modules)
+  - [Institution Onboarding & First Setup Wizard](#1-institution-onboarding--first-setup-wizard)
+  - [Student Web3 Portal, Tuition & E-Receipts](#2-student-web3-portal-tuition--e-receipts)
+  - [Institution Policy Studio & JEV Simulator](#3-institution-policy-studio--jev-simulator)
+  - [JEV Decision Analytics & Live Agent Health](#4-jev-decision-analytics--live-agent-health)
+  - [Collections, Departmental Planning & MFA Payment Review](#5-collections-departmental-planning--mfa-payment-review)
+- [Developer Demo & Seeded Scenarios](#developer-demo--seeded-scenarios)
+- [CLI Reference](#cli-reference)
+- [Testing & Quality Assurance](#testing--quality-assurance)
 - [Troubleshooting](#troubleshooting)
-- [Technical reference](#technical-reference)
+- [Project Structure](#project-structure)
+- [Tech Stack](#tech-stack)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -45,336 +66,118 @@ department's approved budget, and link authorized bills to USDC payments on Arc 
 
 ## Overview
 
-OpenSinop is institution-owned finance orchestration using
-[Circle Agent Stack](https://developers.circle.com/agent-stack) and the
-[Arc](https://docs.arc.io) network. Long-term scope covers collections, budgets and
-approved obligations; current hackathon scope is deliberately one departmental workflow,
-not an unrestricted AI treasurer or replacement for the college's accounting system.
+**OpenSinop** is an open-source, institution-owned financial orchestration platform built on the [Circle Agent Stack](https://developers.circle.com/agent-stack) and the [Arc](https://docs.arc.io) blockchain network.
 
-The current product question is **what should the institution do with fees already
-collected from students?** OpenSinop's target is to review verified collections, protect
-restricted funds and reserves, and explain how available cash can cover approved obligations.
-The college pilot uses deterministic policy checks to:
+Rather than acting as an unrestricted AI treasurer or replacing a college's core accounting system, OpenSinop addresses a concrete operational question: **what should an institution do with student fees already collected?**
 
-- **review verified collections** and distinguish available cash from expected fees,
-- **propose and explain** use of funds and payments within the approved department budget,
-- **request human approval** for eligible proposals outside a separately authorized capped lane,
-- **hold or reject** when policy, evidence, budget or reserve checks fail, and
-- **execute and verify** permitted USDC mirror payments on **Arc testnet**, not college bank payments.
+OpenSinop combines **deterministic PHP financial policy enforcement** with **optional, fail-closed AI advisory (JEV)** and **verifiable on-chain USDC settlement**:
 
-Current C0 institution inspection is read-only. C1 includes reviewed aggregate collection
-evidence, local departmental planning, exact vendor drafts, reviewed policy/destination and
-draft recovery, plus a bounded reviewed USDC funding window and cumulative capacity holds.
-Holds do not approve payments or lock Circle funds; execution remains disabled. The connected
-college pilot and capped recurring-payment lane below are **delivery targets, not shipped
-capabilities**. Existing student-aid features remain available for development but are not
-this pilot's focus. Wider operational use cases remain in `PLAN.md` Section 13.
+1. **Verify Collections:** Capture and reconcile student tuition, laboratory bills, and cashier collection batches, separating confirmed cash from expected revenue and restricted funds.
+2. **Plan Departmental Budgets:** Evaluate approved vendor bills against departmental allocations, opening funds, realized receipts, and protected reserves.
+3. **Evaluate & Simulate Policies:** Classify obligations against plain-English institutional policies using 1-click templates, an interactive JEV Decision Simulator, and background AI evaluation queues.
+4. **Enforce Human Governance:** Route high-value or unverified disbursements to staff for step-up MFA (password + TOTP) review while allowing bounded, pre-authorized recurring mandates within strict caps.
+5. **Settle & Reconcile on Arc:** Execute permitted USDC payments through Circle Agent Wallets or Developer-Controlled Wallets and verify on-chain receipts and finality on Arc.
 
-**Production limits:** Exact-money handling exists at intake/conversion, draft/policy boundaries
-and Arc observation, but legacy treasury/payment floats and two-decimal storage remain.
-Reviewed destinations, bounded atomic capacity holds and independently enrolled MFA-backed
-payment review exist. Reservation release/funding rollover, approval renewal/withdrawal and
-factor recovery, local-to-testnet mapping authority, durable outbox/attempts, execution recovery
-and matching settlement verification are still required. A draft,
-policy activation or developer demo is not a certified school treasury system.
+---
 
-### Five design rules and remaining release gates
+## Key Features
 
-1. **The LLM never moves money.** Policy decisions live in plain PHP
-   (`FinancialPolicyEngine`, `EvaluateAssistancePolicy`). The model explains decisions;
-   it never makes them.
-2. **Exact money is required.** USDC payments use 6 decimals, so `45.00` is `45_000000`.
-   Arc native balance/gas uses 18 decimals. Legacy float balances still require migration.
-3. **A tx hash is not proof.** Successful matching movement and finality must be verified.
-   `lepton:reconcile` reads the on-chain receipt: only a successful one is `verified`, only a
-   chain-reported failure is `reverted`, and a missing RPC result alone does not prove fabrication
-   — those rows stay `unresolved` for a human instead of being failed.
-4. **No hardcoded CLI.** All Circle/Arc access goes through
-   [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent) gateways.
-5. **Demo funding must match the chain.** Use explicit consent for testnet runs and label
-   fake results as simulated. Testnet settlement is not proof of mainnet readiness.
+| Area | Implemented Capabilities |
+|---|---|
+| **Multi-School Onboarding & Setup** | Self-service institution registration (`/institutions/register`) with **Arc Mainnet** (`5040`) and **Arc Testnet** (`5042`) support, followed by a guided **First Application Setup Wizard** (`/institutions/setup`) for budgets, 1-click policy templates, treasury binding, and student invite links. |
+| **Student Web3 Portal & E-Receipts** | Dual-path student registration (`/register`) with 1-click EIP-1193 browser wallet signature verification (`personal_sign`) or manual EVM address entry. Full tuition and laboratory bill payment flows with locked quotes, fee ceilings, and downloadable **Official Payment E-Receipts**. |
+| **Institution Policy Studio & Simulator** | Visual workspace (`/finance/policies`) featuring **5 curated 1-click policy templates**, plain-English policy versioning, an interactive **JEV Decision Simulator**, and live **AI & JEV Agent Health** connectivity probes. |
+| **JEV Decision Analytics** | Executive ReUI analytics (`/finance/jev-analytics`) and Filament dashboard (`JevAnalyticsDashboard`) tracking `match`, `needs_review`, `hold`, and `exempt` verdicts, 14-day trajectories, category confidence, staff concurrence vs. override rates, and approval latency. |
+| **Autonomous Pipeline Bridge** | Background pipeline (`eduflow:autonomous-pipeline-bridge`) that reconciles verified student tuition receipts into collection batches, runs JEV policy evaluation, plans departmental budgets, and disburses eligible vendor bills within configured USDC caps. |
+| **Collections & Budget Planning** | Immutable cashier `CollectionBatch` intake with SHA-256 document digests, `InvoiceVersion` source evidence, and `BudgetSnapshot` planning via `DepartmentBudgetPlanner` using exact 6-decimal `Money` math. |
+| **MFA-Backed Payment Governance** | Append-only `VendorDestinationVersion` approvals, 15-minute block-bound `FundingWindow` observations, atomic `PaymentReservation` holds, and step-up password + TOTP `PaymentAuthorization` by independently enrolled reviewers. |
+| **Dual Staff Consoles + Student Chat** | Dedicated **Finance Panel** (`/finance`) and **Admin Panel** (`/admin`) built on Filament v5, smart role routing (`/console`), plus **Ask OpenSinop** student Q&A guarded by `BriefGuard` to prevent hallucinated financial figures. |
+
+---
+
+## Architecture & Design Principles
+
+```mermaid
+flowchart TD
+    A["Student Tuition & Bill Payments / Cashier Collection Batches"] --> B["Verified Realized Collections (CollectionBatch & Receipt Intake)"]
+    B --> C["Departmental Budget Snapshot & Capacity Planner (Deterministic PHP)"]
+    C --> D["Institution Policy Engine + Optional JEV AI Classifier"]
+    D -->|Auto-Approve / Bounded Lane| E["Isolated Submission Outbox & Circle Wallet Gateway"]
+    D -->|Escalate / Hold| F["Staff Review Console (Step-Up Password + TOTP MFA)"]
+    F -->|Authorized| E
+    E --> G["Arc Network Settlement (Mainnet 5040 / Testnet 5042)"]
+    G --> H["On-Chain Receipt & Finality Verification (lepton:reconcile)"]
+```
+
+### Five Core Design Rules
+
+1. **The LLM never moves money.** All financial eligibility, reserve checks, and cap decisions live in deterministic PHP (`FinancialPolicyEngine`, `EvaluateAssistancePolicy`, `DepartmentBudgetPlanner`). AI models classify context and explain decisions; they can tighten a verdict (one-way ratchet) but never override a policy failure or invent an amount.
+2. **Exact money is required.** USDC uses 6 decimal places (`45.00` USDC = `45_000000` base units), while Arc native gas/balance reads use 18 decimals (`wei`). Arithmetic uses `App\DTOs\Money` and `Yukazakiri\Lepton\Support\Amounts`—never IEEE 754 floats or `hexdec()`.
+3. **A transaction hash is a claim, not proof.** Storing a hash does not mean money settled. `lepton:reconcile` and `ArcSettlementVerifier` inspect on-chain receipts: only a confirmed successful receipt is marked `verified`, only a chain-reported failure is marked `reverted`, and a missing RPC result alone does not prove fabrication—those rows stay `unresolved` for human investigation.
+4. **No hardcoded CLI shells.** Every Circle and Arc operation routes through injected [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent) gateway contracts (`WalletGateway`, `ArcNetworkGateway`), enabling seamless switching between `circle` (CLI), `developer` (REST API), and `fake` (offline test/simulation) drivers.
+5. **Simulated runs are visibly badged.** Running with `LEPTON_DRIVER=fake` executes entirely in memory, sets `is_fake` on every receipt, and badges the UI as **Simulated** so a developer demo is never mistaken for on-chain settlement.
+
+---
 
 ## Production readiness
 
-**Status: the SDK and webhook-ingestion blockers are closed; live provider
-validation and operational release gates are still open.** The application now runs
-on Lepton [`v3.0.0-rc.1`](https://github.com/yukazakiri/lepton-agent/releases/tag/v3.0.0-rc.1)
-and requires PHP 8.5. Neither a green test suite nor a package tag certifies the
-application for real institutional funds.
+**Status: the SDK and webhook-ingestion blockers are closed; live provider validation and operational release gates are still open.** The application runs on Lepton [`v3.0.0-rc.1`](https://github.com/yukazakiri/lepton-agent/releases/tag/v3.0.0-rc.1)+ (`v3.0.0-rc.2` locked) and requires PHP 8.5. Neither a green test suite nor a package tag certifies the application for real institutional funds.
 
 ### What shipped
 
-- **Hardened Lepton driver.** REST paths, `feeLevel`, signing payloads, bounded
-  pagination, and wallet/network/wallet-set scoping match the Circle OpenAPI
-  contract; mutations require a persisted UUID v4 idempotency key; unsupported
-  operations throw `UnsupportedOperation` instead of inventing zero balances.
-  Arc reads are HTTPS-only with verified chain identity and no CLI fallback.
-  Exact six-decimal USDC; Arc native (18 dp) and ERC-20 (6 dp) views of the same
-  balance are never summed.
-- **Contained webhook ingestion.** `POST /api/webhooks/circle` returns `404`
-  unless `lepton.webhooks.enabled` is set *and* the developer REST driver is
-  selected. Missing signature or key headers are `401`. Raw bytes are verified
-  against `GET /v2/notifications/publicKey/{keyId}` with `ECDSA_SHA_256` — never
-  the Entity Secret RSA key. Notification type, subscription, network, and
-  transaction identity are validated before anything is stored.
-- **Durable inbox, no duplicate payments.** Each verified event is stored once
-  with its payload digest; a reused `notificationId` with a different digest is
-  `409`. The response is `202` with `settlement_verified: false`, and the only
-  side effect is a queued observation job. The webhook can never create or
-  submit a payment, and never marks a bill paid.
-- **Recovery without resend.** `ObserveCircleNotification` wakes only
-  pre-existing submissions, tuition attempts, and bill payments for their own
-  settlement processors, with overlap protection, exponential backoff, and a
-  per-minute `app:recover-circle-notifications` sweep for unobserved hints.
-- **Explicitly gated rail.** `CircleAgentWalletTransport` refuses a requested fee
-  ceiling it cannot enforce, and refuses the developer REST rail outright until
-  payer fee controls are reviewed rather than assuming a relayer sponsors it.
+- **Hardened Lepton driver.** REST paths, `feeLevel`, signing payloads, bounded pagination, and wallet/network/wallet-set scoping match the Circle OpenAPI contract; mutations require a persisted UUID v4 idempotency key; unsupported operations throw `UnsupportedOperation` instead of inventing zero balances. Arc reads are HTTPS-only with verified chain identity and no CLI fallback. Exact six-decimal USDC; Arc native (18 dp) and ERC-20 (6 dp) views of the same balance are never summed.
+- **Contained webhook ingestion.** `POST /api/webhooks/circle` returns `404` unless `lepton.webhooks.enabled` is set *and* the developer REST driver is selected. Missing signature or key headers return `401`. Raw bytes are verified against `GET /v2/notifications/publicKey/{keyId}` with `ECDSA_SHA_256` — never the Entity Secret RSA key. Notification type, subscription, network, and transaction identity are validated before anything is stored.
+- **Durable inbox, no duplicate payments.** Each verified event is stored once with its payload digest; a reused `notificationId` with a different digest returns `409`. The response is `202` with `settlement_verified: false`, and the only side effect is a queued observation job. The webhook can never create or submit a payment, and never marks a bill paid.
+- **Recovery without resend.** `ObserveCircleNotification` wakes only pre-existing submissions, tuition attempts, and bill payments for their own settlement processors, with overlap protection, exponential backoff, and a per-minute `app:recover-circle-notifications` sweep for unobserved hints.
+- **Explicitly gated rail.** `CircleAgentWalletTransport` refuses a requested fee ceiling it cannot enforce, and refuses the developer REST rail outright until payer fee controls are reviewed rather than assuming a relayer sponsors it.
 
 ### Remaining release gates
 
-1. **Separately authorized live testnet validation.** Circle wallet creation,
-   signing, transfers, faucet eligibility, webhook delivery, and matched on-chain
-   settlement have not been exercised. Offline tests do not cover them.
-2. **Operational rehearsal.** Provider failures, worker crashes, replay, missed
-   events, restart, update, and backup restoration.
-3. **Secrets, authorization, and custody review.** Entity Secret registration and
-   recovery custody, MFA-backed payment review, monitoring, alerting, and rollback
-   before any controlled mainnet decision.
-   No mainnet payment or custody migration is implicit.
-4. **Exact receipt matching.** `transactions.amount` is still a legacy decimal
-   column and `Transaction` records no recipient in chain units, so a verified
-   receipt is still not proof that *this* payment moved *this* amount to *this*
-   recipient. Receipt-level matching of token, sender, recipient, exact amount and
-   finality is the next gate.
+1. **Separately authorized live testnet validation.** Circle wallet creation, signing, transfers, faucet eligibility, webhook delivery, and matched on-chain settlement have not been exercised in a certified live school environment. Offline tests do not cover them.
+2. **Operational rehearsal.** Provider failures, worker crashes, replay, missed events, restart, update, and backup restoration.
+3. **Secrets, authorization, and custody review.** Entity Secret registration and recovery custody, MFA-backed payment review, monitoring, alerting, and rollback before any controlled mainnet decision. No mainnet payment or custody migration is implicit.
+4. **Exact receipt matching.** Legacy `transactions.amount` decimal columns still coexist with newer base-unit tables, so a verified legacy receipt is not by itself proof that *this* payment moved *this* exact amount to *this* recipient. Full receipt-level matching of token, sender, recipient, exact amount, and finality across all lanes remains a release gate.
 
-The [Lepton production-readiness checklist](https://github.com/yukazakiri/lepton-agent/blob/v3.0.0-rc.1/README.md#production-readiness)
-tracks package-specific gates. See Circle's
-[transfer schema](https://developers.circle.com/api-reference/wallets/developer-controlled-wallets/create-developer-transaction-transfer)
-and [webhook verification guide](https://developers.circle.com/wallets/webhook-notifications)
-for provider contracts. [PLAN.md](PLAN.md) retains the application's broader
-financial, pilot, and release-safety requirements.
+See [PLAN.md](PLAN.md) for the complete financial, pilot, and release-safety roadmap.
 
 ---
 
-## Getting started
+## Prerequisites
 
-Choose a setup path based on your goal:
-
-| Goal | Start here |
-|---|---|
-| Register a new institution (Multi-School SaaS) | [Institution onboarding](#institution-onboarding--multi-school-saas) (`/institutions/register`) |
-| Register student with Web3 wallet | [Student registration](#student-registration--web3-wallet-linking) (`/register`) |
-| Evaluate the application locally | [Development setup](#development-setup-local), with `LEPTON_DRIVER=fake` |
-| Deploy on your own infrastructure | [Docker deployment](#option-a--docker-deployment-recommended) or [bare-metal setup](#option-b--bare-metal-production-setup) |
-| Upgrade an existing deployment | [Docker updates](#3-updating-an-existing-docker-deployment), from the original installation directory |
-| Connect a wallet | [Wallet configuration](#lepton-agent-package-circle--arc) |
-| Understand evidence and payment boundaries | [Technical reference](#technical-reference) and [project roadmap](PLAN.md) |
-
-The application includes multi-school shared-database hosting, institutional collections, departmental planning, staff
-reviews, student finance screens, and payment evidence workflows. Individual
-features have separate authorization and runtime gates; a dashboard or installed
-wallet driver does not grant permission to send funds.
-
-### Institution Onboarding & Multi-School SaaS
-
-OpenSinop supports hosting multiple educational institutions on a single shared database:
-- **Registration wizard (`/institutions/register`):** Any school can register their organization, country, timezone, accounting currency (`USDC`/`EURC`), and Arc treasury address or autonomous Circle Agent wallet.
-- **Arc Network Rails:** Choose between **Arc Mainnet** (Chain ID `5040`) and **Arc Testnet** (Chain ID `5042`).
-- **Isolation:** Dynamic multi-tenancy resolution via session, route, and authenticated context ensures complete data isolation between institutions.
-
-### Student Registration & Web3 Wallet Linking
-
-Students can enroll and link their Web3 wallet at `/register`:
-- **Dual-Path Registration:** 1-Click Connect Browser Wallet (MetaMask, Rainbow, Phantom, EIP-1193) with cryptographic signature verification (`personal_sign`) proving key ownership, or manual 40-hex character address entry fallback.
-- **Automatic Provisioning:** Enrolls the student under their institution, creates their profile, assigns academic department and student ID, and initializes their tuition account.
-
-<details>
-<summary><strong>Pilot scope, boundaries, and development history</strong></summary>
-
-## College shadow pilot (current hackathon focus)
-
-**Direction:** fee collections and budget planning in shadow/parallel mode. Start smaller:
-**one department, its already-approved budget and approved bills for the next couple of
-weeks**. The owner reports a local college agreed to explore OpenSinop; actual usage,
-completed pilot results and public endorsement have not been established. Confirm this
-is the college's most important feasible problem with its finance owner.
-
-The college keeps collecting fees and paying bills through its existing local-currency
-process. Pilot planning can use approved opening funds or staff-verified aggregate realized
-receipts; it needs no student records, new fee portal, SIS or bank integration. An allocation
-is not cash, and promised tuition is not available money. Budget changes stay with staff.
-
-**Architecture:** shadow/parallel describes how the demo is operated, not a separate app
-feature. Use normal invoices, budgets, reviews and payment intents with controlled testnet
-configuration. Do not introduce dedicated shadow models, tables, routes or screens.
-
-### Connected workflow and two execution lanes
-
-1. Import or enter permitted anonymized bills, approved allocation, commitments and source
-   evidence. Show original amount/currency, due date and exact approved USDC mirror mapping.
-2. Propose pay/hold/escalate with policy checks, reasoning and remaining budget/reserve/fee
-   impact. Authorized finance staff approve or reject; hard policy failures cannot be overridden.
-3. Each eligible admin-approved item produces its **own linked actual USDC payment on
-   `ARC-TESTNET` through the existing Circle Agent Wallet/Lepton path**. An unrelated transfer,
-   fake receipt or read-only dashboard does not complete this workflow.
-4. Verify successful matching Arc movement and finality; link source bill, proposal, decision,
-   intent and explorer evidence. Unknown outcomes stay unresolved; retries cannot pay twice.
-5. After the human path passes its safety gates, enable a **separately approved, testnet-only
-   capped lane** for existing approved recurring bills from allowlisted vendors/destinations,
-   within per-payment and cumulative limits, budget, reserve and fee protection. Other valid
-   bills go to staff; policy failures stay held. Autonomous allowance starts at zero.
-
-AI may propose or explain, never authorize transfers, change policy or access signing keys.
-A staff edit preserves the original proposal and requires a reviewed successor and fresh
-checks/approval; it does not mutate an approved intent. Reviewed draft cancellation/replacement
-exists; reserved or submitted payments still need separate safe release/recovery work. Application limits remain mandatory; do not claim Circle's mainnet-only native
-wallet controls enforce the testnet lane.
-
-### Amount, state and privacy boundaries
-
-- Preserve exact local amount/currency and a staff-approved immutable reference-rate snapshot
-  with rounding to six-decimal USDC units. Testnet mapping is not real FX or bank settlement;
-  never assume one local-currency unit equals one USDC.
-- Use approved, controlled testnet recipients linked offchain to vendor aliases. A mirror
-  does not mean the real vendor received money or accepts USDC. Keep local actual-paid state
-  separate from testnet mirror state; never clear the college's payable from testnet proof.
-- Use verified faucet-funded balances with fee allowance. If funds cannot cover full-value
-  mirrors, select smaller real bills or obtain sufficient authorized testnet funding. Never
-  silently scale source amounts or seed fictional funds; scaled synthetic demos are separate.
-- Keep identities and sensitive documents offchain. Get separate permission for external AI
-  processing, testnet execution, staff recording and public college name/logo/quotes.
-  Public amounts/addresses can still be linkable. Mainnet and real college funds are excluded.
-
-### Evidence and expansion
-
-Collect college-authorized **video of staff using the workflow and collaboration proof**,
-linked reasoning/audit records and verified testnet transaction URLs. Track proposals
-approved as-is versus edited/rejected, holds/pending separately, review time against an agreed
-baseline including correction effort, and automatic versus escalated outcomes. Count staff
-agreement with automatic decisions separately from per-item approvals. Report sample sizes,
-feedback and limitations; no invented savings, adoption or guaranteed organizer promotion.
-
-The original hackathon pilot targets **Circle Agent Wallets**. Developer-Controlled
-Wallets are a separate integration option, not an automatic migration of existing
-wallets or payment authority. Validate with the college, expand departments first, then deeper collections and
-later optional assistance. Grades, attendance, hardship, discounts/installments, student
-employment, payroll execution, bank/FX adapters and Gateway/x402/Earn/Borrow are deferred.
-Preserve existing modules; deferred does not mean deleted.
-
-### For implementation agents
-
-1. Read [PLAN.md Section 14](PLAN.md#14-college-shadow-pilot--hackathon-execution-contract)
-   for authoritative pilot scope, delivery order, safety gates and metric definitions.
-2. Confirm college problem/consent and minimum source records. Reuse C0 institution context
-   and partial C1 draft/policy foundations; do not restart with a student-dependent workflow.
-3. Finish exact source/treasury handling, verified destinations, authenticated review,
-   reservations, successor/outbox/attempt recovery and matching receipt/finality checks.
-   C0 `can_execute=false` and current C1 execution denial remain intact until new gates pass.
-4. Prove human-approved source-bill-to-testnet-settlement workflow without duplicates, then
-   separately authorize/test capped recurring lane and collect user evidence.
-
-This documentation update enables no transfers. Sections below describe existing developer
-commands; they are not a ready-made college pilot or permission to use legacy execution.
-
----
-
-## What you'll see
-
-**Intended college workflow, not a claim that the complete UI/execution path ships today:**
-Students pay through the college's existing process; staff confirms realized fee receipts.
-OpenSinop reviews those funds alongside approved budgets and commitments, proposes which
-approved departmental bills can be funded, and explains any holds or shortfalls. Finance
-staff reviews the proposals. Each eligible authorized bill is then linked to a verified
-USDC payment on Arc testnet while the college continues paying locally in parallel.
-
-No student assistance request is needed to start this workflow. The first slice uses
-staff-verified aggregate collections or approved opening funds, not individual student
-records or a new payment portal.
-
-### Legacy seeded developer demo
-
-The existing seed/command below still includes optional assistance fixtures. It is retained
-for development and does not represent the fee-collections pilot or its planned student UI:
-
-```
-$ php artisan app:demo
-
-Cycle: auto-paid 3, escalated 2, held 1, disbursed 85 USDC.
-
-  Invoice  30.00 USDC   AUTO_APPROVE      VENDOR_AUTO_PAYMENT_V1
-  Invoice  45.00 USDC   AUTO_APPROVE      VENDOR_AUTO_PAYMENT_V1
-  Invoice  60.00 USDC   ESCALATE          VENDOR_COMPLIANCE_V1
-  Invoice  90.00 USDC   ESCALATE          HIGH_VALUE_DISBURSEMENT_V1
-  Invoice 200.00 USDC   HOLD              TREASURY_RESERVE_SAFETY_V1
-  Invoice 2000.00 USDC  REJECT            BUDGET_EXHAUSTION_V1
-
-  Aid     15.00 USDC   PARTIAL_APPROVAL  BOUNDED_EMERGENCY_AID_V1
-    10.00 USDC approved instantly, 5.00 USDC escalated for advisor review.
-```
-
-With explicitly authorized and funded Circle testnet execution, this seeded cycle is
-intended to submit two invoice payments and part of an aid request; fake runs are simulated.
-The other items stop for specific policy reasons. This is developer-demo output, not proof
-of college usage or successful matching settlement. The current college target needs
-real permitted source records, staff review and connected verified testnet evidence.
-
-</details>
-
-## Requirements & Prerequisites
-
-### System prerequisites & installation links
-
-| Tool | Minimum Version | Installation / Official Documentation |
+| Requirement | Minimum Version | Notes & Installation |
 |---|---|---|
 | **Docker** (Self-hosting) | 24.0+ (Compose v2) | [Docker Engine](https://docs.docker.com/engine/install/) · [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
-| **PHP** (Bare-metal) | 8.5+ (required, not optional) | [PHP Installation Guide](https://www.php.net/downloads) — Required extensions: `pdo_sqlite`, `mbstring`, `openssl`, `curl` |
-| **Composer** | 2.x | [Composer Download](https://getcomposer.org/download/) |
-| **Node.js & npm** | 20.18.2+ | [Node.js Downloads](https://nodejs.org/en/download) |
-| **Circle CLI** | 1.1.4+ | [Circle CLI Documentation](https://developers.circle.com/agent-stack/circle-cli) · `npm i -g @circle-fin/cli` |
-| **uv / arc-canteen** (Optional) | Latest | [Arc Network Docs](https://docs.arc.io) · Arc blockchain queries now use direct HTTP JSON-RPC automatically |
-
-### Installing the prerequisites
-
-1. **Install Node.js & Circle CLI:**
-   ```bash
-   # Install Circle CLI globally via npm
-   npm install -g @circle-fin/cli
-
-   # Verify installation
-   circle --version
-   ```
-
-2. **Install `uv` and `arc-canteen` CLI:**
-   ```bash
-   # Install Astral uv (fast Python tool installer)
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   # Or via homebrew / package manager: brew install uv
-
-   # Install arc-canteen using uv
-   uv tool install arc-canteen
-
-   # Authenticate arc-canteen to provision your Arc testnet RPC endpoint
-   arc-canteen login
-   ```
-
-3. **Check the toolchain:**
-   Run the doctor command inside the repository to verify that all binaries and configurations are recognized:
-
-   ```bash
-   php artisan lepton:doctor
-   ```
-
-   It verifies the binaries, your Circle session, your treasury address, chain reads and
-   ledger parity, and tells you which of those are broken. Run it first; it saves a lot of
-   guessing later.
+| **PHP** (Local / Bare-metal) | **8.5+** (required) | Extensions: `pdo_sqlite` / `pdo_pgsql`, `mbstring`, `openssl`, `curl`, `bcmath`, `intl`, `zip` |
+| **Composer** | 2.x | [getcomposer.org](https://getcomposer.org/download/) |
+| **Node.js & npm** | 20.18.2+ | [nodejs.org](https://nodejs.org/en/download) |
+| **Circle CLI** (Optional) | 1.1.4+ | Required only when `LEPTON_DRIVER=circle`: `npm install -g @circle-fin/cli` |
+| **uv / arc-canteen** (Optional) | Latest | Optional helper CLI (`uv tool install arc-canteen`); Arc reads use direct HTTPS JSON-RPC |
 
 ---
 
-## Setup
+## Quick Start (Local Development)
 
-**Disposable local demo only:** Commands below include `migrate:fresh`, which deletes
-existing database records. Never use this setup on a school database or an instance
-holding configured providers or payment history.
+> [!WARNING]
+> The local quick-start commands below run `migrate:fresh --seed`, which wipes the local SQLite database. Never run `migrate:fresh` on a production or pilot instance.
+
+### Option 1 — One-Command Setup (Recommended)
+
+```bash
+git clone https://github.com/koamishin/OpenSinop.git
+cd OpenSinop
+
+composer run setup
+```
+
+`composer run setup` installs PHP and JS dependencies, copies `.env.example` to `.env`, generates `APP_KEY`, enables the `Blog` module, runs migrations and seeders, compiles frontend assets, and generates Filament Shield permissions.
+
+Start the development stack (HTTP server, queue worker, Pail logs, and Vite HMR):
+
+```bash
+composer run dev
+```
+
+### Option 2 — Manual Step-by-Step Setup
 
 ```bash
 git clone https://github.com/koamishin/OpenSinop.git
@@ -387,100 +190,45 @@ cp .env.example .env
 php artisan key:generate
 
 touch database/database.sqlite
-php artisan migrate:fresh --seed
-```
-
-`migrate:fresh --seed` now seeds only roles and (in local/testing) developer accounts.
-It no longer creates the legacy organization, wallets, budgets, invoices, vendors or
-assistance requests: those records and any treasury transactions now come through the
-Circle/Lepton agent path (CLI/testnet), not through the database. Student assistance
-remains an upcoming feature.
-
-Start the app:
-
-```bash
-composer run dev
-```
-
-That runs the PHP server, Vite, and the queue worker together. Open the printed URL.
-
-### Development setup (local)
-
-Use this for everyday development. It assumes the **disposable local demo** commands above
-(SQLite, seeded demo data, hot-reload):
-
-**Option A — one command (recommended for a fresh clone):**
-
-```bash
-composer run setup
-```
-
-This installs PHP/JS deps, generates `APP_KEY`, enables the `Blog` module, migrates +
-seeds, builds frontend assets, and generates Filament Shield permissions.
-
-**Option B — manual:**
-
-```bash
-composer install
-npm install
-
-# 2. Environment
-cp .env.example .env
-php artisan key:generate
-
-# 3. Database (SQLite, zero config)
-touch database/database.sqlite
 php artisan module:enable Blog --no-interaction
 php artisan migrate:fresh --seed
 php artisan module:migrate --force --no-interaction
 
-# 4. Frontend build (or `npm run dev` for HMR during development)
-npm run build   # or: npm run dev
-
-# 5. Run everything (app server + queue + logs + Vite)
+npm run build
 composer run dev
 ```
 
-- `composer run dev` starts `php artisan serve`, `queue:listen`, `pail`, and Vite together.
-- Keep `LEPTON_DRIVER=fake` while developing without Circle credentials:
-  ```env
-  LEPTON_DRIVER=fake
-  ```
-- Run tests: `composer test` (lint + Pest). Run lint only: `composer lint`.
-- Re-run `php artisan lepton:doctor` after changing `.env`.
+- **Offline / No-Credential Development:** Set `LEPTON_DRIVER=fake` in `.env` to simulate wallet balances, transfers, and receipts in memory without Circle credentials.
+- **Health Check:** Run `php artisan lepton:doctor` at any time to verify your environment, wallet driver, and chain connectivity.
 
-### Self-hosted (production) setup
+### Demo accounts
 
-OpenSinop is self-hostable. Do **not** use `migrate:fresh --seed` on a real instance; it destroys data.
-Use the idempotent installer instead.
+When seeded for the developer demo (`EduFlowFinancialSeeder`, `EducationDemoSeeder`, `EduFlowPlanSeeder`), the following demo accounts are available:
 
-#### Option A — Docker deployment (recommended)
+| Role | Email | Password |
+|---|---|---|
+| Student | `juan@eduflow.test` | `password` |
+| Finance officer | `finance@eduflow.test` | `password` |
 
-The interactive installer runs OpenSinop as a Docker Swarm stack: the
-FrankenPHP/Octane application image, PostgreSQL 16 and Redis 7 as services on an
-overlay network, with the database password kept in a Docker secret. When Docker
-is missing on Linux, the installer offers to install Docker Engine first via the
-official `get.docker.com` script. Images are published to GitHub Container
-Registry through the release workflows. Confirm the chosen tag is available before
-deploying; preview releases do not update `latest`. Configure supervised queue
-workers and the scheduler for the background workflows you enable.
+*(Local `DatabaseSeeder` also seeds a local super-admin account for development convenience; production installs create no default users.)*
 
-##### 1. Interactive installer (recommended)
+---
 
-Run the wizard from a dedicated installation directory. It collects the application
-URL, port, database choice, school identity, wallet driver, and optional AI settings,
-writes `.env`, initializes Docker Swarm, and creates the `opensinop`,
-`opensinop-db` and `opensinop-redis` services. Common environment settings use
-production defaults instead of extra prompts.
+## Self-Hosting & Production Deployment
 
-The scripts below download and execute repository code. Review them before running
-them on a server with credentials or financial records.
+OpenSinop supports three production deployment methods. Never use `migrate:fresh --seed` on a self-hosted instance.
 
-- **macOS / Linux (bash, zsh):**
+### Option A — Docker Swarm Installer (Recommended)
+
+The interactive installer (`install.sh` / `install.ps1`) deploys OpenSinop on Docker Swarm with the FrankenPHP/Octane application container (`opensinop`), PostgreSQL 16 (`opensinop-db`), and Redis 7 (`opensinop-redis`) on an overlay network, storing database credentials in Docker secrets. If Docker is missing on Linux, the installer can install it automatically across Debian/Ubuntu, RHEL/Fedora, openSUSE, Arch, Alpine, Void, and Gentoo.
+
+Run from a dedicated installation directory:
+
+- **Linux / macOS (bash, zsh):**
   ```bash
   bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh)
   ```
-- **fish shell** (no `<(…)` process substitution):
+- **Fish shell:**
   ```fish
   curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash
   ```
@@ -489,1340 +237,352 @@ them on a server with credentials or financial records.
   irm https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1 | iex
   ```
 
-Options: `--yes` accepts every default (also used when no terminal is available),
-`EDUFLOW_VERSION=<tag>` pins the application image, and `ADVERTISE_ADDR` selects
-the address for `docker swarm init` on hosts with several interfaces. When Docker
-is missing, the installer offers to install it — with the official convenience
-script on Debian/RHEL/openSUSE families and with the distribution package manager
-on Arch, Alpine, Void and Gentoo; `DISTRO_FAMILY` overrides the detection, and on
-NixOS the installer prints the `configuration.nix` setting instead. PostgreSQL
-is the managed database service; choosing MySQL expects an existing server (you
-are asked for its host), and SQLite keeps its file in the persisted storage volume.
+**Installer flags & environment variables:**
+- `--yes` — Accept defaults non-interactively.
+- `--update` — Dump PostgreSQL to `./backups/`, pull the latest image, and roll the `opensinop` service.
+- `EDUFLOW_VERSION=<tag>` — Pin a specific container image tag.
+- `ADVERTISE_ADDR=<ip>` — Specify the Swarm advertise address on multi-interface hosts.
 
-##### 2. Alternative: Docker Compose (manual)
+**Updating an existing Swarm deployment:**
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh) --update
+```
+*(Always verify an independent backup of your database, storage volume, and `.env` `APP_KEY` before updating.)*
 
-Prefer the checked-in Compose file for a plain single-host setup you manage
-yourself. It fixes the database driver to PostgreSQL and does not forward every
-value collected by the installer wizard.
+**Bootstrapping the first administrator (Swarm):**
+```bash
+docker exec -it "$(docker ps -q -f label=com.docker.swarm.service.name=opensinop | head -n1)" \
+  php artisan app:bootstrap-admin --name="School Operator" --email="operator@example.org"
+```
+
+### Option B — Docker Compose
+
+For a standard single-host Docker Compose deployment:
 
 ```bash
 docker compose -f https://raw.githubusercontent.com/koamishin/OpenSinop/main/docker-compose.yml up -d
 ```
 
-> **Customization:** Pass environment variables before the command to customize ports or settings, e.g. `APP_PORT=8080 docker compose ... up -d`.
-
-##### 3. Updating an existing Docker deployment
-
-Run updates from the original installation directory so the scripts find the same
-`.env` and volumes. For installations created by the installer, `--update` dumps
-PostgreSQL to `./backups/` from the database task container, pulls the published
-image (or rebuilds it when a local `Dockerfile` is present), rolls the `opensinop`
-service, and waits for its health check. Changes to `.env` reach the service only
-after a full re-run of the installer. For Compose installations, pull the image
-and recreate the containers:
-
-```bash
-docker compose pull && docker compose up -d
-```
-
-**Create and verify an independent backup first.** The current updater can continue
-after a failed dump; it is not a complete backup or rollback system. Do not assume
-it backs up SQLite, MySQL, uploaded files, or encryption keys.
-
-- **macOS / Linux (bash, zsh):**
-  ```bash
-  bash <(curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh) --update
-  ```
-- **fish shell:**
-  ```fish
-  curl -fsSL https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.sh | bash -s -- --update
-  ```
-- **Windows (PowerShell):**
-  ```powershell
-  iwr https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1 -OutFile install.ps1; .\install.ps1 -Update
-  ```
-  Or as a one-liner:
-  ```powershell
-  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/koamishin/OpenSinop/main/install.ps1))) --update
-  ```
-
-##### 4. Bootstrap the first administrator
-
-On initial boot, the container automatically runs database migrations, enables required modules, and initializes the school identity. Once healthy, create the first super administrator interactively:
-
-```bash
-docker exec -it "$(docker ps -q -f label=com.docker.swarm.service.name=opensinop | head -n1)" php artisan app:bootstrap-admin --name="School Operator" --email="operator@example.org"
-```
-
-For Compose installations the container is named `opensinop`:
-
+Bootstrap the first administrator:
 ```bash
 docker exec -it opensinop php artisan app:bootstrap-admin --name="School Operator" --email="operator@example.org"
 ```
 
-> **Data persistence:** The stack declares `opensinop_db`, `opensinop_storage`,
-> `opensinop_cache`, and `opensinop_redis` volumes and keeps them across re-runs
-> (services are recreated, volumes are not). The Compose alternative prefixes the
-> same names with the Compose project name — keep that project identity when
-> upgrading. Never run `docker compose down -v` or `docker volume rm` on an
-> instance whose records you need to retain.
+Update a Compose deployment:
+```bash
+docker compose pull && docker compose up -d
+```
 
----
+### Option C — Bare-Metal Production Setup
 
-#### Option B — Bare-metal production setup
-
-For environments running PHP and web servers directly on host infrastructure:
-
-1. **Server prerequisites.** Install PHP 8.5 with extensions (`pdo`, `mbstring`, `openssl`,
-   `curl`, `fileinfo`, `dom`, `xml`, `zip`, `bcmath`), Composer, Node.js 20.18+, and (for treasury
-   features) the Circle CLI + `uv` + `arc-canteen` (see
-   [Lepton agent package (Circle + Arc)](#lepton-agent-package-circle--arc)).
-2. **Application code.**
+1. **Clone and build:**
    ```bash
    git clone https://github.com/koamishin/OpenSinop.git /var/www/opensinop
    cd /var/www/opensinop
    composer install --no-dev --optimize-autoloader
-   npm ci
-   npm run build
+   npm ci && npm run build
    ```
-3. **Environment.**
+2. **Configure `.env`:**
    ```bash
    cp .env.example .env
    php artisan key:generate
    ```
-   Set at minimum:
-   ```env
-   APP_NAME="Your School"
-   APP_ENV=production
-   APP_DEBUG=false
-   APP_URL=https://opensinop.example.org
-
-   DB_CONNECTION=pgsql        # or mysql
-   DB_HOST=127.0.0.1
-   DB_PORT=5432
-   DB_DATABASE=opensinop
-   DB_USERNAME=opensinop
-   DB_PASSWORD=change-me
-
-   QUEUE_CONNECTION=database   # or redis
-   SESSION_DRIVER=database      # or redis
-   CACHE_STORE=database         # or redis
-   ```
-4. **Database & storage.**
+   Set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://your-domain.example`, and configure PostgreSQL (`DB_CONNECTION=pgsql`) and Redis/Database queues.
+3. **Migrate & initialize school identity:**
    ```bash
    php artisan module:enable Blog --no-interaction
-   php artisan migrate --force
+   php artisan migrate --force --no-interaction
    php artisan module:migrate --force --no-interaction
    php artisan storage:link
-   ```
-5. **School identity and first administrator** (idempotent; safe to repeat as a no-op):
-   ```bash
    php artisan app:install --institution="Pilot School" --country=PH --timezone=Asia/Manila --currency=PHP --no-interaction
    php artisan app:bootstrap-admin --name="School Operator" --email="operator@school.example"
    ```
-   Bootstrap prompts for a password interactively (hidden). Verify the admin email and
-   configure MFA before opening access.
-6. **Optimise for production.**
+4. **Cache configuration & run workers:**
    ```bash
    php artisan config:cache
    php artisan route:cache
    php artisan view:cache
    php artisan event:cache
    ```
-7. **Process management.** Run a long-lived queue worker (and scheduler) under Supervisor/systemd:
+   Supervise long-running workers via Supervisor or systemd:
    ```bash
-   php artisan queue:work --sleep=3 --tries=3
+   php artisan queue:work --queue=student-tuition,student-bills,finance-submission,finance-planning,policy-assessments,default --sleep=3 --tries=3
    php artisan schedule:work
    ```
-   The included Docker image (`docker/Dockerfile`) runs FrankenPHP + Octane + Supervisor
-   (queue, scheduler, horizon/pulse when installed). See `docker/start-container`.
-8. **Revenue/agent config.** Set `LEPTON_TREASURY_ADDRESS`, `LEPTON_CHAIN`, and the finance
-   env flags only after reviewing [Configuration](#configuration) and the release-safety notes.
 
-> **Never** regenerate `APP_KEY`, reset the database, or delete financial records as
-> credential cleanup. Preview builds use the `preview` tag only; official releases come from
-> `main` after CI. See the [installation documentation](https://koamishin.github.io/OpenSinop/getting-started/installation/)
-> (source in `docs/`) and `docker/Dockerfile`.
+---
 
-### Lepton agent package (Circle + Arc)
+## Wallets, Circle & Arc Configuration
 
-This application depends on [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent)
- (`composer require yukazakiri/lepton-agent`, already declared in `composer.json`). It bridges
-Circle Agent Wallets and the Arc network behind injected contracts; application code never
-shells out to `circle`/`arc-canteen` directly.
+OpenSinop uses [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent) (`v3.0.0-rc.1`+ / `v3.0.0-rc.2`) to interact with Circle Wallets and the Arc network.
 
-The lock file installs [`v3.0.0-rc.1`](https://github.com/yukazakiri/lepton-agent/releases/tag/v3.0.0-rc.1),
-which requires **PHP 8.5**. Entity Secret encryption uses PHP 8.5's explicit
-RSA-OAEP SHA-256 digest API, so the whole application moved to that floor: update
-consumer CI, containers and any host runtime before upgrading. Existing Agent Stack
-wallets are still not automatically accessible through a Developer-Controlled
-Wallets API key, and the REST driver reports unsupported operations explicitly
-rather than pretending a zero balance.
-
-**Circle CLI driver requirements:**
-- `circle` CLI (`npm i -g @circle-fin/cli`) — Circle owns the agent session; the package stores no
-  credentials.
-- An Arc **testnet RPC URL**. Arc reads are HTTPS-only now, so `arc-canteen` is no
-  longer used for JSON-RPC and no fallback network is contacted after a failure.
-- A Circle **agent** wallet (Circle MPC), not a local wallet, so Circle can sign.
-
-**Authentication (OTP, mainnet/testnet independent):**
-```bash
-# send OTP (request ID printed)
-php artisan lepton:login you@example.com
-# complete
-php artisan lepton:login --request=<id> --otp=B1X-123456
-php artisan lepton:login --status
-```
-
-**Configure `.env`:**
 ```env
-# Drivers: circle (CLI agent stack), developer or circle-rest (pure REST API), fake (in-memory)
+# Driver selection:
+#   fake      = In-memory simulated ledger (offline demos & automated tests)
+#   circle    = Circle Agent Stack CLI + Arc HTTPS JSON-RPC (requires Circle CLI & MPC agent wallet)
+#   developer = Circle Developer-Controlled Wallets pure HTTP REST API (zero CLI binaries)
 LEPTON_DRIVER=circle
 LEPTON_CIRCLE_BIN=circle
 LEPTON_ARC_BIN=arc-canteen
 LEPTON_CHAIN=ARC-TESTNET
 LEPTON_CHAIN_ID=5042002
-LEPTON_TREASURY_ADDRESS=0x...   # Circle agent or developer wallet address
-LEPTON_RPC_URL=                 # optional override
+LEPTON_TREASURY_ADDRESS=0xYourAgentWallet
+LEPTON_RPC_URL=
 LEPTON_DRY_RUN=false
 LEPTON_ALLOW_RAW_CIRCLE=false
 
-# Optional: when using LEPTON_DRIVER=developer (pure HTTP REST API, zero CLI binaries)
+# Optional: Circle Developer-Controlled Wallets REST API (when LEPTON_DRIVER=developer)
 LEPTON_CIRCLE_API_KEY=
 LEPTON_ENTITY_SECRET=
 LEPTON_WALLET_SET_ID=
 LEPTON_CIRCLE_API_URL=https://api.circle.com/v1/w3s
 
-# Verified Circle notifications (opt-in; both required before the webhook route answers)
+# Optional: Verified Circle Webhook Notifications
 LEPTON_WEBHOOKS_ENABLED=false
-LEPTON_WEBHOOK_SUBSCRIPTIONS=   # comma-separated subscription IDs
+LEPTON_WEBHOOK_SUBSCRIPTIONS=
 LEPTON_WEBHOOK_MAX_AGE_SECONDS=86400
 ```
 
-**Webhook route.** `POST /api/webhooks/circle` returns `404` until
-`LEPTON_WEBHOOKS_ENABLED=true` *and* the developer REST driver is selected. It then
-requires `X-Circle-Signature` and `X-Circle-Key-Id`, verifies the raw body with
-`ECDSA_SHA_256` against the key returned by
-`GET /v2/notifications/publicKey/{keyId}`, records the event in
-`circle_webhook_notifications`, and answers `202` with
-`{"received": true, "settlement_verified": false}`. The only side effect is a queued
-observation job; it can never create or submit a payment.
-`php artisan app:recover-circle-notifications` re-dispatches unobserved hints every
-minute, so a delivery that arrives before its local record is not lost.
+### Authenticating & Funding a Circle Agent Wallet (`LEPTON_DRIVER=circle`)
 
-**Verify:**
-```bash
-php artisan lepton:doctor       # binaries, session, treasury, chain reads, ledger parity
-php artisan lepton:status --address=0x...
-```
-
-**Key rules** (from the package; do not violate):
-- Amounts are integer base units; USDC = 6 decimals, Arc native = 18 decimals. Use
-  `Yukazakiri\Lepton\Support\Amounts`, never floats or `hexdec()`.
-- A transaction hash is a claim, not proof. `eth_getTransactionByHash` shows
-  visibility only; settlement needs a successful matching receipt and finality.
-- REST mutations need a persisted UUID v4 `idempotencyKey`. After a timeout, observe
-  the existing submission — never send a second transfer under a fresh key.
-- Prefer Circle agent wallet addresses; local wallets make transfers fail.
-- Mainnet and testnet sessions are independent.
-
-For full API (transfers, balances, x402, Gateway, bridges, testing with the fake
-driver), see `vendor/yukazakiri/lepton-agent/README.md` or the package docs.
-### Demo accounts
-
-| Role | Email | Password |
-|---|---|---|
-| Student | `juan@eduflow.test` | `password` |
-| Finance officer | `finance@eduflow.test` | `password` |
-
-These accounts belong to the existing developer demo. The student account still exposes
-legacy assistance screens; it is not a fee-payment portal or a prerequisite for the college
-pilot. Use authorized finance staff and permitted source records for pilot validation.
-
-### School identity setup and first administrator
-
-OSS production rollout is still in progress. These commands initialize school identity,
-conservative settings and administrator access—not native-fiat accounting, a complete aid
-workflow, production financial safety or payment certification.
-
-On an operator-controlled instance with reviewed database configuration,
-`APP_ENV=production`, `APP_DEBUG=false`, and a valid unique existing `APP_KEY`:
+Circle agent wallets authenticate via email OTP (sessions last 7 days). **Mainnet and testnet authenticate independently**—a valid mainnet session does not authorize an `ARC-TESTNET` transfer.
 
 ```bash
-php artisan migrate --force --no-interaction
-php artisan app:install --institution="Pilot School" --country=PH --timezone=Asia/Manila --currency=PHP --no-interaction
-php artisan app:bootstrap-admin --name="School Operator" --email="operator@school.example"
-```
-
-Migrations are a separate operator task. Installer never migrates, resets data, seeds demo
-records, generates keys, creates wallets or calls external providers. It creates roles,
-one institution with zero autonomous thresholds, persisted country/locale/timezone/currency,
-and disables public registration, impersonation and AI. Country is validated as a two-letter
-code format; jurisdiction eligibility is not certified. English is the current supported locale.
-School currency metadata does not convert legacy USDC tuition or payment records.
-
-Repeat identical setup is a no-op: credentials, settings, budgets and policies survive.
-Changed identity/metadata is refused rather than overwritten. An existing institution
-requires explicit `--adopt-institution` with its actual numeric ID and matching name/currency;
-review its existing financial data before adoption. Adoption preserves monetary limits,
-policies and balances; it is not cleanup of an existing demo or authorization of live payments.
-Missing keys, unsafe debug mode, locked unsafe defaults or ambiguous institutions fail setup.
-
-`RolesAndPermissionsSeeder` now creates no users in any environment. Default local demo
-accounts live in `DemoUsersSeeder`, invoked only by local/testing demo `DatabaseSeeder`.
-Production/staging seed roles and permissions, not demo users or institutions. Bootstrap
-asks for the password and confirmation through hidden prompts; passwords must have at
-least 12 characters, mixed case, a number, and a symbol. It requires an interactive
-terminal, has no password CLI option, leaves email verification pending, and refuses
-existing users or a second superadmin. Verify email and configure staff MFA before opening
-school access. Configure SMTP for verification/reset flows first.
-
-This change does **not** remove accounts created by older seeders. Operators must review
-existing `admin@admin.com` / `user@user.com` accounts, rotate exposed passwords, revoke
-sessions and unnecessary access, and preserve required audit evidence. Do not regenerate
-`APP_KEY`, reset the database, or delete financial records as credential cleanup.
-
-### Single-institution context
-
-Installer persists `organizations.id` as school identity in installation settings.
-Production/staging use that identity without requiring `.env` edits. Legacy instances may
-still configure `EDUFLOW_INSTITUTION_ID`; when both exist, they must agree. Database must
-contain exactly one institution. Missing, corrupt, stale or ambiguous context disables
-treasury actions/operator construction instead of choosing the first row. Local/testing
-retain automatic selection only before setup and when exactly one institution exists.
-
-After setup, Eloquent refuses creation of another institution. Raw database access can
-bypass that model guard, but ambiguous data still disables selection. Restart long-lived
-workers after setup/configuration changes. This is not complete tenant isolation or
-ownership enforcement for every existing resource; do not host unrelated schools in one DB.
-
-Public registration GET/POST is denied for installed schools until the existing registration
-setting is explicitly enabled. Opt-in registration grants no staff role or verified student
-enrollment. Password reset/email verification/MFA still require operator SMTP and access setup.
-
-### Money and rate evidence
-
-Request intake parses plain decimal USDC strings exactly, rejects precision/range errors,
-and preserves six-decimal minor units. The new `Money` DTO formats without floats and
-serializes minor units as strings; currency conversion uses checked arbitrary-precision
-intermediates. Legacy treasury/payment APIs and money columns still need migration.
-
-Rate snapshots preserve source time/expiry and reject future, expired, non-positive and
-old sources. `EDUFLOW_MAX_RATE_AGE_SECONDS` defaults to 900. Static fallback rates remain
-indicative display values. `requireFreshQuote()` requires a non-fallback source with expiry;
-it is not an executable provider offer, fee guarantee, or FX/settlement certification.
-USD source rates may differ from 1:1 USDC parity. No payment adapter is newly enabled.
-
-### Release safety
-
-Preview builds publish only after successful same-repository push CI, from its exact
-commit. Preview images use `preview` and version/SHA tags, never stable `latest`.
-Manual releases require successful CI for the dispatched `main` commit, reject existing
-tags, and reject `latest` for drafts/prereleases. Configure required reviewers on the
-GitHub `release` environment before using official publication; an environment name alone
-does not enforce approval. Ad hoc Docker Build Check never publishes an image.
-
-A Graphite token previously embedded in the release workflow has been removed with that
-integration. Its owner must still revoke/rotate the exposed token and review access and
-repository history. Removing source text does not invalidate a credential. These checks
-do not certify the current Docker image or live payment rails for production.
-
----
-
-## Technical reference
-
-The sections below retain detailed operational and implementation notes. Legacy
-demo commands are not deployment steps, and roadmap targets are not promises that
-every payment path is production-ready. See [PLAN.md](PLAN.md) for the delivery
-contract and remaining release gates.
-
-<details>
-<summary><strong>Wallet authentication, funding, and developer demo</strong></summary>
-
-## Authenticate your agent wallet
-
-Circle agent wallets authenticate with an **email one-time password**. Sessions last
-seven days.
-
-```bash
-# Check current state first — this never fails and never prompts
+# 1. Check current session state
 php artisan lepton:login --status
 
-# Step 1: send the OTP, get a request ID (expires in 10 minutes, one-shot)
+# 2. Request an email OTP (expires in 10 minutes)
 php artisan lepton:login you@example.com
 
-# Step 2: paste the code from the email
+# 3. Complete login with the request ID and OTP code
 php artisan lepton:login --request=<request-id> --otp=B1X-123456
 ```
 
-> **Mainnet and testnet authenticate independently.** A valid mainnet session does not
-> authorise an ARC-TESTNET transfer. If testnet transfers fail, check the *testnet* row
-> in `lepton:login --status`.
-
-The package stores no credentials. The Circle CLI owns the session; OpenSinop only reads it.
-
----
-
-## Fund the wallet
-
+**Funding on Arc Testnet:**
 ```bash
 circle wallet fund --address <your-agent-wallet> --chain ARC-TESTNET
 ```
+> [!NOTE]
+> The Circle testnet faucet mints **20 USDC per call** (ignoring `--amount`) and rate-limits with HTTP `429` after roughly 5 calls, giving a practical ceiling of **100–120 USDC** per wallet. Also remember that **USDC is the gas token on Arc**, so a wallet requires a nonzero USDC balance to broadcast any transaction.
 
-**This mints exactly 20 USDC per call and ignores `--amount`.** It also rate-limits
-after roughly five calls:
-
-```
-Error: Faucet drip failed (429): API rate limit error
-```
-
-So a realistically funded wallet holds about **100–120 USDC**. That ceiling is why the
-demo scenarios are the size they are — see [The seeded scenarios](#the-seeded-scenarios).
-
-Once funded, point OpenSinop at that wallet and sync the ledger:
-
+Verify your setup and reconcile receipts against the chain:
 ```bash
-# LEPTON_TREASURY_ADDRESS=0xYourAgentWallet   in .env
-php artisan lepton:doctor        # confirms env, database and Circle all agree
-php artisan lepton:reconcile     # proves existing receipts against the chain
-```
-
-Use **Sync from chain** on the dashboard to overwrite the ledger balance with the real
-figure. Do this before the demo, or the dashboard will show drift and auto-pays will
-fail for lack of funds.
-
-> **USDC is the gas token on Arc.** A wallet needs USDC to send anything at all,
-> including a zero-value transfer. "My balance reads zero" is sometimes really "no gas".
-
----
-
-## Run the demo
-
-```bash
-php artisan lepton:doctor      # is it wired up?
-php artisan app:demo       # run one full autonomous cycle
-php artisan lepton:reconcile   # proves each stored receipt against the chain
-```
-
-`app:demo` moves **85 USDC** of real testnet USDC (30 + 45 + the 10 USDC aid
-portion). It is not a simulation under the `circle` driver, and it is not repeatable
-without re-funding — see [Funding](#fund-the-wallet).
-
-To watch it without touching a chain, use the fake driver:
-
-```env
-LEPTON_DRIVER=fake
-```
-
-Everything then runs in memory. `is_fake` is set on every receipt and the UI badges them
-**Simulated**, so you can never mistake a fake run for settlement.
-
----
-
-## The seeded scenarios
-
-Given a 120 USDC wallet, a 20 USDC reserve and a 50 USDC autonomous limit. The policy
-engine checks **vendor → budget → reserve → auto limit**, so each amount is placed
-against those gates deliberately.
-
-| Invoice | Amount | Decision | Why |
-|---|---:|---|---|
-| `INV-FIBER-30` | 30 | **auto-pay** | verified vendor, under the limit |
-| `INV-CLOUD-45` | 45 | **auto-pay** | verified vendor, under the limit |
-| `INV-UNVERIFIED-60` | 60 | **escalate** | vendor not verified, checked first |
-| `INV-LAB-90` | 90 | **escalate** | over the 50 limit, wallet can still afford it |
-| `INV-SUPPLY-200` | 200 | **hold** | would breach the 20 USDC reserve |
-| `INV-HAZARD-2000` | 2000 | **reject** | equipment budget only holds 500 |
-
-Plus one student aid request at **15 USDC** against a **10 USDC** auto-limit, which
-produces the bounded split: 10 approved instantly, 5 escalated for advisor review.
-
-Only the two auto-pays and the approved aid portion move money: **85 USDC**. Everything
-else is a decision, not a payment. `tests/Feature/DemoScenarioScaleTest.php` fails if
-these ever stop fitting the faucet ceiling or stop covering all four reachable
-decisions.
-
----
-
-</details>
-
-<details>
-<summary><strong>Finance workflows, evidence, and payment review</strong></summary>
-
-## Using the app
-
-**Current focus: fee collections and decisions about their use, not student assistance.**
-The workflow below defines the intended user experience. Existing source-evidence and
-planning foundations are documented later in this README; the complete student collection
-portal, staff review UI and safe payment-execution lifecycle are not yet shipped.
-
-### Student side — fee payment and confirmation
-
-- Students pay tuition or other fees through the college's existing approved payment process.
-  The pilot does not require students to hold USDC or use a new OpenSinop payment portal.
-- Students retain the official receipt/reference. Authorized staff verifies received funds
-  before including them in the institution's collections data; an expected payment or
-  uploaded receipt alone is not confirmed cash.
-- A later student-facing view may show fee balances, verified payment status and receipt
-  history. Those collection views and individual payment-matching workflows are future
-  work, not capabilities of the current legacy student dashboard.
-- Students do not request assistance, approve departmental budgets or decide institutional
-  spending as part of this pilot. Assistance remains a separate deferred workload.
-
-### Cashier side — transaction intake and reconciliation
-
-Cashier is the institution's intake/reconciliation hub for tuition and other approved
-receipts, not a personal wallet or an unrestricted spending approver. Students pay through
-existing college channels; cashier records/imports authoritative references, exact amounts,
-currencies, categories and received evidence. Separate authorized staff reviews collection
-batches. Pending/unmatched receipts, refundable deposits and restricted income cannot be
-treated as unrestricted money. Donations, grants and other institution income can follow
-reviewed categories later; tuition is the first example, not the only future source.
-
-Cashier entry, independent reconciliation, business approval, payment authorization and
-accounting posting remain separate acts. No new cashier portal or complete cash-management
-system ships from this plan. Aggregate inputs keep the pilot independent of student rows.
-
-### Agent side — review collected fees and propose their use
-
-1. **Observe confirmed collections.** Read staff-verified aggregate realized receipts,
-   approved opening funds, actual outflows and approved bills. Keep source references,
-   original currency and observation times; unresolved receipts stay outside spendable cash.
-2. **Determine available funds.** Account for restricted cash, protected reserves and existing
-   commitments without double-counting them. Check cash availability separately from the
-   department's remaining approved allocation; a budget is not proof of money received.
-3. **Propose use within approved budgets.** Compare bill due dates, categories and policy
-   with available funds. Recommend which approved obligations can be funded now, which need
-   human review and which must wait. Show exact amounts, remaining headroom and reasons.
-4. **Route business decisions to staff.** A new allocation, transfer between departments or
-   change in priority requires the college's authorized decision-maker. The agent cannot
-   invent percentage splits, redirect restricted funds or override a hard policy failure.
-5. **Prepare authorized testnet payments.** Once the remaining execution gates pass, connect
-   each eligible admin-approved bill to its exact approved USDC mirror through the existing
-   Circle Agent Wallet. Only separately approved recurring obligations qualify for the
-   small capped autonomous testnet lane; everything else needs the appropriate review.
-6. **Verify and audit.** Verify successful matching Arc testnet movement and finality; link
-   the collection/budget evidence, proposal, policy checks, approval and payment record.
-   Unknown outcomes remain unresolved. A testnet mirror never marks the college's real
-   local-currency bill paid or creates new institutional income.
-
-For example, verified fees may support an approved internet renewal and laboratory-supply
-bill. The agent explains whether both fit the department's allocation and available cash,
-while preserving reserves and commitments. If they do not both fit, staff decides the
-trade-off. Payroll reserves can be protected in planning; payroll execution remains deferred.
-
-### Background work — no chat prompt required
-
-**Delivered opt-in planning runtime:** cashier capture and budget snapshots create durable
-finance runs; scheduler recovery dispatches bounded planning/review jobs without chat or an
-open browser. Finance Supervisor shows progress and queued review alerts. Background payment
-execution, recurring occurrences and settlement reconciliation remain later gated work.
-Optional AI must receive bounded system-generated evidence prompts, never an endless loop,
-invented obligations, self-set schedules or self-granted authority.
-
-Enable `EDUFLOW_BACKGROUND_FINANCE=true` only with a durable `database` or `redis` connection
-configured through `EDUFLOW_FINANCE_QUEUE_CONNECTION`. Keep a supervised queue worker on
-`finance-planning` and invoke Laravel scheduler every minute. The scheduled
-`app:dispatch-finance-workflows` recovers committed work; `sync` is refused. Background
-finance defaults off, and no scheduler task submits money.
-
-One institution workflow service coordinates specialist tasks; several unrestricted LLMs
-are not required. Deterministic PHP decides financial eligibility. Human-approved recurring
-mandates let eligible bills from reviewed vendors/destinations run automatically on
-`ARC-TESTNET`, within exact per-payment and cumulative caps, allocation, cash/reserve and
-fees. Larger/one-off otherwise-valid bills need human approval; hard failures stay blocked.
-Human approval of a standing mandate is distinct from a click for each occurrence.
-
-Use supervised durable queue workers plus scheduler, durable event/outbox recovery,
-deduplicated occurrences and bounded retries. Do not schedule the legacy developer agent
-cycle: it is not the safe new lifecycle. Current funding windows cannot refresh/release
-unattended; reviewed rollover, complete payment authorization lifecycle and execution/evidence gates must pass
-before this automatic lane is enabled. See `PLAN.md` Sections 14.7–14.10 for delivery order.
-
-### Staff side — review proposals and retain control
-
-- Confirm collection evidence, available funding and the department's approved allocation.
-- Inspect proposed use of funds, due dates, policy results and resulting budget/cash headroom.
-- Approve or reject eligible payment proposals. Material edits require a reviewed successor
-  and fresh checks/authorization, not mutation of an approved payment intent.
-- Investigate holds, missing evidence and uncertain outcomes; approval cannot bypass policy.
-- Compare verified testnet transaction evidence with each authorized bill, while keeping
-  actual local collections/payments in the college's existing accounting process.
-- Supervise logical worker runs from a finance dashboard: active/queued/waiting/blocked/failed
-  tasks, triggering evidence, policy results, cash/budget holds and automatic mandate usage.
-- Receive role-scoped in-app approval/investigation alerts, with optional queued email and
-  bounded reminders. Reading a notification is not approval; silence never authorizes payment.
-- Pause new submissions or suspend a mandate while preserving in-flight reconciliation and
-  audit. View recorded rule results and evidence summaries, not hidden model reasoning.
-
-Finance Supervisor and Collections pages now expose durable planning/review runs and queued
-in-app review alerts. Background planning is opt-in; a durable queue worker and scheduler must
-run separately. Payment Reviews adds exact reserved-payment evidence and fresh password/TOTP
-review. Automatic execution, reminder escalation, assignment and operational health summaries
-remain pending. Dashboard access never grants payment permission.
-
-**Implementation boundary:** C0 inspection is read-only; current invoice evidence and
-budget planning do not authorize transfers. Existing student-assistance screens and
-assistance approval endpoints must not be presented as a fee-collection or vendor-payment
-workflow. Reuse ordinary invoice, budget, review and intent foundations as the remaining
-[Section 14 pilot gates](PLAN.md#14-college-shadow-pilot--hackathon-execution-contract) are built.
-
----
-
-## Verify it really settled
-
-A hash in your database is a claim. The command below is **legacy hash reconciliation**,
-not the successful receipt, expected-payment matching and finality verification required
-for the college pilot. Its `verified` label alone cannot complete pilot settlement.
-
-```bash
+php artisan lepton:doctor
+php artisan lepton:status --address=0xYourAgentWallet
 php artisan lepton:reconcile
 ```
 
-```
-  ✓  #7    vendor_payment      45.000000  verified    0xcecac1d9520c4815
-  ~  #9    vendor_payment      12.500000  pending     0x1f0c9ab7d4e35c22
-  ✗  #3    student_assistance 100.000000  reverted    0x59cbf4983d0e6ff1
-  ?  #11   vendor_payment       8.250000  unresolved  0xb7e21c40a95d3381
-
-  1 verified · 1 reverted · 1 unresolved · 1 pending · 0 provider-only · 0 unverifiable · 0 ledger-only
-```
-
-Each verdict is a different claim, and only two of them may write to a record:
-
-| Verdict | Means | What it proves |
-| --- | --- | --- |
-| `verified` | A receipt exists and reports success | The chain executed it; not that it moved the intended amount |
-| `reverted` | A receipt exists and reports failure | Chain-proven failure — the only absence-free verdict that fails a row |
-| `pending` | Known to the chain with no receipt yet | Still in flight; nothing is concluded |
-| `unresolved` | No transaction with this hash was found | An open question, never a failed payment |
-| `observed` | Provider reports completion, no receipt readable | Provider claim only |
-| `unverifiable` | Neither chain nor provider readable | No evidence available |
-| `ledger_only` | No hash recorded | A local ledger row that never claimed a receipt |
-
-A missing RPC result alone does not prove fabrication or failed settlement:
-propagation delay, a reorganisation, and a hash from another network all look
-identical. Keep uncertain outcomes unresolved and reconcile without blind
-resubmission. Fake-driver receipts are simulated, never onchain proof.
-
-`--fix` marks a row failed **only** for `reverted`. Unresolved rows are listed for
-investigation and left untouched, because writing `FAILED` on absent evidence would
-replace one unproven claim with another and erase the record of the gap:
-
-```bash
-php artisan lepton:reconcile --fix
-```
-
-To inspect one hash yourself (inspection, not settlement proof):
-
-```php
-app(Yukazakiri\Lepton\Contracts\ArcNetworkGateway::class)
-    ->rpc('eth_getTransactionByHash', [$hash]);
-```
-
 ---
 
-## Institution finance preview (no students required)
+## Core Workflows & Modules
 
-```bash
-php artisan app:finance-preview --days=30 --no-interaction
-```
+### 1. Institution Onboarding & First Setup Wizard
 
-Read-only C0 entry point: binds the installation institution, observes its recorded
-Circle treasury on the configured Arc network, shows indicative vendor-policy reviews
-and a stored-ledger forecast. No students, tuition accounts, assistance fund, assistance
-policy or AI provider needed. An empty institution produces an audited `no_op` report.
+OpenSinop supports both single-institution installations (`php artisan app:install`) and multi-school shared-database onboarding:
+- **Institution Registration (`/institutions/register`):** Register an organization, select **Arc Mainnet** (`5040`) or **Arc Testnet** (`5042`), choose an accounting currency (`USDC` or `EURC`), and link a Circle Agent Wallet or manual EVM treasury address.
+- **First Application Setup Wizard (`/institutions/setup`):** Newly registered schools are guided through configuring initial department budgets, activating a 1-click institutional policy template, verifying their Arc treasury connection, and generating student registration invite links. Student registration and login remain gated until `is_setup_completed` is true.
+- **Smart Console Redirect (`/console`):** Routes authenticated finance officers and administrators directly to `/finance` or `/admin`.
 
-The report always sets `can_execute=false`: no invoice status changes, budget spending,
-reservations or transfers. Native USDC observations preserve 18-decimal quantities and
-sub-micro residuals as strings; fake observations say `simulated`, never settled. Invalid
-network/address or unavailable RPC produces no inferred chain balance. Legacy policy and
-forecast float APIs remain indicative; newer exact evidence and bounded capacity holds are
-separate normal workflows, not authority granted by this preview.
-SQLite floating-point money storage is refused rather than presented as exact. A preview
-is not live-payment readiness, signing authority or proof of custody/settlement. It is the
-first read-only step, **not** the complete hackathon pilot: eligible approved college bills
-must later be connected to actual verified Arc testnet payments through the gated lifecycle.
+### 2. Student Web3 Portal, Tuition & E-Receipts
 
-`SettlementOperatorFactory` now builds an institution operator without aid setup. Its
-`InspectInstitutionFinance` tool is read-only; aid tools appear only with an active local
-fund and valid aid policy. The existing aid approval endpoint remains aid-only.
+Students enroll at `/register` and access their portal at `/dashboard`:
+- **1-Click Web3 Wallet Linking:** Connect MetaMask, Rainbow, Phantom, or any EIP-1193 wallet with cryptographic signature verification (`personal_sign`) to prove ownership, or enter a 40-hex EVM address manually.
+- **Tuition & Bill Payments (`/student/pay`, `/student/bills`):** Request a locked quote with an explicit sender-fee guarantee, review the exact 6-decimal USDC breakdown, and submit payment consent.
+- **Official Payment E-Receipt Modal:** View and print tamper-evident electronic receipts linking student details, payment reference, policy evaluation, and Arc block explorer transaction proof.
 
-## Vendor-payment draft preparation (C1 foundation)
+### 3. Institution Policy Studio & JEV Simulator
 
-`app:prepare-vendor-payment` prepares one immutable, full-bill USDC draft. Operator
-supplies an existing invoice ID, institution-owned Circle wallet ID, authorized staff ID,
-exact fee ceiling and a UUID intent key retained for retries. Required options:
-`--actor`, `--wallet`, `--max-fee`, `--intent-key`; inspect available syntax with
-`php artisan app:prepare-vendor-payment --help`.
+Available at `/finance/policies` (and linked from both Filament panels):
+- **1-Click Policy Templates:** Instantly initialize policies using five curated templates:
+  1. *Standard Academic Operations*
+  2. *Campus Events & Student Life*
+  3. *STEM & Lab Research*
+  4. *Autonomous Fast-Track*
+  5. *Strict Governance & Audit*
+- **Interactive JEV Decision Simulator:** Test hypothetical bills, amounts, and categories against the active policy to inspect step-by-step plain-English reasoning and disposition (`match`, `needs_review`, `hold`, `exempt`) before publishing.
+- **Immutable CLI Policy Governance:** Operators can also draft and activate low-level numeric policy versions via `php artisan app:prepare-finance-policy` and `php artisan app:activate-finance-policy` (enforcing two-person separation where the reviewer cannot be the creator).
 
-Draft preparation is not human sign-off or proof that the named staff member personally
-ran the CLI: host operator has attribution responsibility. No browser/AI tool can call this
-path. Policy allows eligible finance staff to prepare, but **everyone is denied execution**.
+### 4. JEV Decision Analytics & Live Agent Health
 
-The draft requires an independently activated immutable finance-policy version and binds
-source/recipient, bill, budget allocation, Arc network, amount, fee ceiling, exact policy
-content and activation evidence with a canonical SHA-256 snapshot digest. Identical retry returns
-the existing identity without duplicate audit; changed fields or a new key for the same
-full bill require review. `VerifyVendorPaymentDraft` reloads stored and current evidence;
-verification never reserves or sends funds. Digest is change detection, not a signature,
-approval, recipient-ownership proof or payment receipt.
+- **Executive Analytics (`/finance/jev-analytics` & Filament `JevAnalyticsDashboard`):** Tracks AI evaluation throughput, decision breakdowns (`match`, `needs_review`, `hold`, `exempt`), category confidence distributions, 14-day trend trajectories, **Staff Concurrence Rate**, **Manual Override Rate**, and **Time-to-Approval Latency**.
+- **Live Agent Health Checks (`/finance/ai/health`):** Interactive connectivity diagnostics probing the configured AI provider (`local`, `openai-compatible`, `openai`, `anthropic`, etc.) and JEV policy brain, with one-click advisory toggling.
+- **Fail-Closed AI Guarantees:** API keys stored in the database (`ai_providers`) are encrypted at rest via `APP_KEY` and never echoed back to the DOM. If an AI endpoint times out or returns malformed output, OpenSinop fails closed and relies strictly on deterministic PHP rules.
+- **Ask OpenSinop (`AskEduFlow` + `BriefGuard`):** Student chat computes answers deterministically in PHP first (`StudentBrief`). If an LLM rephrases the response, `BriefGuard` extracts every digit string and rejects the response if any number deviates from the brief.
 
-Migration is additive and not run against the school database by this change. Existing
-money is not backfilled or guessed; inexact SQLite monetary values are refused. Legacy
-exact treasury migration, cryptographic destination/control certification, payment
-approval, reservation release/rollover, outbox/attempts and actual settlement remain open. Foreign keys retain source
-documents, wallet, budget, vendor, preparer and reviewed policy evidence; model updates/deletes are refused.
-Rollback drops the new table only when empty; populated-table rollback refuses to erase
-draft evidence and requires reviewed archival/forward migration. Malformed snapshot shape
-fails integrity validation. Factory fixtures explicitly bind existing source documents with
-`PaymentIntent::factory()->forVendorBill($invoice, $wallet, $preparer)`.
-Database admins/raw writes remain outside the model guard, and restored drafts must be
-reconciled/reviewed before any future execution. `finance.payment-intent-changes.*` provides
-independently reviewed terminal cancellation or one fresh non-executable successor. Original
-snapshots/reasons remain intact; another key cannot reopen cancellation. Reserved drafts
-require future reviewed release first. Recovery review never grants payment authority.
-
-## Reviewed institution finance policy (C1 foundation)
-
-`app:prepare-finance-policy` creates an immutable version without activating it.
-Required: version identifier, `--actor`, explicit `--reserve` in exact USDC. Options
-`--auto-limit`, `--daily-limit`, `--max-fee` default to zero. Auto limit cannot exceed daily
-limit. Inspect syntax with `php artisan app:prepare-finance-policy --help`.
-
-`app:activate-finance-policy` requires policy version ID, separate authorized
-`--reviewer`, and explicit `--expected-activation=none` for first activation or current
-activation ID for replacement. It never infers the latest review context. Same review
-retry returns existing evidence; stale context, self-review (including super admins),
-reactivation of superseded versions and corrupt history are refused. Inspect syntax with
-`php artisan app:activate-finance-policy --help`.
-
-Activations are append-only, bind predecessor digest and validate actual policy content
-through the complete recorded history (up to 10,000 activations; beyond that fails closed
-pending reviewed archival design). Policy replacement makes existing payment drafts stale.
-New drafts persist restrictive policy version/activation references; upgraded legacy drafts
-retain nullable context and are not backfilled; intact historical drafts can now use reviewed
-replacement to bind current evidence without mutating the originals. SQLite table rebuilds restore exact-money bounds triggers.
-
-**Policy activation is not payment approval or permission to execute.** Limits record
-reviewed configuration for the future intent engine; they do not retrofit legacy payment
-paths. CLI staff IDs provide operator attribution, not proof of personal authentication or
-MFA. Restrict shell access. Hashes detect changes, not a database administrator rewriting
-history and recomputing hashes; externally anchored audit/signing remains a release gate.
-
-## Invoice source evidence and departmental planning
-
-These are normal finance workflows, not a dedicated pilot or demo module. `InvoiceVersion`
-binds exact source amount/currency, source and business-approval references, department/period
-and explicit USDC reference valuation to an existing `Invoice`. Source money comes from
-staff-verified records, not legacy float columns. `CurrencyValuationCalculator` supports
-all installed currencies, including six-decimal USDC with identity rate `1`. Valuation is
-not executable FX, payment approval or a settlement receipt; evidence has no network or
-demo-payment state.
-
-Verified finance staff capture through `POST finance/invoice-versions`
-(`finance.invoice-versions.store`), supplying `invoice_id`, retry UUID `capture_key`, exact
-string `source_amount`, `source_currency`, `source_evidence`, `business_approval_reference`,
-`department`, `period_start`, `period_end`, exact string `source_per_usdc`, `rate_source`,
-ISO-8601 `rate_observed_at`, and explicit `rounding` (`down`, `half_up`, `up`).
-A separate verified admin reviews via `POST finance/invoice-versions/{invoiceVersion}/review`
-with `expected_digest`, `decision` (`approve_evidence`, `reject`, `hold`) and `reason`.
-`GET finance/invoice-versions/{invoiceVersion}` shows evidence. Identity comes from the
-session; caller-supplied staff IDs are prohibited. Reviews are evidence validation, not
-permission to pay. Retries retain one audit; changed evidence requires successor work.
-
-`BudgetSnapshot` captures exact allocation, spending and commitments separately from
-verified opening funds, realized aggregate receipts, actual outflows, restricted cash,
-protected reserve and other cash commitments. Allocation is never added to cash; forecast
-revenue is not available funds. `DepartmentBudgetPlanner` checks an explicitly bound closed
-bill set cumulatively by due date and ID. Staff attests other commitments exclude selected
-bills and cash protection buckets are disjoint. New snapshots also require opening funds to exclude
-selected reviewed collections. Negative headroom stays visible. Source,
-review, budget drift or expired/corrupt evidence blocks the complete plan.
-
-Capture with `POST finance/budget-snapshots` (`finance.budget-snapshots.store`). Context:
-`budget_id`, `capture_key`, `currency`, `department`, `period_start`, `period_end`, `as_of`,
-`valid_until`, selected `bill_ids`, `budget_evidence`, `cash_evidence`, `commitment_evidence`.
-Required exact decimal strings: `allocation`, `already_spent`, `other_budget_commitments`,
-`opening_funds`, `realized_receipts`, `actual_outflows`, `restricted_cash`, `protected_reserve`,
-`other_cash_commitments`. Accept `commitments_exclude_selected_bills`, `cash_buckets_disjoint`
-and `opening_funds_exclude_collections`. Supply `collection_review_ids` for nonzero receipts;
-`realized_receipts` must equal their exact reviewed gross sum, in the same currency, received
-by `as_of`. `restricted_cash` must include all bound collection restrictions.
-Inspect through `GET finance/budget-snapshots/{budgetSnapshot}`; plan through
-`POST finance/budget-snapshots/{budgetSnapshot}/plan`.
-
-Immutable records, canonical digests, restrictive FKs and populated-rollback refusal retain
-evidence. Legacy amount/budget fingerprints detect changes without recovering lost precision.
-Versioned invoices are blocked from legacy float-based payment execution. Independently
-reviewed exact USDC invoice versions now bind non-executable payment drafts; local reference
-valuations do not authorize USDC transfers. Input/review/planning changes no invoice payment state, budget or wallet.
-Every response retains `can_execute=false`; plans reserve nothing and verify no settlement
-funding. Plans cannot be combined as a funded institution-wide plan. Staff attestation is
-not independent bank reconciliation or source/rate authenticity proof.
-
-Staff UI/imports, destination suspension/cooling-off, source/collection corrections, reviewed
-reservation release/rollover, local-to-testnet authority, approval renewal/withdrawal and factor
-recovery, durable submission/recovery and verified Arc settlement remain open. Existing capacity holds are
-bounded to one approved USDC funding window, not a production treasury ledger.
-The college shadow demo uses these ordinary workflows in a separately authorized testnet
-environment; it is not a parallel application domain or production-readiness claim.
-
-## Reviewed aggregate fee collections
-
-`CollectionBatch` records aggregate received fee amounts and restrictions, not individual
-student payments. Verified finance staff use `POST finance/collection-batches` with UUID
-`capture_key`, stable `source_stream`, `source_reference`, SHA-256 `source_document_digest`,
-`currency`, exact string `received_amount` / `restricted_amount`, ISO-8601 `collected_from`
-and `collected_until`, and `cash_evidence_reference`. Accept `source_stream_disjoint` and
-`received_not_forecast`. Intervals are half-open: adjacent reports are allowed, overlapping
-reports in one stream are refused. Duplicate document digests/references cannot be retried
-with new keys. Document digests detect duplicates, not report authenticity.
-
-Separate verified admin uses `POST finance/collection-batches/{collectionBatch}/review`
-with `expected_digest`, `decision` (`approve_receipts`, `reject`, `hold`),
-`verification_reference`, `reason` and accepted `received_and_restrictions_verified`.
-`GET finance/collection-batches/{collectionBatch}` exposes source/review evidence. Self-review
-and changed review feedback are refused. Pending, held or rejected receipts cannot supply
-planning cash. Corrections/revocation and student receipt matching remain future work.
-
-New budget snapshots bind approved collection records/reviews and exact sums. Missing or
-changed bindings block the entire plan. Original schema-v1 snapshots remain readable as
-`legacy_staff_attestation`, never silently upgraded; they cannot create new funding windows.
-Opening funds stay separately staff-attested and must exclude selected receipts. Streams
-must represent disjoint underlying receipts; relabeling/repackaging the same receipts cannot
-be reliably detected without later source integrations. Alternative read-only plans may
-reference the same receipts; they are not new income or funded department allocations.
-
-Collection approval is independent **staff attestation**, not verified bank balance, Arc
-funding, executable FX, receipt issuance or authorization to spend. No gateway call, cash
-posting or student record is required. Local fees stay local; testnet uses separate funding.
-
-## Bounded funding and capacity reservations
-
-`finance.funding-windows.*` prepares/shows/independently approves one exact USDC funding
-window per institution. It binds schema-v2 budget evidence, approved bills, current policy,
-Circle treasury and a fresh block-bound Arc native balance. `finance.payment-reservations.store`
-holds each current draft's bill plus maximum fee against cumulative allocation/cash capacity.
-Exact native units and residuals stay strings; legacy wallet floats never supply funding.
-
-Maximum window lifetime is 15 minutes. Expiry or drift blocks new holds, never releases old
-ones. No new window/department/wallet can reset capacity until reviewed rollover exists.
-Reserved drafts cannot be cancelled/replaced without future reviewed release. These are
-application holds, not Circle wallet locks. Fake holds are labeled; payment approval and
-execution remain false. SQLite two-worker contention is tested; production PostgreSQL/provider
-concurrency and outside-wallet withdrawal races are not certified. Local reference valuations
-cannot enter this USDC funding lane; separately approved mirror authority remains pending.
-
-## Independent payment review (partial B4)
-
-Finance panel **Payment Reviews** lists held vendor payments, exact six-decimal USDC amounts,
-fee ceilings, treasury/recipient, funding bindings and recorded decisions. It requires zero
-student records. Actions record `approve_payment`, `reject_payment` or `hold_payment` through
-`ReviewVendorPayment`; neither approval nor notification acknowledgement sends a transfer.
-
-A payment reviewer needs a directly assigned `AuthorizePayment:PaymentIntent` permission,
-verified email and a finance/admin role. Role inheritance or reseeding alone is insufficient.
-A different verified admin must first pin that reviewer's existing Filament app or confirmed
-Fortify authenticator through **Enroll payment reviewer** or `finance.payment-reviewers.enroll`, using their own fresh
-password/TOTP and an independent identity/authenticator verification reference. This is staff
-attestation, not hardware-key or identity-provider certification. Account MFA replacement or
-disablement invalidates payment eligibility; factor recovery/rotation needs a later reviewed
-workflow. Checker and reviewer cannot share an authenticator secret.
-
-`finance.payment-authorizations.store` and `.show` expose payment-review operations/evidence.
-A new review binds displayed draft/reservation digests, exact amount/fee and destination;
-fresh password and an unused six-digit TOTP are required. Payment and enrollment replay
-steps persist atomically; login replay markers are checked and updated after durable commit. Failed transactions
-retain authentication rate-limit attempts. Production needs one shared authoritative cache
-for rate limiting/login replay state; PostgreSQL concurrent review and cross-endpoint MFA
-races are not certified. Passwords, OTPs and factor fingerprints are excluded from exported
-review evidence, notifications and activity logs; validation never flashes `mfa_code`.
-
-Approval expires within five minutes and cannot outlive funding. Current bill, policy,
-destination, treasury, closed-set evidence and cumulative holds must still fit observed Arc
-cash. Same-key retries return existing evidence, never renew expiry or create another review.
-Changed reviewer permission/factor invalidates current authority without rewriting history.
-Reject/hold retains capacity. This first slice allows one decision per reserved bill; expired
-approval, changed decision, withdrawal and factor rotation require future append-only recovery
-before execution can be enabled. No bypass by a new request key or deleting history.
-
-Only `ARC-TESTNET`/`5042002` is accepted. Fake reviews say `simulation_only` and never grant
-network payment authority. All outputs retain `can_execute=false`; no submission job,
-Circle transfer, ledger posting, invoice-paid mutation or local/testnet conversion is enabled.
-B4 remains incomplete until reviewed release/rollover, renewal/withdrawal, local mirror
-authority, durable attempts and successful matching final settlement evidence pass.
-
-## Reviewed vendor destinations
-
-Verified finance staff prepare an immutable `VendorDestinationVersion` through
-`POST finance/vendor-destinations` (`finance.vendor-destinations.store`) with `vendor_id`,
-stable `version`, recorded `address`, explicit `chain` (`ARC` or `ARC-TESTNET`) and
-`control_evidence`. Chain ID is derived, not supplied. Address syntax does not prove control.
-
-A separate verified admin approves through
-`POST finance/vendor-destinations/{vendorDestinationVersion}/approve`, supplying
-`expected_digest`, explicit `expected_approval` (`none` initially, otherwise current approval
-ID as string), `verification_reference` and accepted `control_verified`. Identity comes from
-authenticated session; self-review is forbidden even for super admins. This records staff
-attestation of independent offchain verification, not cryptographic ownership proof.
-`GET finance/vendor-destinations/{vendorDestinationVersion}` shows evidence.
-
-Append-only approvals bind predecessor digest and validate historical destination content.
-Retries retain one review/audit; stale context, foreign records, tampering, revoked vendor
-status or reactivation of superseded versions are refused. No wallet/provider call occurs.
-Destination approval is not payment approval and never enables transfers.
-
-New vendor drafts require current destination approval matching configured network and
-recorded vendor address. Replacement makes old drafts stale. Exact reviewed USDC invoice
-versions bind six-decimal source/review evidence; local reference valuation remains blocked
-from executable USDC intent. Additive FK migration leaves old drafts nullable/unapproved
-rather than inventing evidence, restores SQLite monetary guards and refuses populated
-rollback. Destination revocation/suspension workflow, cooling-off, source corrections,
-reservation release/rollover, approval renewal/withdrawal, durable recovery and verified settlement remain open.
-
-</details>
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `php artisan lepton:doctor` | **Run this first.** Verifies binaries, session, treasury, chain, ledger |
-| `php artisan lepton:login --status` | Circle session state per network |
-| `php artisan lepton:login <email>` | Send the OTP, print the request ID |
-| `php artisan lepton:login --request=<id> --otp=<code>` | Complete login |
-| `php artisan lepton:reconcile` | Prove stored receipts against Arc; reports each verdict honestly |
-| `php artisan lepton:reconcile --fix` | Mark only chain-reverted receipts failed; unresolved rows are left for a human |
-| `php artisan app:demo` | Run one full autonomous cycle |
-| `php artisan app:install` | Initialize school identity and financial settings |
-| `php artisan app:bootstrap-admin` | Create the first super-administrator account interactively |
-| `php artisan app:finance-preview` | Read-only treasury and cashflow preview without students |
-| `php artisan app:prepare-vendor-payment` | Prepare an immutable full-bill USDC payment draft |
-| `php artisan app:prepare-finance-policy` | Draft an immutable institution finance policy version |
-| `php artisan app:activate-finance-policy` | Activate a reviewed institution finance policy version |
-| `php artisan app:dispatch-finance-workflows` | Recover and dispatch bounded read-only finance planning work |
-| `php artisan app:reconcile-payment-submissions` | Verify matching settlement and finality on Arc |
-| `php artisan app:dispatch-policy-evaluations` | Sweep and dispatch queued JEV policy evaluations to background workers |
-| `php artisan app:recover-circle-notifications` | Re-queue verified webhook hints that are still unobserved |
-| `php artisan lepton:status --address=0x…` | Chain, block, balance, limits |
-| `php artisan lepton:transfer 0x… --amount=1.00 --from=0x…` | Single transfer (`--estimate` to dry-run) |
-
----
-
-## Configuration
-
-```env
-# circle = real Circle CLI + arc-canteen, fake = in-memory ledger
-LEPTON_DRIVER=circle
-LEPTON_CHAIN=ARC-TESTNET
-LEPTON_CHAIN_ID=5042002
-
-# A Circle *agent* wallet. A local arc-canteen wallet cannot be signed for.
-LEPTON_TREASURY_ADDRESS=0xYourAgentWallet
-```
-
-`LEPTON_DRIVER` defaults to `fake` under `APP_ENV=testing`.
-
----
+### 5. Collections, Departmental Planning & MFA Payment Review
 
 <details>
-<summary><strong>Optional AI, approval boundaries, and payment architecture</strong></summary>
+<summary><strong>Detailed evidence, reservation, and step-up MFA lifecycle</strong></summary>
 
-## The AI layer (optional)
-
-`laravel/ai` is installed. Optional advisory, student conversation and assistance
-approval-resume wiring exist; financial authority remains in deterministic PHP rules.
-The institution inspection tool is read-only. Existing assistance approval endpoints
-are not a departmental vendor-payment approval/execution path.
-
-### OpenAI-Compatible Gateway / Custom Endpoint
-
-OpenSinop supports any OpenAI-compatible provider (e.g., Ollama, vLLM, LiteLLM, LocalAI, or custom AI gateways). As an open-source project, no specific proprietary provider is required; you can point it to any compatible endpoint in your `.env`:
-
-```env
-# Custom OpenAI-compatible endpoint
-OPENAI_COMPATIBLE_URL=https://your-custom-ai-gateway.example.com/v1
-OPENAI_COMPATIBLE_MODEL=ag/gemini-3.8-flash-high # or llama3.1, gpt-4o-mini, etc.
-OPENAI_COMPATIBLE_KEY=your-api-key # optional if gateway requires auth
-
-# Local fallback
-AI_LOCAL_URL=http://localhost:11434/v1
-AI_LOCAL_MODEL=llama3.1
-```
-
-Or connect a local Ollama or hosted provider:
-
-```bash
-# Optional: a local model, so the AI layer runs with no paid API key
-ollama serve
-ollama pull llama3.1
-```
-
-```env
-AI_PROVIDER=local
-AI_LOCAL_URL=http://127.0.0.1:11434/v1
-AI_LOCAL_MODEL=llama3.1
-```
-
-Or point it at a hosted provider:
-
-```env
-AI_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-...
-```
-
-### Configure it from the admin panel instead
-
-Endpoints and keys can be set in the admin UI instead of `.env`, which is what you want
-when a deployment has several providers or when the key must not sit in a file.
-
-**Settings → AI** holds the switches:
-
-| Switch | Default | Effect |
-|---|---|---|
-| Allow advisory model calls | **off** | Master switch. Nothing leaves the application when off. |
-| Student data may be sent to the provider | **off** | Second, separate acknowledgement. Both must be on. |
-| Let the AI propose disbursements | **off** | Off means annotate-only. See the tiers below. |
-| Timeout | 20s | Kept short on purpose: advisory must never delay a payment. |
-
-**Settings → AI Providers** manages endpoints. Any SDK driver works, including
-**OpenAI-compatible** for Ollama, LM Studio, vLLM, LiteLLM, Together or a corporate
-gateway:
-
-| Field | Notes |
-|---|---|
-| Driver | `openai-compatible` for anything that speaks the OpenAI wire format |
-| Base URL | **Required** for `openai-compatible`; it has no default endpoint |
-| Text model | Used as that provider's default model |
-| Extra headers | Some gateways need e.g. `X-Tenant-Id` |
-| API key | Optional — local endpoints usually need none |
-
-**API keys are encrypted at rest** with `APP_KEY` using Laravel's `encrypted` cast. The
-database column holds ciphertext, so a dump of it leaks nothing on its own. The key is
-also never rendered back into the edit form: it is stripped before the form is filled, so
-panel access is not enough to read a secret out of the DOM. Leaving the field blank keeps
-the stored key; rotating it is therefore an explicit act.
-
-There is also a *Test connection* action, which probes `/models` without sending any student
-data and without costing a completion.
-
-> **`migrate:fresh` wipes this.** `ai_providers` is an application table, so
-> `php artisan migrate:fresh --seed` deletes every provider and its key. Use
-> `migrate:refresh` for a demo, or re-enter the key afterwards. The encryption protects a
-> database *dump*; it cannot survive the row being deleted.
-
-> **Not every gateway honours `response_format`.** Some OpenAI-compatible gateways accept the parameter and
-> ignore it, returning the object as text. The agents therefore also ask for the JSON shape
-> in their instructions, and the gate decodes a string response. If a gateway streams SSE
-> regardless of `stream: false`, add an `Accept: application/json` extra header.
-
-**OpenSinop works with none of this.** Every model call is fail-closed: a missing key, an
-unreachable endpoint, malformed output or a timeout all resolve to "no advisory available",
-and the deterministic engine proceeds alone. A model outage degrades the product; it never
-blocks a payment.
-
-### The three tiers
-
-| Tier | Owner | Can move funds? |
-|---|---|---|
-| **Deterministic** | PHP — limits, reserve, caps, rate locking, auto-vs-escalate | Only after every check passes |
-| **Advisory** | LLM — hardship category, urgency, confidence, narrative, anomaly flags | Never |
-| **Prohibited** | — | Approved amount, policy verdict, recipient selection |
-
-The one-way ratchet: the model may only *tighten* a decision. An `ESCALATE` verdict cannot
-be downgraded by any response.
-
-### How that is enforced, not just promised
-
-- **Allowlist, not a filter.** `AdvisoryEnvelope` is a readonly DTO with no amount, verdict
-  or recipient field. Unknown keys are dropped before it is constructed, so a
-  prompt-injected `"approved_amount": 999999` has nowhere to land. Advisory is namespaced
-  under a metadata `advisory` key and cannot overwrite `approved_amount`.
-- **`DisburseAssistance` is `Approvable`,** and its `needsApproval()` runs the real policy
-  evaluation. `handle()` re-evaluates rather than trusting the earlier verdict, because the
-  model may propose different arguments between the pause and the resume.
-- **27 adversarial tests** cover injected amounts, injected verdicts, malformed output,
-  provider failure and prompt injection. All run offline via the SDK's own fakes.
-
-### Ask OpenSinop: conversation with a figure check
-
-The student chat has two answers to every question. The deterministic one comes first and is
-always computed by PHP. A model may then *rephrase* it, and never replaces it.
-
-```
-"What is my tuition balance?"
-        │
-        ▼
-  AskOpenSinop::answer()          ← deterministic, live policy, integer math
-        │
-        ▼
-  StudentBrief                  ← those facts + that explanation, assembled by PHP
-        │
-        ▼
-  QnaGate → BriefGuard          ← model answers; every figure checked against the brief
-        │
-    ┌───┴───────────────┐
-    │                   │
- verified            anything else
-    │                   │
- assistant          deterministic
-```
-
-`BriefGuard` extracts every numeric token from the model's response and discards the whole
-answer if any of them is absent from the brief. So "Your balance is 275.00 USDC" is refused and
-the student gets the real figure instead. Stripping just the bad number was rejected
-deliberately: an edited answer still reads as authoritative while quietly omitting what the
-student asked about.
-
-> **Compare figures as digit strings, not floats.** PHP 8.5 casts a float array key to `int`, so
-> keying by `(float) 1000.5` stores `1000` — and the guard then *permits* a fabricated `1000.5`
-> because it collides with a permitted `1000`. That was a live bug, now covered by a test.
-
-Threads are real and checked. `QnaGate` calls `conversationBelongsTo()` itself rather than
-trusting the route, because the SDK's `continue()` accepts any conversation id. Send another
-student's id and you get your own deterministic answer and a fresh thread.
-
-The response carries `source: deterministic | assistant`, and the panel shows a badge for the
-model-phrased case, so it is always visible whether a reply came from the ledger or from a
-model reading it.
-
-### Approving a proposal the agent paused on
-
-When `DisburseAssistance` falls outside the autonomous limit, the run *pauses* and waits for a
-person. That decision has an endpoint:
-
-```bash
-# What is this conversation waiting on?
-curl -X POST http://localhost:8000/finance/approvals/pending \
-  -H 'X-CSRF-TOKEN: ...' \
-  -d 'conversation_id=<uuid>'
-
-# Answer it. `decisions` is only ever id => true/false.
-curl -X POST http://localhost:8000/finance/approvals/resume \
-  -H 'X-CSRF-TOKEN: ...' \
-  -d 'conversation_id=<uuid>&decisions[call_abc]=true'
-```
-
-Six checks stand between that `true` and a transfer, in `ApprovalResumeGate`:
-
-| Check | Why the obvious version is wrong |
-|---|---|
-| Role via the Gate | Reading a role name in the gate drifts from the panel |
-| `conversationBelongsTo()` | `continue()` accepts **any** conversation id |
-| Pending-set subset | A stale or foreign tool-call id must not be passed through |
-| Tool allowlist | Only `DisburseAssistance`; `Decision::edit()` is never built |
-| Target from the stored pause | The request id is never read from your payload |
-| `mayProposeSettlements()` | A switch turned off after the pause still refuses |
-
-`decisions` accepts **only** `id => bool`. There is deliberately no field for an amount or a
-recipient, and the `assistance_request_id` is read from the stored pause, so an approval cannot
-be redirected at another student.
-
-A replayed approval finds nothing pending and returns `nothing_pending` without paying twice.
-Any settlement in the response sets `requires_onchain_verification` — a returned hash is a claim
-until successful matching movement and finality are verified. `lepton:reconcile` reads the
-receipt, so its `verified` verdict is one step further than a hash lookup, but it still does
-not match the intended amount or recipient.
-
-> **Never `app(SettlementOperator::class)`.** Its constructor takes an `Organization`, a fund and
-> a policy version, and Eloquent models take no constructor arguments — so the container hands
-> back **blank, non-existent records**. The agent then refuses with "no active wallet": the right
-> outcome for the wrong reason. Use `SettlementOperatorFactory::makeOrFail()`.
-
-### JEV Advisory Decision Analytics & Human Concurrence Tracking
-
-Institutional governance demands transparent oversight over AI recommendations and human review outcomes. OpenSinop includes a dedicated telemetry engine (`App\Services\JevAnalyticsService`) and dual dashboards:
-
-1. **Dedicated Dashboards**:
-   - **Inertia / React SPA Dashboard**: Route `GET /finance/jev-analytics` (`resources/js/pages/finance/analytics.tsx`) with real-time period filters (`all`, `today`, `7_days`, `14_days`, `30_days`), source filters (`all`, `collection`, `transaction`, `budget_snapshot`), SVG trend graphs, category confidence progress bars, and modal evaluation inspector.
-   - **Filament Finance Panel**: Direct navigation link `JEV Decision Analytics` rendering `App\Filament\Pages\JevAnalyticsDashboard` with live stat cards, Chart.js doughnuts, stacked trend bars, and audit tables.
-
-2. **JEV Advisory Decision Metrics**:
-   - `match`: Evaluated policy clauses match with required confidence; ready for human concurrence.
-   - `needs_review`: Edge case or policy uncertainty flagged for human attention.
-   - `hold`: Policy limits or safety thresholds violated; administrative hold applied.
-   - `exempt`: Transaction meets standard exclusion or exemption criteria.
-   - Category distribution tracking with item counts and average confidence scores.
-
-3. **Staff Review & Approval Telemetry**:
-   - **Approval Rate**: Percentage of human-reviewed proposals that were approved.
-   - **Staff Concurrence Rate**: Frequency with which human staff agreed with JEV's recommendation vs overriding it.
-   - **Manual Override Rate**: Frequency of staff decisions countermanding the agent.
-   - **Time to Approval (Latency)**: Accurate duration between evaluation completion and human review resolution (`avg_time_to_approval_seconds`, fastest, slowest, and human-formatted duration).
-
-4. **Background AI Agent Execution & Queue Scheduling**:
-   - AI evaluations run asynchronously via `App\Jobs\EvaluateInstitutionPolicy` queued jobs.
-   - Console command `php artisan app:dispatch-policy-evaluations` sweeps pending queued evaluations without requiring synchronous browser interactions.
-   - Scheduled in `routes/console.php`:
-     - `app:dispatch-policy-evaluations` runs every minute (`->everyMinute()`).
-     - `eduflow:autonomous-pipeline-bridge --latest` runs every 5 minutes (`->everyFiveMinutes()`).
-   - Run queue workers with: `php artisan queue:work --queue=default`.
-
----
-
-## How the money moves
-
-**Target collections-to-budget lifecycle; complete execution remains gated:**
-
-```text
-Student fees paid through the college's existing local process
-        |
-        v
-Staff-verified realized collections or approved opening funds
-        |
-        v
-Available cash, restrictions, reserves and commitments
-        |
-        v
-Agent proposes use within the department's approved budget
-        |
-        v
-Deterministic checks: permit review, hold or reject
-        |
-        v
-Staff authorization or separately approved capped recurring policy
-        |
-        v
-Reserved payment intent and recoverable Circle Agent Wallet submission
-        |
-        v
-Matching successful Arc testnet settlement and linked audit evidence
-```
-
-Budget allocation is an accounting decision, not automatically a wallet transfer.
-Collected local fees are **not** automatically converted or bridged into USDC. The pilot
-uses a separately funded testnet wallet and a staff-approved exact mirror mapping; real
-local receipts and bill-payment status remain in the college's existing process.
-
-### Legacy developer execution path
-
-This existing invoice/assistance path is not the fee-collections intake, departmental
-review UI or the safe new payment lifecycle:
-
-```
-Invoices + Aid requests
-        │
-        ▼
-  OpenSinopAgent::runAutonomousCycle()
-        │
-        ▼
-  FinancialPolicyEngine / EvaluateAssistancePolicy     ← deterministic PHP
-        │  auto_approve │ escalate │ hold │ reject
-        ▼
-  CircleWalletService  →  WalletGateway  →  circle wallet transfer
-        │
-        ▼
-  Transaction row (status + hash)                      ← a claim
-        │
-        ▼
-  lepton:reconcile  →  eth_getTransactionReceipt       ← receipt verdict, still not amount-matched
-```
-
-The base-unit gateway path uses integers: `Amounts::fromDecimalString('45.00')` gives
-`45_000000`. Legacy treasury/payment APIs and storage still use floats or two-decimal
-values; those gaps must be removed from the pilot path. The target lifecycle adds durable
-authorization/reservation/attempt recovery before submission and successful matching
-receipt/finality evidence before **testnet mirror** settlement, without clearing local bills.
-
-> **Never `hexdec()` a chain quantity.** Arc native USDC is 18 decimals, so 20 USDC is
-> 2e19 wei — past `PHP_INT_MAX`. `hexdec()` returns a float there and an `(int)` cast
-> silently wraps. Use `Amounts::fromHexQuantity()`. A guard test fails if `hexdec(` is
-> reintroduced into a chain-reading file.
-
----
+- **Reviewed Aggregate Fee Collections (`CollectionBatch`):** Cashier staff record batch receipts (`POST finance/collection-batches`) with SHA-256 document digests and disjoint half-open collection intervals. A separate verified admin reviews (`POST finance/collection-batches/{collectionBatch}/review`) to approve, hold, or reject receipts before they can fund any budget plan.
+- **Invoice Source Evidence (`InvoiceVersion`) & Budget Snapshots (`BudgetSnapshot`):** Staff capture verified invoice valuations (`POST finance/invoice-versions`) and departmental budget snapshots (`POST finance/budget-snapshots`). `DepartmentBudgetPlanner` checks bills cumulatively by due date, keeping budget allocations separate from realized cash, restricted funds, and protected reserves.
+- **Reviewed Vendor Destinations (`VendorDestinationVersion`) & Drafts (`PaymentIntent`):** Vendor wallet addresses require independent admin approval (`POST finance/vendor-destinations/{vendorDestinationVersion}/approve`). `php artisan app:prepare-vendor-payment` creates an immutable, SHA-256-digested full-bill draft.
+- **Bounded Funding Windows (`FundingWindow`) & Reservations (`PaymentReservation`):** `POST finance/funding-windows` binds approved budget evidence and a fresh block-bound Arc balance (15-minute max lifetime). `POST finance/payment-intents/{paymentIntent}/reserve` places an atomic capacity hold covering bill amount + maximum fee.
+- **Step-Up MFA Payment Review (`PaymentAuthorization`):** Reviewers must hold direct `AuthorizePayment:PaymentIntent` permission and have their TOTP factor pinned by a separate administrator (`POST finance/payment-reviewers/{reviewer}/enroll`). Approving a held payment (`POST finance/payment-intents/{paymentIntent}/authorize` or via Filament **Payment Reviews**) requires a fresh password and unused 6-digit TOTP code.
+- **Receipt Verification (`lepton:reconcile`):**
+  | Verdict | Meaning | Action Taken |
+  |---|---|---|
+  | `verified` | On-chain receipt exists and reports status `0x1` (success) | Confirmed on-chain execution |
+  | `reverted` | On-chain receipt exists and reports failure | Marked failed when running `lepton:reconcile --fix` |
+  | `pending` | Transaction known to RPC, no receipt mined yet | Left in-flight |
+  | `unresolved` | Hash not found on RPC | Left untouched for human investigation (never auto-failed) |
+  | `observed` | Provider reports completion, chain receipt unreadable | Provider claim only |
+  | `unverifiable` | Neither chain nor provider reachable | Retried later |
+  | `ledger_only` | Local ledger row with no transaction hash | No chain claim |
 
 </details>
 
-## Testing
+---
+
+## Developer Demo & Seeded Scenarios
+
+To explore the autonomous policy engine against realistic seeded invoices and an emergency student aid request:
 
 ```bash
-php artisan test
-php artisan test --compact --filter=Reconcile
+php artisan lepton:doctor      # Verify toolchain & configuration
+php artisan app:demo           # Run one autonomous evaluation & settlement cycle
+php artisan lepton:reconcile   # Verify stored transaction hashes against Arc
 ```
 
-The fake driver needs no network, no credentials and no cost, so the whole suite runs
-offline. Tests that assert on receipts construct a chain stub that knows about exactly
-one hash, so fabricated receipts cannot pass unnoticed.
+### The Seeded Scenarios
+
+The developer demo (`EduFlowFinancialSeeder`, `EducationDemoSeeder`, `EduFlowPlanSeeder`) is calibrated for a **120 USDC wallet**, a **20 USDC reserve**, and a **50 USDC autonomous limit**. The deterministic policy engine evaluates **vendor verification → budget capacity → reserve safety → autonomous limit** in order:
+
+| Invoice Reference | Amount (USDC) | Decision | Policy Rule / Reason |
+|---|---:|---|---|
+| `INV-FIBER-30` | 30.00 | **AUTO_APPROVE** | Verified telecom vendor, within budget & under the 50 USDC limit |
+| `INV-CLOUD-45` | 45.00 | **AUTO_APPROVE** | Verified cloud vendor, within budget & under the 50 USDC limit |
+| `INV-UNVERIFIED-60` | 60.00 | **ESCALATE** | Vendor is unverified (`pending` status checked first) |
+| `INV-LAB-90` | 90.00 | **ESCALATE** | Verified vendor, but exceeds the 50 USDC autonomous limit |
+| `INV-SUPPLY-200` | 200.00 | **HOLD** | Paying 200 USDC would breach the mandatory 20 USDC reserve |
+| `INV-HAZARD-2000` | 2000.00 | **REJECT** | Exceeds the 500 USDC equipment budget allocation |
+
+In addition, the demo evaluates one emergency student assistance request for **15 USDC** against a **10 USDC** auto-limit (`BOUNDED_EMERGENCY_AID_V1`), resulting in a bounded split: **10 USDC** approved immediately and **5 USDC** escalated for staff review.
+
+Only the two auto-approved invoices and the approved aid portion move funds: **85 USDC** (`(30 + 45 + the 10 USDC aid` portion). Under `LEPTON_DRIVER=circle`, `app:demo` is **not a simulation** and spends 85 USDC of testnet funds; under `LEPTON_DRIVER=fake`, everything runs in memory and badges receipts as **Simulated** so you can never mistake a fake run for real settlement.
+
+---
+
+## CLI Reference
+
+| Command | Description |
+|---|---|
+| `php artisan lepton:doctor` | **Run first.** Diagnoses CLI binaries, Circle session, treasury address, Arc RPC reads, and ledger parity. |
+| `php artisan lepton:login` | Authenticate Circle agent wallet via email OTP (`<email>`, `--request=<id> --otp=<code>`, or `--status`). |
+| `php artisan lepton:status` | Display current Arc block number, wallet balance, and spending limits (`--address=0x...`). |
+| `php artisan lepton:wallet` | Manage Circle agent wallets (`lepton:wallets`, `lepton:wallet:create`, `lepton:wallet:fund`). |
+| `php artisan lepton:transfer` | Execute or `--estimate` a single integer-base-unit USDC transfer via Lepton. |
+| `php artisan lepton:reconcile` | Verify stored transaction receipts against Arc (`--fix` marks only chain-reverted rows failed). |
+| `php artisan app:install` | Initialize single-school identity, currency, and conservative security defaults idempotently. |
+| `php artisan app:bootstrap-admin` | Interactively create the first super-administrator account with hidden password prompts. |
+| `php artisan app:demo` | Run the seeded developer demo cycle (auto-pay, escalate, hold, reject, and split aid). |
+| `php artisan app:finance-preview` | Read-only C0 institution treasury and vendor bill forecast without modifying state (`--days=30`). |
+| `php artisan app:draft-institution-policy` | Preview or save an institution-specific collections and bill-allocation policy draft. |
+| `php artisan app:prepare-finance-policy` | Prepare an immutable, inactive numeric finance policy version (`--reserve`, `--auto-limit`, `--daily-limit`). |
+| `php artisan app:activate-finance-policy` | Activate a prepared finance policy version with independent reviewer attestation. |
+| `php artisan app:prepare-vendor-payment` | Prepare an immutable SHA-256 vendor payment draft bound to active policy and destination evidence. |
+| `php artisan app:dispatch-finance-workflows` | Recover and dispatch queued read-only departmental finance planning workflows. |
+| `php artisan app:dispatch-policy-evaluations` | Sweep and dispatch pending JEV institutional policy evaluations to background workers. |
+| `php artisan app:dispatch-payment-submissions` | Hand durably authorized payment submissions to workers and recover expired leases (`--recover-stale`). |
+| `php artisan app:reconcile-payment-submissions` | Verify submitted payment references against Arc and record proven settlements. |
+| `php artisan app:dispatch-mandate-occurrences` | Classify due recurring obligations against approved standing mandates. |
+| `php artisan app:dispatch-student-tuition` | Dispatch consented student tuition payment attempts for processing/observation. |
+| `php artisan app:reconcile-tuition-receipts` | Reconcile settled student tuition movements into Collections intake. |
+| `php artisan app:dispatch-student-bill-payments` | Dispatch consented student non-tuition bill payments. |
+| `php artisan app:reconcile-student-bill-receipts` | Reconcile settled student bill receipts into Collections intake. |
+| `php artisan app:recover-circle-notifications` | Re-queue verified Circle webhook notifications that remain unobserved. |
+| `php artisan eduflow:autonomous-pipeline-bridge` | Run the end-to-end autonomous pipeline bridge (`--latest`) from tuition receipts to vendor disbursement. |
+
+---
+
+## Testing & Quality Assurance
+
+The entire test suite runs offline using `LEPTON_DRIVER=fake` and SDK fakes—no network access, Circle credentials, or testnet funds are required.
+
+```bash
+# Run the full test suite (Pint lint check + Pest tests)
+composer test
+
+# Run Pest tests compactly or filter by test name
+php artisan test --compact
+php artisan test --compact --filter=ReadmeAccuracyTest
+
+# Run static analysis, refactoring checks, and frontend type/lint checks
+composer lint
+composer phpstan
+composer rector
+npm run check
+npm run types:check
+```
 
 ---
 
 ## Troubleshooting
 
-**`no agent session is active`** — the address is not a Circle agent wallet, or you are
-not logged in for that network. Check `php artisan lepton:login --status` and
-`circle wallet list --type agent --chain ARC-TESTNET`.
-
-**Transfers fail on testnet but the wallet looks funded** — you are authenticated for
-mainnet only. Mainnet and testnet are independent sessions.
-
-**`method 'trace_block' not allowed by the proxy`** — the Arc RPC proxy is allowlisted
-by design. That method is not exposed; it is not a bug in your setup.
-
-**`Faucet drip failed (429)`** — you hit the per-user faucet cap. Wait, or use a second
-agent wallet. There is no way around the ~120 USDC ceiling.
-
-**Auto-pays fail with "asset amount owned by the wallet is insufficient"** — the ledger
-claims a balance the chain does not hold. Use **Sync from chain**, and check
-`lepton:doctor` for drift.
-
-**A balance reads as 0** — you are probably pointed at an `arc-canteen` local wallet
-rather than your Circle agent wallet, or you are querying a chain you are not
-authenticated for.
-
-**`app:demo` is not repeatable** — each run spends 85 USDC. Re-fund, or use
-`LEPTON_DRIVER=fake`.
+- **`no agent session is active`** — The configured address is not a Circle agent wallet, or your Circle CLI session expired. Check `php artisan lepton:login --status` and `circle wallet list --type agent --chain ARC-TESTNET`.
+- **Transfers fail on testnet even though the wallet appears funded** — Mainnet and testnet authenticate **independently**. Verify the *testnet* session row in `php artisan lepton:login --status`.
+- **`method 'trace_block' not allowed by the proxy`** — The Arc RPC proxy allowlists standard JSON-RPC methods by design; `trace_block` is intentionally unexposed and not a configuration error.
+- **`Faucet drip failed (429): API rate limit error`** — You reached Circle's per-user testnet faucet cap (~5 calls at **20 USDC per call**, or ~100–120 USDC total). Wait for the rate limit window to reset or use `LEPTON_DRIVER=fake` for local testing.
+- **Auto-pays fail with `"asset amount owned by the wallet is insufficient"`** — The local database balance drifted from on-chain reality, or the wallet lacks USDC for gas (**USDC is the gas token** on Arc). Use **Sync from chain** in the UI and run `php artisan lepton:doctor`.
+- **Why never use `hexdec()` on chain quantities?** — Arc native balances use 18 decimals (`wei`), so 20 USDC is `2e19` wei—exceeding `PHP_INT_MAX`. Calling `hexdec()` silently degrades to a lossy float. Always use `Amounts::fromHexQuantity()`.
 
 ---
 
-## Project layout
+## Project Structure
 
-```
+```text
 app/
-  Agents/EduFlowAgent.php             legacy developer autonomous cycle
-  Policies/                          invoice + assistance policy (deterministic)
-  Actions/                           policy evaluation, escalation approval
-  Services/
-    FinancialPolicyEngine.php        every vendor-payment decision
-    CircleWalletService.php          the only path to a real transfer
-  LeptonReconciliationService.php  legacy reconciliation; see evidence limitations
-    LeptonTreasuryService.php        live chain reads vs the ledger
-  Console/Commands/
-    EduFlowDemo.php                   legacy developer demo command
-    LeptonDoctor.php                 the "is it working" check
-database/seeders/
-  EduFlowFinancialSeeder.php          org, wallets, budgets, the six invoices
-  EduFlowPlanSeeder.php               thresholds, assistance fund, aid policy
-  EducationDemoSeeder.php           students, tuition, one pending aid request
+├── Actions/                  # Atomic domain actions (policy activation, reservations, MFA enrollment)
+├── Agents/                   # Legacy autonomous cycle agent (EduFlowAgent)
+├── Ai/
+│   ├── Advisory/             # AdvisoryGate, AdvisoryEnvelope, StudentBrief, QnaGate, BriefGuard
+│   ├── Agents/               # Laravel AI agents (InstitutionPolicyAnalyst, TreasuryAnalyst, BillClassifier)
+│   ├── Approvals/            # ApprovalResumeGate for human-in-the-loop tool resumptions
+│   └── Tools/                # Read-only & gated agent tools (InspectInstitutionFinance, DisburseAssistance)
+├── Console/Commands/         # Artisan CLI commands (lepton:*, app:*, eduflow:*)
+├── DTOs/                     # Immutable value objects (Money, PolicyEvaluationResult, TreasuryForecast)
+├── Filament/
+│   ├── Clusters/Settings/    # System, security, social login, and AI settings pages
+│   ├── Finance/Widgets/      # Finance panel charts, affordability, and JEV telemetry widgets
+│   ├── Pages/                # FinanceDashboard, FinanceSupervisor, Collections, PaymentReviews, JevAnalyticsDashboard
+│   └── Resources/            # Filament resources (Invoices, Transactions, Students, TuitionAccounts, AiProviders)
+├── Http/Controllers/         # Inertia & API controllers (InstitutionPolicy, JevAnalytics, StudentTuition, Webhooks)
+├── Jobs/                     # Queued workers (EvaluateInstitutionPolicy, ObserveCircleNotification, ProcessPaymentSubmission)
+├── Models/                   # Eloquent models (Organization, CollectionBatch, BudgetSnapshot, PaymentIntent, etc.)
+├── Policies/                 # Role & permission authorization policies
+└── Services/                 # Core domain services (FinancialPolicyEngine, DepartmentBudgetPlanner, JevAnalyticsService, etc.)
+resources/
+├── js/
+│   ├── components/           # Shared React UI, ReUI, JEV health status, and e-receipt modals
+│   └── pages/                # Inertia React pages (welcome, dashboard, institutions/*, finance/*, student/*)
+└── views/filament/           # Custom Filament Blade views and network badges
 ```
 
 ---
 
-## Built on
+## Tech Stack
 
-- [Laravel 13](https://laravel.com) · [Inertia v3](https://inertiajs.com) · [React 19](https://react.dev) · [Tailwind 4](https://tailwindcss.com) · shadcn/ui
-- [Filament 5](https://filamentphp.com) for staff panels
-- [yukazakiri/lepton-agent](https://github.com/yukazakiri/lepton-agent) for Circle + Arc
-- [Circle Agent Stack](https://developers.circle.com/agent-stack) · [Arc](https://docs.arc.io) · [x402](https://developers.circle.com/agent-stack/agent-wallets/wallet-operations/pay-for-service)
+- **Framework & Runtime:** [Laravel 13](https://laravel.com), [PHP 8.5](https://www.php.net/), [Laravel Octane](https://laravel.com/docs/octane) (FrankenPHP), [Laravel Fortify](https://laravel.com/docs/fortify) (2FA + Passkeys)
+- **Frontend SPA:** [Inertia.js v3](https://inertiajs.com), [React 19](https://react.dev), [TypeScript 5.9](https://www.typescriptlang.org/), [Tailwind CSS v4](https://tailwindcss.com), ReUI / Base UI / Radix UI, [Laravel Wayfinder](https://github.com/laravel/wayfinder)
+- **Staff Consoles:** [Filament v5](https://filamentphp.com), [Filament Shield](https://github.com/bezhanSalleh/filament-shield), [Filament Activity Log](https://github.com/alizharb/filament-activity-log)
+- **Web3 & Payments:** [`yukazakiri/lepton-agent`](https://github.com/yukazakiri/lepton-agent), [Circle Agent Stack & Developer-Controlled Wallets](https://developers.circle.com), [Arc Network](https://docs.arc.io)
+- **AI & Quality:** [Laravel AI SDK](https://github.com/laravel/ai), [Pest v5](https://pestphp.com), [PHPStan v2](https://phpstan.org), [Rector v2](https://getrector.com), [Laravel Pint](https://laravel.com/docs/pint)
 
-Built for the [Lepton Agents Hackathon](https://arc-node.thecanteenapp.com/).
+---
 
 ## Contributing
 
-Open an [issue](https://github.com/koamishin/OpenSinop/issues) to discuss bugs or
-proposed changes, then submit a focused pull request with reproduction steps and
-tests. Use fake gateways for automated tests; do not commit credentials, wallet
-secrets, student records, or private institutional documents.
+Contributions are welcome! Please open an [issue](https://github.com/koamishin/OpenSinop/issues) to discuss bugs or proposed changes before submitting a pull request.
 
-Before submitting, run the relevant tests and project checks:
+1. Fork the repository and create a feature branch.
+2. Write or update Pest feature/unit tests covering your changes (use fake gateways for all automated tests; never commit live API keys, wallet secrets, or student data).
+3. Run the verification suite before opening a PR:
+   ```bash
+   composer ci
+   npm run check
+   ```
 
-```bash
-composer test:lint
-composer phpstan
-composer rector
-npm run check
-php artisan test --compact
-```
+---
 
 ## License
 

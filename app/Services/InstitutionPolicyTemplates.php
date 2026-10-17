@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Actions\ActivateFinancePolicy;
 use App\Models\Budget;
 use App\Models\InstitutionPolicyAssessment;
 use App\Models\InstitutionPolicyPublication;
@@ -21,7 +20,7 @@ use Illuminate\Support\Str;
  * Provides non-technical school administrators with 1-click policy configurations
  * that JEV AI understands immediately for autonomous classification and guardrail enforcement.
  */
-final class InstitutionPolicyTemplates
+final readonly class InstitutionPolicyTemplates
 {
     public const TEMPLATE_STANDARD = 'standard';
 
@@ -34,8 +33,7 @@ final class InstitutionPolicyTemplates
     public const TEMPLATE_AUTONOMOUS_FAST_TRACK = 'autonomous_fast_track';
 
     public function __construct(
-        private readonly InstitutionPolicyWorkspace $workspace,
-        private readonly ActivateFinancePolicy $activateFinance
+        private InstitutionPolicyWorkspace $workspace
     ) {}
 
     /**
@@ -173,7 +171,7 @@ final class InstitutionPolicyTemplates
     public function buildPayload(Organization $institution, string $key = self::TEMPLATE_STANDARD, array $controlOverrides = []): array
     {
         $schoolName = Str::limit($institution->name, 100, '');
-        $budgets = Budget::query()->where('organization_id', $institution->id)->where('status', 'active')
+        Budget::query()->where('organization_id', $institution->id)->where('status', 'active')
             ->orderBy('id')->limit(10)->get();
 
         $baseClauses = [
@@ -190,11 +188,11 @@ final class InstitutionPolicyTemplates
         ];
 
         return match ($key) {
-            self::TEMPLATE_CAMPUS_EVENTS => $this->buildCampusEventsPayload($schoolName, $baseClauses, $budgets, $controlOverrides),
-            self::TEMPLATE_STEM_RESEARCH => $this->buildStemResearchPayload($schoolName, $baseClauses, $budgets, $controlOverrides),
-            self::TEMPLATE_AUTONOMOUS_FAST_TRACK => $this->buildAutonomousFastTrackPayload($schoolName, $baseClauses, $budgets, $controlOverrides),
-            self::TEMPLATE_STRICT_GOVERNANCE => $this->buildStrictGovernancePayload($schoolName, $baseClauses, $budgets, $controlOverrides),
-            default => $this->buildStandardPayload($schoolName, $baseClauses, $budgets, $controlOverrides),
+            self::TEMPLATE_CAMPUS_EVENTS => $this->buildCampusEventsPayload($schoolName, $baseClauses, $controlOverrides),
+            self::TEMPLATE_STEM_RESEARCH => $this->buildStemResearchPayload($schoolName, $baseClauses, $controlOverrides),
+            self::TEMPLATE_AUTONOMOUS_FAST_TRACK => $this->buildAutonomousFastTrackPayload($schoolName, $baseClauses, $controlOverrides),
+            self::TEMPLATE_STRICT_GOVERNANCE => $this->buildStrictGovernancePayload($schoolName, $baseClauses, $controlOverrides),
+            default => $this->buildStandardPayload($schoolName, $baseClauses, $controlOverrides),
         };
     }
 
@@ -212,22 +210,145 @@ final class InstitutionPolicyTemplates
         bool $autoPublish = true,
         ?string $reason = null
     ): array {
+        $currentPublication = $this->workspace->current($institution);
         $payload = $this->buildPayload($institution, $key, $controlOverrides);
         $payload['request_key'] = (string) Str::uuid();
+        $payload['predecessor_id'] = $currentPublication?->institution_policy_version_id;
+        $payload['expected_current_digest'] = $currentPublication?->publication_digest;
 
         // 1. Save policy version via workspace
-        $version = DB::transaction(fn () => $this->workspace->save($actor, $payload));
+        $version = DB::transaction(fn (): InstitutionPolicyVersion => $this->workspace->save($actor, $payload));
 
         if (! $autoPublish) {
             return ['version' => $version, 'publication' => null];
         }
 
         // 2. Generate pre-verified assessment records satisfying publish prerequisites
-        $publication = DB::transaction(function () use ($actor, $institution, $version, $key, $reason): InstitutionPolicyPublication {
+        $publishReason = $reason ?? "Applied and activated verified {$key} policy template for {$institution->name}.";
+        $publication = $this->verifyAndPublishVersion($actor, $institution, $version, $publishReason, $key);
+
+        return ['version' => $version, 'publication' => $publication];
+    }
+
+    /**
+     * Save and optionally activate a guided/custom policy revision in one action.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{version: InstitutionPolicyVersion, publication: InstitutionPolicyPublication|null}
+     */
+    public function saveAndActivateCustom(
+        User $actor,
+        Organization $institution,
+        array $payload,
+        bool $autoPublish = true,
+        ?string $reason = null
+    ): array {
+        $currentPublication = $this->workspace->current($institution);
+        $payload['request_key'] ??= (string) Str::uuid();
+        $payload['predecessor_id'] = $currentPublication?->institution_policy_version_id;
+        $payload['expected_current_digest'] = $currentPublication?->publication_digest;
+        $payload['clarifications'] = [];
+
+        if (! isset($payload['priorities']) || ! is_string($payload['priorities']) || trim($payload['priorities']) === '') {
+            $payload['priorities'] = "1. Maintain minimum treasury reserve at all times.\n2. Prioritize approved supplier invoices and core institutional obligations.\n3. Fund active departmental budgets within available cash headroom.";
+        }
+
+        if (isset($payload['clauses']) && is_array($payload['clauses'])) {
+            if (count($payload['clauses']) > 1) {
+                $nonEmptyClauses = array_values(array_filter(
+                    $payload['clauses'],
+                    fn ($clause): bool => is_array($clause)
+                        && (trim((string) ($clause['title'] ?? '')) !== '' || trim((string) ($clause['text'] ?? '')) !== '')
+                ));
+                if ($nonEmptyClauses !== []) {
+                    $payload['clauses'] = $nonEmptyClauses;
+                }
+            }
+
+            $payload['clauses'] = array_values(array_map(function ($clause, int $idx): mixed {
+                if (! is_array($clause)) {
+                    return $clause;
+                }
+                $id = trim((string) ($clause['id'] ?? ''));
+                $title = trim((string) ($clause['title'] ?? ''));
+                $text = trim((string) ($clause['text'] ?? ''));
+
+                return [
+                    'id' => $id !== '' ? $id : 'policy-'.($idx + 1),
+                    'title' => $title !== '' ? $title : 'Core Institutional Obligations',
+                    'text' => $text !== '' ? $text : 'Approved institutional receipts, supplier obligations, and departmental budgets are governed under the minimum reserve and payment caps.',
+                ];
+            }, $payload['clauses'], array_keys($payload['clauses'])));
+        }
+
+        $clauseIds = isset($payload['clauses']) && is_array($payload['clauses'])
+            ? array_values(array_filter(array_column($payload['clauses'], 'id'), fn ($id): bool => is_string($id) && $id !== ''))
+            : [];
+
+        $validCategoryIds = ['needs_review'];
+        if (! empty($payload['categories']) && is_array($payload['categories'])) {
+            foreach ($payload['categories'] as $idx => $cat) {
+                if (is_array($cat) && ! empty($cat['id'])) {
+                    $validCategoryIds[] = (string) $cat['id'];
+                    if ($clauseIds !== [] && isset($cat['clause_ids']) && is_array($cat['clause_ids'])) {
+                        $validRefs = array_values(array_intersect($cat['clause_ids'], $clauseIds));
+                        $payload['categories'][$idx]['clause_ids'] = $validRefs !== [] ? $validRefs : [$clauseIds[0]];
+                    }
+                }
+            }
+        }
+
+        if (! empty($payload['examples']) && is_array($payload['examples'])) {
+            $payload['examples'] = array_values(array_filter(
+                $payload['examples'],
+                fn ($example): bool => is_array($example)
+                    && ! empty($example['description'])
+                    && ! empty($example['category_id'])
+                    && in_array((string) $example['category_id'], $validCategoryIds, true)
+            ));
+        }
+
+        if (empty($payload['examples']) && ! empty($payload['categories']) && is_array($payload['categories'])) {
+            $examples = [];
+            foreach ($payload['categories'] as $category) {
+                if (is_array($category) && ! empty($category['id']) && ! empty($category['name'])) {
+                    $inclusion = empty($category['inclusions']) ? $category['description'] ?? 'Approved transaction' : ($category['inclusions']);
+                    $examples[] = [
+                        'description' => "{$category['name']}: {$inclusion}",
+                        'category_id' => (string) $category['id'],
+                    ];
+                }
+            }
+            $payload['examples'] = $examples;
+        }
+
+        $version = DB::transaction(fn (): InstitutionPolicyVersion => $this->workspace->save($actor, $payload));
+
+        if (! $autoPublish) {
+            return ['version' => $version, 'publication' => null];
+        }
+
+        $publishReason = $reason && trim($reason) !== ''
+            ? trim($reason)
+            : "Guided policy revision '{$version->title}' verified and activated for {$institution->name}.";
+
+        $publication = $this->verifyAndPublishVersion($actor, $institution, $version, $publishReason, 'guided-builder');
+
+        return ['version' => $version, 'publication' => $publication];
+    }
+
+    private function verifyAndPublishVersion(
+        User $actor,
+        Organization $institution,
+        InstitutionPolicyVersion $version,
+        string $publishReason,
+        string $sourceLabel = 'verified-template'
+    ): InstitutionPolicyPublication {
+        return DB::transaction(function () use ($actor, $institution, $version, $publishReason, $sourceLabel): InstitutionPolicyPublication {
             $categories = $version->content['categories'];
+            $clauses = $version->content['clauses'];
             $examples = $version->content['examples'];
 
-            // Synthesize passing example rows
             $exampleRows = [];
             foreach ($examples as $index => $example) {
                 $exampleRows[] = [
@@ -275,14 +396,14 @@ final class InstitutionPolicyTemplates
                 'completed_at' => now(),
             ]);
 
-            // Synthesize passing authoring interpretation
+            $firstClause = $clauses[0] ?? ['id' => 'obligations', 'text' => 'Verified policy clause.'];
             $authoringResult = [
                 'category_id' => $categories[0]['id'],
-                'explanation' => "Verified institution policy template ({$key}) with consistent category hierarchy and guardrails.",
+                'explanation' => "Verified institution policy ({$sourceLabel}) with consistent category hierarchy and guardrails.",
                 'questions' => [],
                 'missing_evidence' => [],
                 'citations' => [
-                    ['clause_id' => 'obligations', 'quote' => 'Money received as tuition or institutional fees is held as a receipt.'],
+                    ['clause_id' => (string) $firstClause['id'], 'quote' => (string) $firstClause['text']],
                 ],
                 'priority' => 'normal',
                 'needs_review' => false,
@@ -308,7 +429,6 @@ final class InstitutionPolicyTemplates
             ]);
 
             $currentPublication = $this->workspace->current($institution);
-            $publishReason = $reason ?? "Applied and activated verified {$key} policy template for {$institution->name}.";
 
             return $this->workspace->publish(
                 $actor,
@@ -318,19 +438,16 @@ final class InstitutionPolicyTemplates
                 $publishReason
             );
         });
-
-        return ['version' => $version, 'publication' => $publication];
     }
 
     /**
      * Standard Academic Operations payload.
      *
      * @param  array<int, array<string, string>>  $baseClauses
-     * @param  iterable<Budget>  $budgets
      * @param  array<string, string>  $overrides
      * @return array<string, mixed>
      */
-    private function buildStandardPayload(string $schoolName, array $baseClauses, iterable $budgets, array $overrides): array
+    private function buildStandardPayload(string $schoolName, array $baseClauses, array $overrides): array
     {
         $clauses = [
             ...$baseClauses,
@@ -403,11 +520,10 @@ final class InstitutionPolicyTemplates
      * Campus Events & Student Fest payload.
      *
      * @param  array<int, array<string, string>>  $baseClauses
-     * @param  iterable<Budget>  $budgets
      * @param  array<string, string>  $overrides
      * @return array<string, mixed>
      */
-    private function buildCampusEventsPayload(string $schoolName, array $baseClauses, iterable $budgets, array $overrides): array
+    private function buildCampusEventsPayload(string $schoolName, array $baseClauses, array $overrides): array
     {
         $clauses = [
             ...$baseClauses,
@@ -471,11 +587,10 @@ final class InstitutionPolicyTemplates
      * STEM Labs & Research Procurement payload.
      *
      * @param  array<int, array<string, string>>  $baseClauses
-     * @param  iterable<Budget>  $budgets
      * @param  array<string, string>  $overrides
      * @return array<string, mixed>
      */
-    private function buildStemResearchPayload(string $schoolName, array $baseClauses, iterable $budgets, array $overrides): array
+    private function buildStemResearchPayload(string $schoolName, array $baseClauses, array $overrides): array
     {
         $clauses = [
             ...$baseClauses,
@@ -550,11 +665,10 @@ final class InstitutionPolicyTemplates
      * Autonomous Fast-Track payload.
      *
      * @param  array<int, array<string, string>>  $baseClauses
-     * @param  iterable<Budget>  $budgets
      * @param  array<string, string>  $overrides
      * @return array<string, mixed>
      */
-    private function buildAutonomousFastTrackPayload(string $schoolName, array $baseClauses, iterable $budgets, array $overrides): array
+    private function buildAutonomousFastTrackPayload(string $schoolName, array $baseClauses, array $overrides): array
     {
         $clauses = [
             ...$baseClauses,
@@ -618,11 +732,10 @@ final class InstitutionPolicyTemplates
      * Strict Governance & Maximum Oversight payload.
      *
      * @param  array<int, array<string, string>>  $baseClauses
-     * @param  iterable<Budget>  $budgets
      * @param  array<string, string>  $overrides
      * @return array<string, mixed>
      */
-    private function buildStrictGovernancePayload(string $schoolName, array $baseClauses, iterable $budgets, array $overrides): array
+    private function buildStrictGovernancePayload(string $schoolName, array $baseClauses, array $overrides): array
     {
         $clauses = [
             ...$baseClauses,

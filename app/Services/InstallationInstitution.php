@@ -30,19 +30,6 @@ class InstallationInstitution
             return $this->explicitOrganization;
         }
 
-        // 0. Explicit configuration lock (e.g. tests or dedicated single-institution environment)
-        $configuredId = config('eduflow.institution_id');
-        if ($configuredId !== null && $configuredId !== '') {
-            if (filter_var($configuredId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== false) {
-                $configuredOrg = Organization::query()->find((int) $configuredId);
-                if ($configuredOrg instanceof Organization) {
-                    return $configuredOrg;
-                }
-            }
-
-            return null;
-        }
-
         // 1. Route parameters (institution_id or institution) or query params
         if (app()->bound('request')) {
             /** @var Request|null $request */
@@ -94,6 +81,14 @@ class InstallationInstitution
         }
 
         if ($user instanceof User) {
+            $configuredId = config('eduflow.institution_id');
+            if ($configuredId !== null && $configuredId !== '') {
+                $expectedId = filter_var($configuredId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                if ($expectedId === false || (! empty($user->organization_id) && (int) $user->organization_id !== $expectedId)) {
+                    return null;
+                }
+            }
+
             if (! empty($user->organization_id)) {
                 $org = Organization::query()->find((int) $user->organization_id);
                 if ($org instanceof Organization) {
@@ -109,30 +104,57 @@ class InstallationInstitution
             }
         }
 
-        // 3. Stored institution from settings
+        // 3. Fallback to single-institution installation resolution
+        $id = config('eduflow.institution_id');
+        $configured = $id !== null && $id !== '';
+        $storedId = null;
+
         if (Schema::hasTable((new SettingsProperty)->getTable())) {
             $payload = SettingsProperty::query()->where('group', InstallationSettings::group())
                 ->where('name', 'institution_id')->value('payload');
-            $decoded = $payload === null ? null : json_decode((string) $payload, true);
-            if (is_int($decoded) && $decoded > 0) {
-                $org = Organization::query()->find($decoded);
-                if ($org instanceof Organization) {
-                    return $org;
-                }
+            $storedId = $payload === null ? null : json_decode((string) $payload, true);
+
+            if ($payload !== null && json_last_error() !== JSON_ERROR_NONE) {
+                return null;
+            }
+
+            if ($storedId !== null && (! is_int($storedId) || $storedId < 1)) {
+                return null;
             }
         }
 
-        // 4. Single-institution installation fallback / CLI & queue fallback
+        if (! $configured && $storedId !== null) {
+            $id = $storedId;
+            $configured = true;
+        }
+
+        if (! $configured && ! app()->environment(['local', 'testing'])) {
+            return null;
+        }
+
+        if ($configured && (! is_int($id) && ! is_string($id) || filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false)) {
+            return null;
+        }
+
+        // A configured ID does not make a shared-school database safe.
         $institutions = Organization::query()->limit(2)->get();
-        if ($institutions->count() === 1) {
-            return $institutions->first();
+
+        if ($institutions->count() !== 1) {
+            return null;
         }
 
-        if (app()->runningInConsole() || app()->environment(['local', 'testing'])) {
-            return Organization::query()->first();
+        $institution = $institutions->first();
+
+        if (! $institution instanceof Organization) {
+            return null;
         }
 
-        return null;
+        if (($configured && $institution->id !== (int) $id)
+            || ($storedId !== null && $institution->id !== $storedId)) {
+            return null;
+        }
+
+        return $institution;
     }
 
     public function require(?User $forUser = null): Organization

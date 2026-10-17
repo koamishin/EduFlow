@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Enums\SocialLoginProvider;
 use App\Features\FeatureRegistry;
 use App\Http\Controllers\DashboardController;
+use App\Services\ArcNetworkGateway as AppArcNetworkGateway;
 use App\Settings\ApplicationFeaturesSettings;
 use App\Settings\SocialLoginSettings;
 use Illuminate\Http\Request;
@@ -57,8 +58,18 @@ class HandleInertiaRequests extends Middleware
             ->values()
             ->all();
 
-        $networkGateway = app(ArcNetworkGateway::class);
-        $isMainnet = \App\Services\ArcNetworkGateway::isMainnetGateway($networkGateway);
+        $isMainnet = false;
+        $chainCode = (string) config('lepton.arc.chain', 'ARC-TESTNET');
+        $chainId = (int) config('lepton.arc.chain_id', 5042);
+
+        try {
+            $networkGateway = app(ArcNetworkGateway::class);
+            $isMainnet = AppArcNetworkGateway::isMainnetGateway($networkGateway);
+            $chainCode = $networkGateway->chainCode();
+            $chainId = $networkGateway->chainId();
+        } catch (\Throwable) {
+            // Keep default config values when gateway is not fully configured or mocked without network expectations
+        }
 
         return [
             ...parent::share($request),
@@ -66,11 +77,13 @@ class HandleInertiaRequests extends Middleware
             'network' => [
                 'isMainnet' => $isMainnet,
                 'name' => $isMainnet ? 'Arc Mainnet' : 'Arc Testnet',
-                'chainCode' => $networkGateway->chainCode(),
-                'chainId' => $networkGateway->chainId(),
-                'explorerUrl' => $isMainnet
-                    ? (string) config('lepton.explorer.mainnet', 'https://explorer.arc.network')
-                    : (string) config('lepton.explorer.testnet', 'https://testnet.arcscan.io'),
+                'chainCode' => $chainCode,
+                'chainId' => $chainId,
+                'explorerUrl' => AppArcNetworkGateway::normalizeExplorerUrl(
+                    $isMainnet
+                        ? (string) config('lepton.explorer.mainnet', 'https://explorer.arc.io')
+                        : (string) config('lepton.explorer.testnet', 'https://testnet.arcscan.app')
+                ),
             ],
             'auth' => [
                 'user' => $request->user(),

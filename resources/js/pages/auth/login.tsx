@@ -25,7 +25,11 @@ type Props = {
     hasInstitutions?: boolean;
 };
 
-export default function Login({ status, canResetPassword, hasInstitutions = true }: Props) {
+export default function Login({
+    status,
+    canResetPassword,
+    hasInstitutions = true,
+}: Props) {
     return (
         <>
             <Head title="Log in" />
@@ -44,12 +48,17 @@ export default function Login({ status, canResetPassword, hasInstitutions = true
                             Student Login Disabled
                         </p>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                            No educational institutions are registered on this system yet. Students cannot sign in until a school administrator completes institution setup.
+                            No educational institutions are registered on this
+                            system yet. Students cannot sign in until a school
+                            administrator completes institution setup.
                         </p>
                     </div>
                     <div className="pt-1">
                         <Link href="/institutions/register">
-                            <Button size="sm" className="w-full bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] font-semibold text-xs h-8">
+                            <Button
+                                size="sm"
+                                className="w-full bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] font-semibold text-xs h-8"
+                            >
                                 Register Educational Institution
                             </Button>
                         </Link>
@@ -124,7 +133,9 @@ export default function Login({ status, canResetPassword, hasInstitutions = true
                                 data-test="login-button"
                             >
                                 {processing && <Spinner />}
-                                {hasInstitutions ? 'Log in' : 'Student Login Disabled'}
+                                {hasInstitutions
+                                    ? 'Log in'
+                                    : 'Student Login Disabled'}
                             </Button>
                         </div>
 

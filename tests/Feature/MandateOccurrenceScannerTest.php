@@ -32,149 +32,161 @@ use Yukazakiri\Lepton\Contracts\ArcNetworkGateway;
  *
  * @param  array<string, mixed>  $c
  */
-function scannerBills(array $c, string $amount = '4.000000', int $dueInDays = 0): int
-{
-    $invoice = Invoice::query()->create([
-        'organization_id' => $c['institution']->id,
-        'vendor_id' => $c['vendor']->id,
-        'budget_id' => $c['budget']->id,
-        'reference' => 'MANDATE-'.Str::uuid(),
-        'amount' => '999999',
-        'due_date' => now()->addDays($dueInDays),
-        'category' => 'software',
-        'status' => 'pending',
-    ]);
+if (! function_exists('scannerBills')) {
+    function scannerBills(array $c, string $amount = '4.000000', int $dueInDays = 0): int
+    {
+        $invoice = Invoice::query()->create([
+            'organization_id' => $c['institution']->id,
+            'vendor_id' => $c['vendor']->id,
+            'budget_id' => $c['budget']->id,
+            'reference' => 'MANDATE-'.Str::uuid(),
+            'amount' => '999999',
+            'due_date' => now()->addDays($dueInDays),
+            'category' => 'software',
+            'status' => 'pending',
+        ]);
 
-    $bill = app(CaptureInvoiceVersion::class)->handle($c['actor'], $invoice, [
-        'capture_key' => (string) Str::uuid(),
-        'source_amount' => $amount,
-        'source_currency' => 'USDC',
-        'source_evidence' => 'synthetic-mandate-bill',
-        'business_approval_reference' => 'synthetic-contract-period',
-        'department' => 'IT department',
-        'period_start' => now()->toDateString(),
-        'period_end' => now()->addDays(14)->toDateString(),
-        'source_per_usdc' => '1',
-        'rate_source' => 'identity-reference',
-        'rate_observed_at' => now()->subMinute()->toIso8601String(),
-        'rounding' => 'down',
-    ]);
+        $bill = app(CaptureInvoiceVersion::class)->handle($c['actor'], $invoice, [
+            'capture_key' => (string) Str::uuid(),
+            'source_amount' => $amount,
+            'source_currency' => 'USDC',
+            'source_evidence' => 'synthetic-mandate-bill',
+            'business_approval_reference' => 'synthetic-contract-period',
+            'department' => 'IT department',
+            'period_start' => now()->toDateString(),
+            'period_end' => now()->addDays(14)->toDateString(),
+            'source_per_usdc' => '1',
+            'rate_source' => 'identity-reference',
+            'rate_observed_at' => now()->subMinute()->toIso8601String(),
+            'rounding' => 'down',
+        ]);
 
-    app(ReviewInvoiceVersion::class)->handle($c['reviewer'], $bill, $bill->snapshot_digest, 'approve_evidence', 'Synthetic source checked.');
+        app(ReviewInvoiceVersion::class)->handle($c['reviewer'], $bill, $bill->snapshot_digest, 'approve_evidence', 'Synthetic source checked.');
 
-    return $bill->id;
-}
-
-function scannerBalance(string $native = '100000000000000000007'): void
-{
-    $arc = Mockery::mock(ArcNetworkGateway::class);
-
-    if (! $arc instanceof ArcNetworkGateway) {
-        throw new RuntimeException('Mockery did not build an Arc gateway.');
+        return $bill->id;
     }
-
-    $arc->shouldReceive('chainCode')->andReturn('ARC-TESTNET');
-    $arc->shouldReceive('chainId')->andReturn(5042002);
-    mockExpectation($arc, 'rpc')->andReturnUsing(fn (string $method): mixed => match ($method) {
-        'eth_chainId' => '0x'.BigInteger::of(5042002)->toBase(16),
-        'eth_getBalance' => '0x'.BigInteger::of($native)->toBase(16),
-        'eth_getBlockByNumber' => ['number' => '0x64', 'hash' => '0x'.str_repeat('a', 64),
-            'timestamp' => '0x'.BigInteger::of(now()->timestamp - 1)->toBase(16)],
-        default => throw new RuntimeException('Unexpected Arc read: '.$method),
-    });
-    app()->instance(ArcNetworkGateway::class, $arc);
 }
 
-/** @param  array<string, mixed>  $c */
-function scannerLiveMandate(array $c, RecurringMandate $mandate): RecurringMandate
-{
-    // A reviewed, live funding window is a precondition for release, so the
-    // scanner has something real to read rather than an assumed reserve.
-    $snapshot = BudgetSnapshot::query()->where('organization_id', $c['institution']->id)
-        ->where('budget_id', $c['budget']->id)->latest('id')->firstOrFail();
+if (! function_exists('scannerBalance')) {
+    function scannerBalance(string $native = '100000000000000000007'): void
+    {
+        $arc = Mockery::mock(ArcNetworkGateway::class);
 
-    scannerBalance();
-    $window = app(PrepareFundingWindow::class)->handle($c['actor'], $snapshot, $c['wallet'],
-        (string) Str::uuid(), now()->addMinutes(10)->toIso8601String());
-    app(ApproveFundingWindow::class)->handle($c['reviewer'], $window, $window->snapshot_digest, 'Synthetic exclusive funds checked.');
+        if (! $arc instanceof ArcNetworkGateway) {
+            throw new RuntimeException('Mockery did not build an Arc gateway.');
+        }
 
-    return $mandate->fresh();
+        $arc->shouldReceive('chainCode')->andReturn('ARC-TESTNET');
+        $arc->shouldReceive('chainId')->andReturn(5042002);
+        mockExpectation($arc, 'rpc')->andReturnUsing(fn (string $method): mixed => match ($method) {
+            'eth_chainId' => '0x'.BigInteger::of(5042002)->toBase(16),
+            'eth_getBalance' => '0x'.BigInteger::of($native)->toBase(16),
+            'eth_getBlockByNumber' => ['number' => '0x64', 'hash' => '0x'.str_repeat('a', 64),
+                'timestamp' => '0x'.BigInteger::of(now()->timestamp - 1)->toBase(16)],
+            default => throw new RuntimeException('Unexpected Arc read: '.$method),
+        });
+        app()->instance(ArcNetworkGateway::class, $arc);
+    }
 }
 
-/**
- * Prepare and approve a mandate with explicit caps, returning the approved record.
- *
- * @param  array<string, mixed>  $c
- */
-function prepareAndApprove(array $c, string $ceiling = '5000000', string $daily = '10000000', string $period = '50000000'): RecurringMandate
-{
-    $input = mandateInput($c, $ceiling);
-    $input['daily_limit_base_units'] = $daily;
-    $input['period_limit_base_units'] = $period;
+if (! function_exists('scannerLiveMandate')) {
+    /** @param  array<string, mixed>  $c */
+    function scannerLiveMandate(array $c, RecurringMandate $mandate): RecurringMandate
+    {
+        // A reviewed, live funding window is a precondition for release, so the
+        // scanner has something real to read rather than an assumed reserve.
+        $snapshot = BudgetSnapshot::query()->where('organization_id', $c['institution']->id)
+            ->where('budget_id', $c['budget']->id)->latest('id')->firstOrFail();
 
-    $mandate = app(PrepareRecurringMandate::class)->handle($c['actor'], $input, (string) Str::uuid());
-    approveMandate($c, $mandate);
+        scannerBalance();
+        $window = app(PrepareFundingWindow::class)->handle($c['actor'], $snapshot, $c['wallet'],
+            (string) Str::uuid(), now()->addMinutes(10)->toIso8601String());
+        app(ApproveFundingWindow::class)->handle($c['reviewer'], $window, $window->snapshot_digest, 'Synthetic exclusive funds checked.');
 
-    return $mandate->fresh();
+        return $mandate->fresh();
+    }
 }
 
-/**
- * A reviewed budget snapshot containing the bills, without any funding window.
- *
- * The closed set is what makes a bill eligible at all; the funding window is a
- * separate, later precondition. Keeping them separable is what lets a test hold
- * one open and the other shut.
- *
- * @param  array<string, mixed>  $c
- * @param  array<int, int>  $billIds
- */
-function captureClosedSet(array $c, array $billIds): void
-{
-    app(CaptureBudgetSnapshot::class)->handle($c['actor'], $c['budget'], [
-        'capture_key' => (string) Str::uuid(), 'currency' => 'USDC', 'department' => 'IT department',
-        'period_start' => now()->toDateString(), 'period_end' => now()->addDays(14)->toDateString(),
-        'as_of' => now()->subMinute()->toIso8601String(), 'valid_until' => now()->addHour()->toIso8601String(),
-        'bill_ids' => $billIds, 'allocation' => '100', 'already_spent' => '0',
-        'other_budget_commitments' => '0', 'opening_funds' => '100', 'realized_receipts' => '0', 'actual_outflows' => '0',
-        'restricted_cash' => '0', 'protected_reserve' => '10', 'other_cash_commitments' => '0',
-        'budget_evidence' => 'synthetic-allocation', 'cash_evidence' => 'synthetic-opening',
-        'commitment_evidence' => 'synthetic-obligations', 'commitments_exclude_selected_bills' => true,
-        'cash_buckets_disjoint' => true, 'opening_funds_exclude_collections' => true, 'collection_review_ids' => [],
-    ]);
+if (! function_exists('prepareAndApprove')) {
+    /**
+     * Prepare and approve a mandate with explicit caps, returning the approved record.
+     *
+     * @param  array<string, mixed>  $c
+     */
+    function prepareAndApprove(array $c, string $ceiling = '5000000', string $daily = '10000000', string $period = '50000000'): RecurringMandate
+    {
+        $input = mandateInput($c, $ceiling);
+        $input['daily_limit_base_units'] = $daily;
+        $input['period_limit_base_units'] = $period;
+
+        $mandate = app(PrepareRecurringMandate::class)->handle($c['actor'], $input, (string) Str::uuid());
+        approveMandate($c, $mandate);
+
+        return $mandate->fresh();
+    }
 }
 
-/**
- * An approved mandate plus a reviewed, live funding window for its budget.
- *
- * The window is a precondition for release, so the scanner has something real
- * to read rather than an assumed reserve.
- *
- * @param  array<string, mixed>  $c
- * @param  array<int, int>  $billIds
- */
-function approveAndFund(array $c, string $ceiling = '5000000', array $billIds = [],
-    string $daily = '10000000', string $period = '50000000'): RecurringMandate
-{
-    $mandate = prepareAndApprove($c, $ceiling, $daily, $period);
+if (! function_exists('captureClosedSet')) {
+    /**
+     * A reviewed budget snapshot containing the bills, without any funding window.
+     *
+     * The closed set is what makes a bill eligible at all; the funding window is a
+     * separate, later precondition. Keeping them separable is what lets a test hold
+     * one open and the other shut.
+     *
+     * @param  array<string, mixed>  $c
+     * @param  array<int, int>  $billIds
+     */
+    function captureClosedSet(array $c, array $billIds): void
+    {
+        app(CaptureBudgetSnapshot::class)->handle($c['actor'], $c['budget'], [
+            'capture_key' => (string) Str::uuid(), 'currency' => 'USDC', 'department' => 'IT department',
+            'period_start' => now()->toDateString(), 'period_end' => now()->addDays(14)->toDateString(),
+            'as_of' => now()->subMinute()->toIso8601String(), 'valid_until' => now()->addHour()->toIso8601String(),
+            'bill_ids' => $billIds, 'allocation' => '100', 'already_spent' => '0',
+            'other_budget_commitments' => '0', 'opening_funds' => '100', 'realized_receipts' => '0', 'actual_outflows' => '0',
+            'restricted_cash' => '0', 'protected_reserve' => '10', 'other_cash_commitments' => '0',
+            'budget_evidence' => 'synthetic-allocation', 'cash_evidence' => 'synthetic-opening',
+            'commitment_evidence' => 'synthetic-obligations', 'commitments_exclude_selected_bills' => true,
+            'cash_buckets_disjoint' => true, 'opening_funds_exclude_collections' => true, 'collection_review_ids' => [],
+        ]);
+    }
+}
 
-    $snapshot = app(CaptureBudgetSnapshot::class)->handle($c['actor'], $c['budget'], [
-        'capture_key' => (string) Str::uuid(), 'currency' => 'USDC', 'department' => 'IT department',
-        'period_start' => now()->toDateString(), 'period_end' => now()->addDays(14)->toDateString(),
-        'as_of' => now()->subMinute()->toIso8601String(), 'valid_until' => now()->addHour()->toIso8601String(),
-        'bill_ids' => $billIds, 'allocation' => '100', 'already_spent' => '0',
-        'other_budget_commitments' => '0', 'opening_funds' => '100', 'realized_receipts' => '0', 'actual_outflows' => '0',
-        'restricted_cash' => '0', 'protected_reserve' => '10', 'other_cash_commitments' => '0',
-        'budget_evidence' => 'synthetic-allocation', 'cash_evidence' => 'synthetic-opening',
-        'commitment_evidence' => 'synthetic-obligations', 'commitments_exclude_selected_bills' => true,
-        'cash_buckets_disjoint' => true, 'opening_funds_exclude_collections' => true, 'collection_review_ids' => [],
-    ]);
+if (! function_exists('approveAndFund')) {
+    /**
+     * An approved mandate plus a reviewed, live funding window for its budget.
+     *
+     * The window is a precondition for release, so the scanner has something real
+     * to read rather than an assumed reserve.
+     *
+     * @param  array<string, mixed>  $c
+     * @param  array<int, int>  $billIds
+     */
+    function approveAndFund(array $c, string $ceiling = '5000000', array $billIds = [],
+        string $daily = '10000000', string $period = '50000000'): RecurringMandate
+    {
+        $mandate = prepareAndApprove($c, $ceiling, $daily, $period);
 
-    scannerBalance();
-    $window = app(PrepareFundingWindow::class)->handle($c['actor'], $snapshot, $c['wallet'],
-        (string) Str::uuid(), now()->addMinutes(10)->toIso8601String());
-    app(ApproveFundingWindow::class)->handle($c['reviewer'], $window, $window->snapshot_digest, 'Synthetic exclusive funds checked.');
+        $snapshot = app(CaptureBudgetSnapshot::class)->handle($c['actor'], $c['budget'], [
+            'capture_key' => (string) Str::uuid(), 'currency' => 'USDC', 'department' => 'IT department',
+            'period_start' => now()->toDateString(), 'period_end' => now()->addDays(14)->toDateString(),
+            'as_of' => now()->subMinute()->toIso8601String(), 'valid_until' => now()->addHour()->toIso8601String(),
+            'bill_ids' => $billIds, 'allocation' => '100', 'already_spent' => '0',
+            'other_budget_commitments' => '0', 'opening_funds' => '100', 'realized_receipts' => '0', 'actual_outflows' => '0',
+            'restricted_cash' => '0', 'protected_reserve' => '10', 'other_cash_commitments' => '0',
+            'budget_evidence' => 'synthetic-allocation', 'cash_evidence' => 'synthetic-opening',
+            'commitment_evidence' => 'synthetic-obligations', 'commitments_exclude_selected_bills' => true,
+            'cash_buckets_disjoint' => true, 'opening_funds_exclude_collections' => true, 'collection_review_ids' => [],
+        ]);
 
-    return $mandate->fresh();
+        scannerBalance();
+        $window = app(PrepareFundingWindow::class)->handle($c['actor'], $snapshot, $c['wallet'],
+            (string) Str::uuid(), now()->addMinutes(10)->toIso8601String());
+        app(ApproveFundingWindow::class)->handle($c['reviewer'], $window, $window->snapshot_digest, 'Synthetic exclusive funds checked.');
+
+        return $mandate->fresh();
+    }
 }
 
 test('the tick does nothing at all while the mandate runtime is off', function (): void {

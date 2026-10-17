@@ -81,6 +81,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('finance/policies/import', [InstitutionPolicyController::class, 'import'])->middleware('throttle:5,1')->name('finance.policies.import');
     Route::post('finance/policies', [InstitutionPolicyController::class, 'store'])->middleware('throttle:20,1')->name('finance.policies.store');
     Route::post('finance/policies/apply-template', [InstitutionPolicyController::class, 'applyTemplate'])->middleware('throttle:10,1')->name('finance.policies.apply-template');
+    Route::post('finance/policies/quick-activate', [InstitutionPolicyController::class, 'quickActivate'])->middleware('throttle:10,1')->name('finance.policies.quick-activate');
     Route::post('finance/policies/simulate', [InstitutionPolicyController::class, 'simulate'])->middleware('throttle:30,1')->name('finance.policies.simulate');
     Route::post('finance/policies/{institutionPolicyVersion}/assess', [InstitutionPolicyController::class, 'assess'])->middleware('throttle:5,1')->name('finance.policies.assess');
     Route::post('finance/policies/{institutionPolicyVersion}/publish', [InstitutionPolicyController::class, 'publish'])->middleware('throttle:5,1')->name('finance.policies.publish');

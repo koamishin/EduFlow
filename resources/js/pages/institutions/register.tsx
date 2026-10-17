@@ -18,7 +18,13 @@ import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -47,14 +53,14 @@ export default function InstitutionRegister({
         mainnet: {
             chainId: 5040,
             name: 'Arc Mainnet',
-            rpc: 'https://rpc.arc.network',
-            explorer: 'https://explorer.arc.network',
+            rpc: 'https://rpc.mainnet.arc.io',
+            explorer: 'https://explorer.arc.io',
         },
         testnet: {
             chainId: 5042,
             name: 'Arc Testnet',
-            rpc: 'https://testnet-rpc.arc.network',
-            explorer: 'https://testnet.arcscan.io',
+            rpc: 'https://rpc.testnet.arc.io',
+            explorer: 'https://testnet.arcscan.app',
         },
     },
 }: Props) {
@@ -84,7 +90,10 @@ export default function InstitutionRegister({
         setData((prev) => ({
             ...prev,
             name,
-            slug: prev.slug === '' || prev.slug === autoSlug.slice(0, -1) ? autoSlug : prev.slug,
+            slug:
+                prev.slug === '' || prev.slug === autoSlug.slice(0, -1)
+                    ? autoSlug
+                    : prev.slug,
         }));
     };
 
@@ -100,12 +109,16 @@ export default function InstitutionRegister({
         e.preventDefault();
         post('/institutions/register', {
             onSuccess: () => {
-                toast.success('Institution deployed successfully! Loading setup wizard...');
+                toast.success(
+                    'Institution deployed successfully! Loading setup wizard...',
+                );
             },
             onError: (errs) => {
                 const keys = Object.keys(errs);
                 const firstMsg = keys.length > 0 ? errs[keys[0]] : null;
-                toast.error(firstMsg || 'Please correct the highlighted form errors.');
+                toast.error(
+                    firstMsg || 'Please correct the highlighted form errors.',
+                );
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             },
         });
@@ -124,7 +137,10 @@ export default function InstitutionRegister({
                                 <Building2 className="size-3.5" />
                                 Multi-School Tenancy & Treasury
                             </span>
-                            <Badge variant="outline" className="text-xs border-[#c4a46c]/40 text-[#c4a46c]">
+                            <Badge
+                                variant="outline"
+                                className="text-xs border-[#c4a46c]/40 text-[#c4a46c]"
+                            >
                                 Arc Powered
                             </Badge>
                         </div>
@@ -132,7 +148,10 @@ export default function InstitutionRegister({
                             Deploy School Institution
                         </h1>
                         <p className="clay-body mt-2 text-sm text-[#b8b0a2] max-w-2xl">
-                            Create a dedicated institution tenancy with isolated accounting, Arc settlement rails (Mainnet & Testnet), and automated Circle Agent treasury management.
+                            Create a dedicated institution tenancy with isolated
+                            accounting, Arc settlement rails (Mainnet &
+                            Testnet), and automated Circle Agent treasury
+                            management.
                         </p>
                     </div>
 
@@ -161,12 +180,18 @@ export default function InstitutionRegister({
                         <div className="rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-200 shadow-md">
                             <div className="flex items-center gap-2 font-semibold text-red-400 mb-2">
                                 <AlertCircle className="size-4 shrink-0" />
-                                <span>Registration couldn't be completed. Please fix the following errors:</span>
+                                <span>
+                                    Registration couldn't be completed. Please
+                                    fix the following errors:
+                                </span>
                             </div>
                             <ul className="list-disc list-inside space-y-1 text-xs text-red-300">
                                 {Object.entries(errors).map(([field, msg]) => (
                                     <li key={field}>
-                                        <span className="font-semibold capitalize">{field.replace(/_/g, ' ')}:</span> {msg}
+                                        <span className="font-semibold capitalize">
+                                            {field.replace(/_/g, ' ')}:
+                                        </span>{' '}
+                                        {msg}
                                     </li>
                                 ))}
                             </ul>
@@ -184,13 +209,18 @@ export default function InstitutionRegister({
                                 </CardTitle>
                             </div>
                             <CardDescription className="text-xs text-[#8f8577]">
-                                Basic branding, subdomain slug, and regional settings for tenancy resolution.
+                                Basic branding, subdomain slug, and regional
+                                settings for tenancy resolution.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="name" className="text-xs font-medium text-[#d6cebf]">
-                                    School / Institution Name <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="name"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    School / Institution Name{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <Input
                                     id="name"
@@ -205,15 +235,21 @@ export default function InstitutionRegister({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="slug" className="text-xs font-medium text-[#d6cebf]">
-                                    Subdomain Slug <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="slug"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    Subdomain Slug{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <div className="flex rounded-md shadow-sm">
                                     <Input
                                         id="slug"
                                         name="slug"
                                         value={data.slug}
-                                        onChange={(e) => setData('slug', e.target.value)}
+                                        onChange={(e) =>
+                                            setData('slug', e.target.value)
+                                        }
                                         placeholder="st-jude"
                                         required
                                         className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c] rounded-r-none"
@@ -226,14 +262,19 @@ export default function InstitutionRegister({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="domain" className="text-xs font-medium text-[#d6cebf]">
+                                <Label
+                                    htmlFor="domain"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
                                     Custom Domain (Optional)
                                 </Label>
                                 <Input
                                     id="domain"
                                     name="domain"
                                     value={data.domain}
-                                    onChange={(e) => setData('domain', e.target.value)}
+                                    onChange={(e) =>
+                                        setData('domain', e.target.value)
+                                    }
                                     placeholder="finance.stjude.edu"
                                     className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
                                 />
@@ -241,14 +282,20 @@ export default function InstitutionRegister({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="country" className="text-xs font-medium text-[#d6cebf]">
-                                    Country <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="country"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    Country{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <Input
                                     id="country"
                                     name="country"
                                     value={data.country}
-                                    onChange={(e) => setData('country', e.target.value)}
+                                    onChange={(e) =>
+                                        setData('country', e.target.value)
+                                    }
                                     placeholder="e.g. Kenya, Philippines, United States"
                                     required
                                     className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
@@ -257,14 +304,20 @@ export default function InstitutionRegister({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="timezone" className="text-xs font-medium text-[#d6cebf]">
-                                    Timezone <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="timezone"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    Timezone{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <Input
                                     id="timezone"
                                     name="timezone"
                                     value={data.timezone}
-                                    onChange={(e) => setData('timezone', e.target.value)}
+                                    onChange={(e) =>
+                                        setData('timezone', e.target.value)
+                                    }
                                     placeholder="UTC, Africa/Nairobi, Asia/Manila"
                                     required
                                     className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
@@ -291,7 +344,8 @@ export default function InstitutionRegister({
                                 </Badge>
                             </div>
                             <CardDescription className="text-xs text-[#8f8577]">
-                                Choose autonomous Circle Agent wallet automation or specify an Arc cold/multisig treasury vault.
+                                Choose autonomous Circle Agent wallet automation
+                                or specify an Arc cold/multisig treasury vault.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-6">
@@ -303,12 +357,20 @@ export default function InstitutionRegister({
                                             <Network className="size-3.5 text-[#c4a46c]" />
                                             {arcNetworks.mainnet.name}
                                         </span>
-                                        <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400">
-                                            Chain ID: {arcNetworks.mainnet.chainId}
+                                        <Badge
+                                            variant="outline"
+                                            className="text-[10px] border-emerald-500/40 text-emerald-400"
+                                        >
+                                            Chain ID:{' '}
+                                            {arcNetworks.mainnet.chainId}
                                         </Badge>
                                     </div>
-                                    <p className="text-[#8f8577] text-[11px] truncate">RPC: {arcNetworks.mainnet.rpc}</p>
-                                    <p className="text-[#8f8577] text-[11px] truncate">Explorer: {arcNetworks.mainnet.explorer}</p>
+                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                        RPC: {arcNetworks.mainnet.rpc}
+                                    </p>
+                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                        Explorer: {arcNetworks.mainnet.explorer}
+                                    </p>
                                 </div>
 
                                 <div className="rounded-xl border border-[var(--clay-border,#2e2924)] bg-[#191612] p-3 text-xs space-y-1.5">
@@ -317,12 +379,20 @@ export default function InstitutionRegister({
                                             <Network className="size-3.5 text-[#c4a46c]" />
                                             {arcNetworks.testnet.name}
                                         </span>
-                                        <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-400">
-                                            Chain ID: {arcNetworks.testnet.chainId}
+                                        <Badge
+                                            variant="outline"
+                                            className="text-[10px] border-amber-500/40 text-amber-400"
+                                        >
+                                            Chain ID:{' '}
+                                            {arcNetworks.testnet.chainId}
                                         </Badge>
                                     </div>
-                                    <p className="text-[#8f8577] text-[11px] truncate">RPC: {arcNetworks.testnet.rpc}</p>
-                                    <p className="text-[#8f8577] text-[11px] truncate">Explorer: {arcNetworks.testnet.explorer}</p>
+                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                        RPC: {arcNetworks.testnet.rpc}
+                                    </p>
+                                    <p className="text-[#8f8577] text-[11px] truncate">
+                                        Explorer: {arcNetworks.testnet.explorer}
+                                    </p>
                                 </div>
                             </div>
 
@@ -332,14 +402,18 @@ export default function InstitutionRegister({
                                     <div className="flex items-center gap-2">
                                         <Sparkles className="size-4 text-[#c4a46c]" />
                                         <span className="text-sm font-semibold text-white">
-                                            Autonomous Circle Agent Treasury Wallet
+                                            Autonomous Circle Agent Treasury
+                                            Wallet
                                         </span>
                                         <Badge className="bg-[#c4a46c]/20 text-[#c4a46c] text-[10px] border-none">
                                             Recommended
                                         </Badge>
                                     </div>
                                     <p className="text-xs text-[#a39886]">
-                                        Automatically configures Circle Agent Stack smart contract wallet with gas abstraction and automated spending limits on Arc.
+                                        Automatically configures Circle Agent
+                                        Stack smart contract wallet with gas
+                                        abstraction and automated spending
+                                        limits on Arc.
                                     </p>
                                 </div>
                                 <Switch
@@ -352,28 +426,40 @@ export default function InstitutionRegister({
                             {/* Manual Address Input (if disabled or custom) */}
                             {!useAgentWallet ? (
                                 <div className="space-y-2">
-                                    <Label htmlFor="treasury_address" className="text-xs font-medium text-[#d6cebf]">
-                                        Arc Treasury Address <span className="text-red-400">*</span>
+                                    <Label
+                                        htmlFor="treasury_address"
+                                        className="text-xs font-medium text-[#d6cebf]"
+                                    >
+                                        Arc Treasury Address{' '}
+                                        <span className="text-red-400">*</span>
                                     </Label>
                                     <div className="relative">
                                         <Input
                                             id="treasury_address"
                                             name="treasury_address"
                                             value={data.treasury_address}
-                                            onChange={(e) => setData('treasury_address', e.target.value)}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'treasury_address',
+                                                    e.target.value,
+                                                )
+                                            }
                                             placeholder="0x..."
                                             required={!useAgentWallet}
                                             className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white font-mono text-xs focus:border-[#c4a46c] pl-8"
                                         />
                                         <WalletIcon className="absolute left-2.5 top-2.5 size-4 text-[#8f8577]" />
                                     </div>
-                                    <InputError message={errors.treasury_address} />
+                                    <InputError
+                                        message={errors.treasury_address}
+                                    />
                                 </div>
                             ) : (
                                 <div className="rounded-lg bg-[#181613] p-3 text-xs text-[#a39886] flex items-center justify-between border border-[var(--clay-border,#2e2924)]">
                                     <span className="flex items-center gap-2">
                                         <CheckCircle2 className="size-4 text-emerald-400" />
-                                        Circle Agent stack will bind and manage treasury disbursements autonomously.
+                                        Circle Agent stack will bind and manage
+                                        treasury disbursements autonomously.
                                     </span>
                                     <span className="font-mono text-[11px] text-[#c4a46c] truncate max-w-[200px]">
                                         {defaultTreasury}
@@ -395,19 +481,27 @@ export default function InstitutionRegister({
                                 </CardTitle>
                             </div>
                             <CardDescription className="text-xs text-[#8f8577]">
-                                Initial governance credential with immediate super_admin role and access to the Finance command hub.
+                                Initial governance credential with immediate
+                                super_admin role and access to the Finance
+                                command hub.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <Label htmlFor="admin_name" className="text-xs font-medium text-[#d6cebf]">
-                                    Administrator Name <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="admin_name"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    Administrator Name{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <Input
                                     id="admin_name"
                                     name="admin_name"
                                     value={data.admin_name}
-                                    onChange={(e) => setData('admin_name', e.target.value)}
+                                    onChange={(e) =>
+                                        setData('admin_name', e.target.value)
+                                    }
                                     placeholder="Dean / Provost / Chief Financial Officer"
                                     required
                                     className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
@@ -416,15 +510,21 @@ export default function InstitutionRegister({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="admin_email" className="text-xs font-medium text-[#d6cebf]">
-                                    Administrator Email <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="admin_email"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    Administrator Email{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <Input
                                     id="admin_email"
                                     name="admin_email"
                                     type="email"
                                     value={data.admin_email}
-                                    onChange={(e) => setData('admin_email', e.target.value)}
+                                    onChange={(e) =>
+                                        setData('admin_email', e.target.value)
+                                    }
                                     placeholder="cfo@institution.edu"
                                     required
                                     className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
@@ -433,14 +533,23 @@ export default function InstitutionRegister({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="admin_password" className="text-xs font-medium text-[#d6cebf]">
-                                    Password <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="admin_password"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    Password{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <PasswordInput
                                     id="admin_password"
                                     name="admin_password"
                                     value={data.admin_password}
-                                    onChange={(e) => setData('admin_password', e.target.value)}
+                                    onChange={(e) =>
+                                        setData(
+                                            'admin_password',
+                                            e.target.value,
+                                        )
+                                    }
                                     placeholder="Strong governance password"
                                     required
                                     className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
@@ -449,19 +558,30 @@ export default function InstitutionRegister({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="admin_password_confirmation" className="text-xs font-medium text-[#d6cebf]">
-                                    Confirm Password <span className="text-red-400">*</span>
+                                <Label
+                                    htmlFor="admin_password_confirmation"
+                                    className="text-xs font-medium text-[#d6cebf]"
+                                >
+                                    Confirm Password{' '}
+                                    <span className="text-red-400">*</span>
                                 </Label>
                                 <PasswordInput
                                     id="admin_password_confirmation"
                                     name="admin_password_confirmation"
                                     value={data.admin_password_confirmation}
-                                    onChange={(e) => setData('admin_password_confirmation', e.target.value)}
+                                    onChange={(e) =>
+                                        setData(
+                                            'admin_password_confirmation',
+                                            e.target.value,
+                                        )
+                                    }
                                     placeholder="Repeat password"
                                     required
                                     className="bg-[#1c1915] border-[var(--clay-border,#2e2924)] text-white focus:border-[#c4a46c]"
                                 />
-                                <InputError message={errors.admin_password_confirmation} />
+                                <InputError
+                                    message={errors.admin_password_confirmation}
+                                />
                             </div>
                         </CardContent>
                     </Card>
@@ -469,7 +589,9 @@ export default function InstitutionRegister({
                     {/* Submit Bar */}
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[var(--clay-border,#2e2924)]">
                         <div className="text-xs text-[#8f8577]">
-                            Baseline budget lines (Technology, Operations, Assistance, Equipment) will be initialized automatically.
+                            Baseline budget lines (Technology, Operations,
+                            Assistance, Equipment) will be initialized
+                            automatically.
                         </div>
 
                         <Button

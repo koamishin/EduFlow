@@ -599,3 +599,87 @@ test('filament jev widgets render correctly with both empty and populated data',
     Livewire::test(JevDecisionsTrendChart::class)->assertSuccessful();
     Livewire::test(JevCategoryDistributionChart::class)->assertSuccessful();
 });
+
+test('budget_snapshot evaluations aggregate all line categories and classify partial cash headroom holds as policy matches', function (): void {
+    $service = app(JevAnalyticsService::class);
+    $budget = Budget::factory()->create(['organization_id' => $this->org->id]);
+
+    $snapshotId = DB::table('budget_snapshots')->insertGetId([
+        'capture_key' => (string) Str::uuid(),
+        'organization_id' => $this->org->id,
+        'budget_id' => $budget->id,
+        'prepared_by' => $this->financeOfficer->id,
+        'currency' => 'USDC',
+        'snapshot' => json_encode(['test' => true]),
+        'snapshot_digest' => str_repeat('1', 64),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    DB::table('institution_policy_evaluations')->insert([
+        'organization_id' => $this->org->id,
+        'institution_policy_version_id' => $this->policy->id,
+        'requested_by' => $this->financeOfficer->id,
+        'request_key' => (string) Str::uuid(),
+        'source_type' => 'budget_snapshot',
+        'source_id' => $snapshotId,
+        'source_digest' => str_repeat('4', 64),
+        'policy_digest' => str_repeat('5', 64),
+        'publication_digest' => str_repeat('6', 64),
+        'reason' => 'Multi-category budget snapshot test',
+        'input' => json_encode(['source_type' => 'budget_snapshot', 'source_id' => $snapshotId]),
+        'input_digest' => str_repeat('7', 64),
+        'state' => 'completed',
+        'stage' => 'completed',
+        'completed_targets' => 3,
+        'total_targets' => 3,
+        'timeline' => json_encode([]),
+        'result' => json_encode([
+            'lines' => [
+                [
+                    'decision' => 'propose_human_review',
+                    'category_id' => 'supplier-invoices',
+                    'confidence' => 98,
+                    'explanation' => 'JEV matched "Approved Supplier Invoices" (98% confidence).',
+                    'checks' => ['policy_classified' => true, 'within_available_cash' => true],
+                ],
+                [
+                    'decision' => 'propose_human_review',
+                    'category_id' => 'budget-technology',
+                    'confidence' => 95,
+                    'explanation' => 'JEV matched "IT & Campus Technology" (95% confidence).',
+                    'checks' => ['policy_classified' => true, 'within_available_cash' => true],
+                ],
+                [
+                    'decision' => 'hold_for_review',
+                    'category_id' => 'budget-equipment',
+                    'confidence' => 92,
+                    'explanation' => 'JEV matched "STEM Lab & Capital Equipment" (92% confidence). Held due to remaining cash headroom.',
+                    'checks' => ['policy_classified' => true, 'within_available_cash' => false],
+                ],
+            ],
+        ]),
+        'result_digest' => str_repeat('8', 64),
+        'created_at' => now(),
+        'completed_at' => now()->addSeconds(5),
+        'updated_at' => now()->addSeconds(5),
+    ]);
+
+    $breakdown = $service->decisionBreakdown($this->org->id);
+    $categories = collect($breakdown['categories'])->keyBy('id');
+
+    expect($breakdown['match'])->toBeGreaterThanOrEqual(1)
+        ->and($categories->has('supplier-invoices'))->toBeTrue()
+        ->and($categories->has('budget-technology'))->toBeTrue()
+        ->and($categories->has('budget-equipment'))->toBeTrue()
+        ->and($categories['supplier-invoices']['name'])->toBe('Approved Supplier Invoices')
+        ->and($categories['budget-technology']['name'])->toBe('IT & Campus Technology')
+        ->and($categories['budget-equipment']['name'])->toBe('STEM Lab & Capital Equipment');
+
+    $audit = $service->recentAuditLog($this->org->id, 5);
+    $snapshotRow = collect($audit)->firstWhere('source_type', 'budget_snapshot');
+    expect($snapshotRow)->not->toBeNull()
+        ->and($snapshotRow['jev_decision'])->toBe('match')
+        ->and($snapshotRow['category_name'])->toContain('Approved Supplier Invoices')
+        ->and($snapshotRow['confidence_percent'])->toBe(95);
+});

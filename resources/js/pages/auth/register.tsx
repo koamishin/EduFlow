@@ -43,9 +43,15 @@ export default function Register({
     hasInstitutions,
     currentInstitution = null,
 }: Props) {
-    const isInstitutionAvailable = hasInstitutions ?? (institutions.length > 0 || currentInstitution !== null);
+    const isInstitutionAvailable =
+        hasInstitutions ??
+        (institutions.length > 0 || currentInstitution !== null);
     const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>(
-        currentInstitution?.id ? String(currentInstitution.id) : (institutions[0]?.id ? String(institutions[0].id) : '')
+        currentInstitution?.id
+            ? String(currentInstitution.id)
+            : institutions[0]?.id
+              ? String(institutions[0].id)
+              : '',
     );
     const [walletAddress, setWalletAddress] = useState<string>('');
     const [isWalletVerified, setIsWalletVerified] = useState<boolean>(false);
@@ -56,11 +62,14 @@ export default function Register({
         setWalletError(null);
         const ethereum =
             typeof window !== 'undefined'
-                ? (window as unknown as { ethereum?: EthereumProvider }).ethereum
+                ? (window as unknown as { ethereum?: EthereumProvider })
+                      .ethereum
                 : undefined;
 
         if (!ethereum) {
-            setWalletError('No EIP-1193 wallet (MetaMask, Phantom, Rainbow) detected. Please enter your Arc address manually below.');
+            setWalletError(
+                'No EIP-1193 wallet (MetaMask, Phantom, Rainbow) detected. Please enter your Arc address manually below.',
+            );
             return;
         }
 
@@ -96,7 +105,10 @@ export default function Register({
                 // Even if signature is cancelled, the connected address is captured
             }
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to connect wallet.';
+            const errorMessage =
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to connect wallet.';
             setWalletError(errorMessage);
         } finally {
             setConnectingWallet(false);
@@ -116,12 +128,19 @@ export default function Register({
                             Student Registration Unavailable
                         </h2>
                         <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-                            No educational institutions have been registered or configured on this OpenSinop deployment yet. Students cannot enroll or register Web3 payout wallets until an institution administrator sets up the school treasury.
+                            No educational institutions have been registered or
+                            configured on this OpenSinop deployment yet.
+                            Students cannot enroll or register Web3 payout
+                            wallets until an institution administrator sets up
+                            the school treasury.
                         </p>
                     </div>
 
                     <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-                        <Link href="/institutions/register" className="w-full sm:w-auto">
+                        <Link
+                            href="/institutions/register"
+                            className="w-full sm:w-auto"
+                        >
                             <Button className="w-full sm:w-auto bg-[#c4a46c] text-stone-950 hover:bg-[#d6b77e] font-semibold text-xs px-6 py-2.5">
                                 Register Educational Institution
                             </Button>
@@ -130,7 +149,10 @@ export default function Register({
 
                     <div className="pt-4 border-t border-border/60 text-xs text-muted-foreground">
                         Already an administrator?{' '}
-                        <TextLink href={login()} className="font-semibold text-foreground hover:underline">
+                        <TextLink
+                            href={login()}
+                            className="font-semibold text-foreground hover:underline"
+                        >
                             Log In to Console
                         </TextLink>
                     </div>
@@ -159,11 +181,16 @@ export default function Register({
                                             <Building2 className="size-3.5" />
                                             Enrolling School
                                         </span>
-                                        <Badge variant="outline" className="text-[10px] border-[#c4a46c]/40 text-[#c4a46c]">
+                                        <Badge
+                                            variant="outline"
+                                            className="text-[10px] border-[#c4a46c]/40 text-[#c4a46c]"
+                                        >
                                             Locked
                                         </Badge>
                                     </div>
-                                    <p className="text-sm font-medium text-white">{currentInstitution.name}</p>
+                                    <p className="text-sm font-medium text-white">
+                                        {currentInstitution.name}
+                                    </p>
                                     <input
                                         type="hidden"
                                         name="institution_id"
@@ -172,21 +199,33 @@ export default function Register({
                                 </div>
                             ) : institutions.length > 0 ? (
                                 <div className="grid gap-2">
-                                    <Label htmlFor="institution_id">Select Institution</Label>
+                                    <Label htmlFor="institution_id">
+                                        Select Institution
+                                    </Label>
                                     <select
                                         id="institution_id"
                                         name="institution_id"
                                         value={selectedInstitutionId}
-                                        onChange={(e) => setSelectedInstitutionId(e.target.value)}
+                                        onChange={(e) =>
+                                            setSelectedInstitutionId(
+                                                e.target.value,
+                                            )
+                                        }
                                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                                     >
                                         {institutions.map((inst) => (
-                                            <option key={inst.id} value={inst.id} className="bg-background text-foreground">
+                                            <option
+                                                key={inst.id}
+                                                value={inst.id}
+                                                className="bg-background text-foreground"
+                                            >
                                                 {inst.name}
                                             </option>
                                         ))}
                                     </select>
-                                    <InputError message={errors.institution_id} />
+                                    <InputError
+                                        message={errors.institution_id}
+                                    />
                                 </div>
                             ) : null}
 
@@ -203,7 +242,10 @@ export default function Register({
                                     name="name"
                                     placeholder="Jane Doe"
                                 />
-                                <InputError message={errors.name} className="mt-1" />
+                                <InputError
+                                    message={errors.name}
+                                    className="mt-1"
+                                />
                             </div>
 
                             <div className="grid gap-2">
@@ -223,7 +265,10 @@ export default function Register({
                             {/* Student Academic Identity */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="student_id_number" className="flex items-center gap-1.5">
+                                    <Label
+                                        htmlFor="student_id_number"
+                                        className="flex items-center gap-1.5"
+                                    >
                                         <GraduationCap className="size-3.5 text-muted-foreground" />
                                         Student ID Number
                                     </Label>
@@ -235,11 +280,15 @@ export default function Register({
                                         name="student_id_number"
                                         placeholder="STU-2026-0891"
                                     />
-                                    <InputError message={errors.student_id_number} />
+                                    <InputError
+                                        message={errors.student_id_number}
+                                    />
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="department">Department</Label>
+                                    <Label htmlFor="department">
+                                        Department
+                                    </Label>
                                     <Input
                                         id="department"
                                         type="text"
@@ -265,14 +314,18 @@ export default function Register({
                                             Signature Verified
                                         </Badge>
                                     ) : (
-                                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                        <Badge
+                                            variant="outline"
+                                            className="text-[10px] text-muted-foreground"
+                                        >
                                             EIP-1193 / Arc
                                         </Badge>
                                     )}
                                 </div>
 
                                 <p className="text-xs text-muted-foreground">
-                                    Used to receive grants, stipends, and verify tuition payment claims on Arc.
+                                    Used to receive grants, stipends, and verify
+                                    tuition payment claims on Arc.
                                 </p>
 
                                 {/* 1-Click Connect Wallet Button */}
@@ -291,19 +344,26 @@ export default function Register({
                                     ) : (
                                         <>
                                             <ShieldCheck className="size-4 text-[#c4a46c]" />
-                                            1-Click Connect Browser Wallet (MetaMask / Rainbow)
+                                            1-Click Connect Browser Wallet
+                                            (MetaMask / Rainbow)
                                         </>
                                     )}
                                 </Button>
 
                                 {walletError && (
-                                    <p className="text-xs text-amber-500/90">{walletError}</p>
+                                    <p className="text-xs text-amber-500/90">
+                                        {walletError}
+                                    </p>
                                 )}
 
                                 {/* Manual Wallet Fallback Input */}
                                 <div className="space-y-1.5 pt-1">
-                                    <Label htmlFor="wallet_address" className="text-[11px] text-muted-foreground">
-                                        Or enter Arc address manually (0x... 40 hex characters)
+                                    <Label
+                                        htmlFor="wallet_address"
+                                        className="text-[11px] text-muted-foreground"
+                                    >
+                                        Or enter Arc address manually (0x... 40
+                                        hex characters)
                                     </Label>
                                     <Input
                                         id="wallet_address"
@@ -319,7 +379,9 @@ export default function Register({
                                         placeholder="0x71C...49A"
                                         className="font-mono text-xs"
                                     />
-                                    <InputError message={errors.wallet_address} />
+                                    <InputError
+                                        message={errors.wallet_address}
+                                    />
                                 </div>
                             </div>
 
@@ -382,5 +444,6 @@ export default function Register({
 
 Register.layout = {
     title: 'Create an account',
-    description: 'Enter your student credentials and Arc payout wallet to enroll',
+    description:
+        'Enter your student credentials and Arc payout wallet to enroll',
 };
